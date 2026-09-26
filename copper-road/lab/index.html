@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Copper Road Laboratory</title>
+  <meta name="description" content="Caravans of the Copper Road, build step A: the world clock, the road network and a handful of wayfarers, running live in your browser.">
+  <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IM+Fell+English+SC&family=EB+Garamond:ital,wght@0,400;0,600;1,400;1,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="lab.css">
+</head>
+<body>
+  <main class="lab">
+    <p class="crumb"><a href="../../">← Back to the ledger</a> · <a href="../../spec.html">Design spec</a></p>
+    <header class="lab-head">
+      <p class="eyebrow">Caravans of the Copper Road</p>
+      <h1>The Laboratory</h1>
+      <p class="tagline">Build step A: the clock, the roads and a dozen wayfarers. No trade yet, only a world that keeps time.</p>
+    </header>
+
+    <section class="controls" aria-label="Time controls">
+      <div class="clock" aria-live="off">
+        <span id="clock-sky" class="sky">Day</span>
+        <span id="clock-time" class="time">05:30</span>
+        <span id="clock-date" class="date"></span>
+      </div>
+      <div class="group" role="group" aria-label="Speed">
+        <button data-speed="0" title="Pause (space)">Pause</button>
+        <button data-speed="1" title="One day per ten minutes (2)">1×</button>
+        <button data-speed="5" title="(3)">5×</button>
+        <button data-speed="20" title="(4)">20×</button>
+        <button data-speed="100" title="(5)">100×</button>
+      </div>
+      <div class="group" role="group" aria-label="Skip ahead">
+        <button id="step-hour">+1 hour</button>
+        <button id="step-day">+1 day</button>
+        <button id="to-dawn">To dawn</button>
+      </div>
+      <div class="group seed">
+        <label for="seed">Seed</label>
+        <input id="seed" type="text" inputmode="numeric" value="1" size="6" autocomplete="off">
+        <button id="reset">New world</button>
+      </div>
+    </section>
+
+    <div class="lab-grid">
+      <figure class="map-wrap">
+        <div class="canvas-box"><canvas id="map" aria-label="Map of the Copper Road with travellers moving along the roads"></canvas></div>
+        <figcaption class="legend">
+          <span><i class="lg road"></i>road</span>
+          <span><i class="lg forest"></i>forest track</span>
+          <span><i class="lg hills"></i>hill path</span>
+          <span><i class="lg marsh"></i>marsh causeway</span>
+          <span><i class="dot moving"></i>on the road</span>
+          <span><i class="dot fire"></i>camped</span>
+          <span><i class="dot resting"></i>resting</span>
+        </figcaption>
+      </figure>
+
+      <aside class="panels">
+        <section class="panel" aria-labelledby="inspector-h">
+          <h2 id="inspector-h">Inspector</h2>
+          <div id="inspector-body"></div>
+        </section>
+
+        <section class="panel" aria-labelledby="chronicle-h">
+          <h2 id="chronicle-h">Chronicle</h2>
+          <ol id="chronicle-list" class="chronicle"></ol>
+        </section>
+      </aside>
+    </div>
+
+    <div class="lab-lower">
+      <section class="panel" aria-labelledby="routes-h">
+        <h2 id="routes-h">Route explorer</h2>
+        <p class="hint">Every way between two places, if you left right now. Hover a row to see it on the map; click to pin it.</p>
+        <div class="route-form">
+          <label>From <select id="route-from"></select></label>
+          <label>To <select id="route-to"></select></label>
+          <label>Travelling <select id="route-mode"></select></label>
+        </div>
+        <div class="table-wrap">
+          <table id="route-table">
+            <thead><tr><th>Road</th><th class="num">km</th><th>Time</th><th>Arrive</th><th>Danger</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="check-h">
+        <h2 id="check-h">Determinism check</h2>
+        <p>The build gate for step A: <em>100 simulated days run in seconds, deterministically</em>.
+          This runs a fresh world for 100 days as fast as your browser can. For seed 1 it compares the result with the same run in Node.js.</p>
+        <p><button id="run-check">Run 100 days</button></p>
+        <div id="check-result" aria-live="polite"></div>
+        <p class="small"><button id="hash-now" class="linkish">Fingerprint the live world</button> <span id="hash-result"></span></p>
+      </section>
+    </div>
+
+    <footer class="lab-foot">
+      <p>Keys: <kbd>space</kbd> pause · <kbd>1</kbd>–<kbd>5</kbd> speed. At 1×, one game day lasts ten real minutes.
+        The simulation core is plain JavaScript and runs the same way in Node for the automated tests.</p>
+    </footer>
+  </main>
+  <script type="module" src="lab.js"></script>
+</body>
+</html>

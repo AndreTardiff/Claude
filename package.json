@@ -1,0 +1,14 @@
+{
+  "name": "copper-road",
+  "private": true,
+  "type": "module",
+  "description": "Caravans of the Copper Road: simulation laboratory, plus Andre's personal site.",
+  "scripts": {
+    "test": "node --test \"copper-road/test/*.test.js\"",
+    "sim": "node copper-road/tools/run.js",
+    "reference": "node copper-road/tools/reference.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

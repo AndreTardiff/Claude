@@ -21,6 +21,12 @@ In `index.html`, add a new `<li>` at the **top** of the `<ol class="log">` list:
 </li>
 ```
 
+## Caravans of the Copper Road
+
+The game prototype lives in [`copper-road/`](copper-road/README.md): a headless simulation core,
+tests (`npm test`), and a browser laboratory at `copper-road/lab/`. The design spec is
+[`docs/copper-road-spec-v0.2.md`](docs/copper-road-spec-v0.2.md), rendered at `spec.html`.
+
 ## Files
 
 - `index.html` – page content (About, Progress log, footer)

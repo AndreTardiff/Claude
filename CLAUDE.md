@@ -21,6 +21,20 @@ and the home of **Caravans of the Copper Road**, a living-world merchant simulat
 - Tests: Node's built-in test runner (`node --test`). Automate acceptance tests where measurable.
 - Every simulation decision stores a human-readable reason for the inspector.
 
+## Commands
+- `npm test`: all tests, including the build-step gates.
+- `npm run sim -- --seed 1 --days 100`: headless run with summary and chronicle.
+- `npm run reference`: regenerate `copper-road/lab/reference.json` whenever simulation outcomes change
+  (a test fails until you do). The lab compares browser runs against it.
+- Lab locally: `python3 -m http.server` at the repo root, then open `/copper-road/lab/`.
+  Chromium for screenshots lives at `/opt/pw-browsers/chromium-*/chrome-linux*/chrome`.
+
+## Determinism rules (enforced by copper-road/test/determinism-lint.test.js)
+- No Math.random, Date, performance.now, timers or DOM in `copper-road/src/`.
+- No Math.sin/cos/exp/log/pow or `**` (engine-dependent). Arithmetic and Math.sqrt are fine.
+- All mutable state lives in `sim.state` as plain JSON. Randomness comes from named streams: `sim.rng('name')`.
+- Log entries store ids, not display names; text is rendered by `narrative/describe.js`.
+
 ## Site
 - `index.html` + `style.css`: merchant's-ledger theme (parchment / copper, dark mode).
 - New progress entries go at the top of the `.log` list; stage pills use `class="done"` / `class="now"`.

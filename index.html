@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Andre Tardiff</title>
   <meta name="description" content="Personal page and progress log for Andre Tardiff.">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IM+Fell+English+SC&family=EB+Garamond:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
@@ -32,12 +33,12 @@
           You get rich by reading roads, prices, timing and risk better than anyone else.
           The first goal is a small simulation laboratory: three towns, a handful of roads, and one question.
           Does it tell stories on its own?</p>
-        <p class="links"><a href="spec.html">Read the design spec (v0.2.1) →</a></p>
+        <p class="links"><a href="copper-road/lab/">Open the laboratory →</a> · <a href="spec.html">Read the design spec (v0.2.1)</a></p>
 
         <!-- Stages: mark the current one with class="now", finished ones with class="done". -->
         <ol class="stages" aria-label="Project stages">
-          <li class="now">Define</li>
-          <li>Laboratory</li>
+          <li class="done">Define</li>
+          <li class="now">Laboratory</li>
           <li>Observe</li>
           <li>Play</li>
           <li>Validate</li>
@@ -50,6 +51,13 @@
       <h2>Progress</h2>
       <!-- Add new entries at the top of this list. -->
       <ol class="log">
+        <li>
+          <time datetime="2026-09-26">Sep 26, 2026</time>
+          <p><strong>Build step A complete.</strong> The simulation core is running: a world clock with seasons and daylight,
+            the road network (floods in spring, a pass snowed shut in winter), and a dozen wayfarers who choose their roads by
+            speed and nerve. A hundred days take about 20 milliseconds, and the same seed gives the same world in Node and in your browser.
+            <a href="copper-road/lab/">Watch it run in the laboratory</a>.</p>
+        </li>
         <li>
           <time datetime="2026-09-26">Sep 26, 2026</time>
           <p>Spec v0.2.1: you inherit the family stall and the family debt. Lord Aldric of Kingscross has moods, wants,

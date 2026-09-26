@@ -331,6 +331,8 @@ Reference points: *Stardew Valley*'s day lasts about 14 real minutes (a pace tha
 
 So a caravan's round trip is roughly 5–10 minutes at 5×. That's long enough for the world to change and short enough to stay interesting.
 
+**Measured in step A (wagon, 3.5 km/h).** Summer trips between neighbouring towns take 1.5–2.3 days. Winter's short days roughly double every trip. With the High Pass snowed shut, Copperford ↔ Greenhollow takes ~8 days and Greenhollow ↔ Saltmouth ~9. The Blackpine Track takes ~0.7× the King's Road's travelling time (the target was ~0.6; the map's geometry limits it). These are tuning levers, not fixed decisions.
+
 ## 17. Style modules
 Each module must name the thesis question it tests.
 
