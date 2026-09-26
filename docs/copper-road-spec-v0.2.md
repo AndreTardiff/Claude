@@ -1,7 +1,7 @@
 # Caravans of the Copper Road
-## Simulation Prototype Design Specification — v0.2
+## Simulation Prototype Design Specification — v0.2.1
 
-*Supersedes v0.1 ([original document](copper-road-spec-v0.1.docx)). Status: prototype design authority. Target: a headless simulation core with a browser prototype (HTML5 canvas). Godot is a later option if we decide to go big.*
+*v0.2.1 adds: the player's starting situation, Lord Aldric as a named character, and drifting names (§15.1, §15.2, §17.1). Supersedes v0.1 ([original document](copper-road-spec-v0.1.docx)). Status: prototype design authority. Target: a headless simulation core with a browser prototype (HTML5 canvas). Godot is a later option if we decide to go big.*
 
 > **What changed in v0.2, in one breath.** The player is now a *person in one place* who learns about the world through letters that travel at road speed. There are two theses to prove, not one: the world must be worth watching, *and* the player's choices must be hard and meaningful. The closed three-town economy is opened with seasons, an Outside port, a copper mint, and money sinks that grow with a merchant's wealth. Every citizen does economic work, and the player's home town gets full Ultima VII-style daily schedules. Raiders fence, starve, recruit and bury treasure. Caravans leave with standing orders. Style modules (place names earned by history, ledger UI, songs, the Wending Fair) are scheduled in, each tied to a prototype question.
 
@@ -293,6 +293,24 @@ v0.1 reports stay (dispatch, encounter, market news, personal and item history, 
 | **Bankruptcy** | Net worth below –X, no credit | **Not game over:** you become a bonded factor for a rival for N seasons, then restart from a stall with your knowledge and contacts |
 | **Death** | Travelling with a caravan that loses an encounter | Your **heir** (a named relative, or a factor you've named) inherits the ledger, the debts and the mercenaries' loyalty, which may be lower |
 
+### 15.1 Starting situation
+The player inherits **the family stall in Kingscross and the family's debt**, both at once. A parent has just died (the first entry in the ledger is theirs). The stall comes with a little stock, one loyal but aging porter, a handful of the parent's old contacts (some of them letters that are still in transit), and a note owed to the Kingscross money-changer. The heir system (above) means this is also how every *later* heir starts: the game is a lineage from the first minute.
+
+### 15.2 The lord: a named character
+**Lord Aldric of Kingscross** (working name) is a **regional agent** like a merchant, not a faceless treasury.
+| Attribute | Effect |
+|---|---|
+| **Wants** (2–3 active, shifting) | e.g. *luxuries for his daughter's wedding*, *copper for the Crown's war levy*, *a bridge repaired*. Wants create demand, contracts and favour. |
+| **Moods** | Content / anxious / greedy / grieving / ill. Mood scales tolls, the wealth levy, forced-loan appetite and generosity. |
+| **Favour** per merchant | Earned by filling wants and paying levies. Spent on licences, toll relief, protection. Lost by refusing forced loans. |
+| **Treasury** | Real coin: taxes in, garrison wages and projects out. An empty treasury makes him greedy. |
+| **Age and health** | He ages. He can die of old age, illness, a raid, or something less natural. |
+| **Succession** | An heir (with different traits and wants) takes over, or, if there is no clear heir, a rival claimant, a Crown steward or a creditor house replaces him. Each successor rewrites the tax and toll rules a little. |
+
+The prototype needs the wants, the moods, the treasury and a simple succession. Politics beyond Kingscross stays out of scope.
+
+**Deferred:** the player turning fence or raider (§23). Revisit when raider ecology (step E) and the player (step G) both exist.
+
 **Goals.** In the prototype the aim is to survive, grow net worth, and not be the one who gets ruined. For the full game (to brainstorm):
 - **Ambitions** chosen at the start ("buy back the family mill", "found a road", "ruin the Vell family").
 - A **royal charter**.
@@ -327,11 +345,22 @@ Each module must name the thesis question it tests.
 | **Debts of the dead** | Debts pass to heirs; collectors hold grudges | T2 stakes | Prototype (with §15) |
 | **The Wending Fair** | See §18 | T1 anti-stagnation | Experiment K |
 
+### 17.1 Drifting names (a shared system)
+Earned place names, the tortoise's nicknames and, later, people's epithets are all one system. A **name** is a claim that spreads like a rumour:
+```
+Name
+  subject      (route segment | place | the Carrier | person)
+  text         ("Mother Kettle", "the Old Carrier", "Slowmarch", "Blackpine Hollow")
+  origin       (event id or group that coined it)
+  popularity   per settlement (0–1), spread by travellers and songs, decays unless reinforced
+```
+Different towns can call the same thing different names at the same time. Greenhollow farmers say *Mother Kettle*, Kingscross merchants say *the Old Carrier*, and raiders say *Slowmarch*. Events and influence shift the popularity: a trampled harvest might spread *the Grey Ruin* for a season. The map, reports and letters use whichever name is most popular **where the writer lives**, so the names themselves tell you where information came from. The cartographer's map is simply the Kingscross view.
+
 ## 18. The Wending Fair (low-fantasy spitball)
 
 **The rule:** a low-fantasy world where *one* impossible thing is treated as ordinary.
 
-**The Old Carrier** is a tortoise the size of a hill, ancient and slow. For three hundred years a travelling fair, the **Wending Fair**, has lived on its shell: lashed timber stalls, rope bridges, a chapel and a moneychanger's tower. The tortoise follows a **seasonal grazing circuit** between salt licks and river meadows. Nobody steers it. The **Shell-Readers**, a guild of priests, predict its route from its moods.
+**The Old Carrier** (also *Mother Kettle*, *Slowmarch* and whatever else catches on; see §17.1) is a tortoise the size of a hill, ancient and slow. For three hundred years a travelling fair, the **Wending Fair**, has lived on its shell: lashed timber stalls, rope bridges, a chapel and a moneychanger's tower. The tortoise follows a **seasonal grazing circuit** between salt licks and river meadows. Nobody steers it. The **Shell-Readers**, a guild of priests, predict its route from its moods.
 
 **Why it's mechanically good, not just weird**
 - **A moving market fixes a static economy.** Route distances, prices and danger shift as the Fair moves. There is no permanent best route.
@@ -402,11 +431,10 @@ The v0.1 table is kept, plus:
 | The town view is charming but the player ignores it | Tie more information (rumours, hiring, contracts) to being physically present |
 
 ## 23. Open questions
-1. The player's starting situation: an inherited debt? a family stall? a disgraced factor?
-2. The lord of Kingscross: a named character with moods and wants, or a faceless treasury in the prototype?
-3. Can the player *become* a raider or fence? (Tempting; probably post-prototype.)
-4. How visible should the "ledger" UI metaphor be in the town view?
-5. Does the Old Carrier have a name the locals use? (Working suggestion: *Mother Kettle*.)
+1. How visible should the "ledger" UI metaphor be in the town view?
+2. *(Deferred)* Can the player become a fence or raider? Revisit after steps E and G.
+
+Resolved in v0.2.1: starting situation (§15.1), the lord (§15.2), the Carrier's names (§17.1).
 
 ## 24. Commandment (unchanged)
 **Build the laboratory before the empire.** A small world that is already worth watching, understanding and exploiting beats a large one full of systems.
