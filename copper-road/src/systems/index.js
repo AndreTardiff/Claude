@@ -3,5 +3,9 @@
 
 import { almanac } from './almanac.js';
 import { wayfarers } from './wayfarers.js';
+import { residents } from './residents.js';
+import { economy } from './economy.js';
 
-export const SYSTEMS = [almanac, wayfarers];
+// Order matters for init: the economy sizes its markets from the residents.
+// Daily hooks: residents (apprentices learn, vacancies fill) settle before the economy.
+export const SYSTEMS = [almanac, wayfarers, residents, economy];

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Headless run: node copper-road/tools/run.js [--seed 1] [--days 100] [--wayfarers 12] [--chronicle 12] [--json]
 
-import { Simulation, WORLD, describe, routesLabel } from '../src/index.js';
+import { Simulation, WORLD, describe, economyIndex, quote, routesLabel, tradeOpportunities } from '../src/index.js';
 
 const args = process.argv.slice(2);
 const opt = (name, fallback) => {
@@ -58,6 +58,30 @@ if (args.includes('--json')) {
   console.log('Journeys completed, by road:');
   for (const [k, v] of Object.entries(roads).sort((a, b) => b[1] - a[1])) {
     console.log(`  ${k.padEnd(40)} ${String(v).padStart(4)}  ${((100 * v) / arrivals).toFixed(0)}%`);
+  }
+  const ix = economyIndex(sim.data);
+  const col = (s, w) => String(s).padStart(w);
+  console.log('');
+  console.log('Markets (price in marks, days of supply in brackets):');
+  console.log('  ' + 'good'.padEnd(11) + ix.markets.map((m) => col(sim.graph.nodes.get(m).name, 17)).join(''));
+  for (const gid of ix.goodIds) {
+    const cells = ix.markets.map((sid) => {
+      const q = quote(sim, sid, gid);
+      const days = q.daysLeft === null ? '' : ` (${q.daysLeft >= 999 ? '999+' : q.daysLeft.toFixed(0)}d)`;
+      return col(q.price.toFixed(1) + days, 17);
+    });
+    console.log('  ' + gid.padEnd(11) + cells.join(''));
+  }
+  console.log('  ' + 'hunger'.padEnd(11) + ix.markets.map((sid) => col(sim.state.economy.hunger[sid].toFixed(2), 17)).join(''));
+  const opps = tradeOpportunities(sim, { limit: 5 });
+  if (opps.length) {
+    console.log('');
+    console.log('Best trades right now (30 units by wagon, perfect knowledge):');
+    for (const o of opps) {
+      const from = sim.graph.nodes.get(o.from).name;
+      const to = sim.graph.nodes.get(o.to).name;
+      console.log(`  ${o.good.padEnd(9)} ${from} ${o.buy.toFixed(1)} → ${to} ${o.sell.toFixed(1)}  ${o.days.toFixed(1)} days  profit ${o.profit.toFixed(0)} (${o.perDay.toFixed(0)}/day)`);
+    }
   }
   if (chronicle > 0) {
     console.log('');

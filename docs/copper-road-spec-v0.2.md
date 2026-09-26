@@ -1,7 +1,7 @@
 # Caravans of the Copper Road
-## Simulation Prototype Design Specification — v0.2.1
+## Simulation Prototype Design Specification — v0.2.2
 
-*v0.2.1 adds: the player's starting situation, Lord Aldric as a named character, and drifting names (§15.1, §15.2, §17.1). Supersedes v0.1 ([original document](copper-road-spec-v0.1.docx)). Status: prototype design authority. Target: a headless simulation core with a browser prototype (HTML5 canvas). Godot is a later option if we decide to go big.*
+*v0.2.2 adds: step B's economy as built (§8.5), traveller livelihoods (§10.1), the living map from camps to towns (§17.2) and winter's rewards (§16). v0.2.1 added the player's starting situation, Lord Aldric and drifting names (§15.1, §15.2, §17.1). Supersedes v0.1 ([original document](copper-road-spec-v0.1.docx)). Status: prototype design authority. Target: a headless simulation core with a browser prototype (HTML5 canvas). Godot is a later option if we decide to go big.*
 
 > **What changed in v0.2, in one breath.** The player is now a *person in one place* who learns about the world through letters that travel at road speed. There are two theses to prove, not one: the world must be worth watching, *and* the player's choices must be hard and meaningful. The closed three-town economy is opened with seasons, an Outside port, a copper mint, and money sinks that grow with a merchant's wealth. Every citizen does economic work, and the player's home town gets full Ultima VII-style daily schedules. Raiders fence, starve, recruit and bury treasure. Caravans leave with standing orders. Style modules (place names earned by history, ledger UI, songs, the Wending Fair) are scheduled in, each tied to a prototype question.
 
@@ -161,10 +161,11 @@ Travel times are long enough that prices change while caravans are on the road (
 Each settlement has, for each good: `current_stock, desired_stock, production, consumption, base_value, local_price`.
 
 ```
-scarcity = desired_stock / max(current_stock, minimum_stock)
-price    = base_value × clamp(scarcity ^ elasticity, lo, hi) × season_mod × event_mod
+scarcity     = desired_stock / max(current_stock, 2% of desired_stock)
+stock_factor = (floor + cap·q·x) / (1 + q·x),   x = scarcity^power (power 1 or 2),  q = (1 − floor)/(cap − 1)
+price        = base_value × local_factor × stock_factor
 ```
-`elasticity` is higher for essential goods. Buying moves stock immediately; selling adds stock before the price is recalculated. Debug overlays show every part of the price.
+The stock factor is 1 when a town holds exactly what it wants, rises smoothly toward `cap` as stock runs out, and falls toward `floor` in a glut. Essentials (grain, salt, medicine) use power 2 and a wide range (×0.3 to ×5), so shortages bite hard and fast; luxuries stay within ×0.5 to ×2. `local_factor` is 1 in the towns and the world price at the Outside. Seasonality doesn't need its own price term: it arrives through need (winter wants firewood, autumn wants salt) and through production (the harvest). Buying moves stock immediately, and the lab's quotes integrate the price over a trade, so dumping 30 sacks into a small market fetches less than 30 × today's price. Every quote carries its parts for the inspector.
 
 ### 8.2 Production comes from people
 Production is not a settlement constant. It is **the sum of the workers' output**:
@@ -209,6 +210,18 @@ score            = revenue - purchase - travel - risk - info_uncertainty
 ```
 Merchants act only on **their own knowledge records**. Stale knowledge produces believable mistakes.
 
+### 8.5 Step B as built
+- **Named residents** in every town (122 people), each with a trade, a skill and a home. Production is the sum of their work: `rate × season × skill × hunger factor × tool factor × effort`.
+- **Elastic trades** (miners, woodcutters, smiths, weavers) work harder when their output is dear locally and slack off in a glut (effort 35%–125%). **Inelastic** ones (farmers, shepherds) bring in what the season gives. Without trade, Copperford's miners idle because nobody nearby wants the ore.
+- **Crafters need inputs.** Without ore, Kingscross's smiths manage only 20% makeshift output from scrap. This is the slow restoring force that keeps an interrupted town limping instead of collapsing.
+- **Hunger** is a slow average of how much grain went uneaten; a starving town works at 60%. **Tools** wear out and are replaced from stock; a town with no spare tools also works at 60%.
+- **Succession:** when a worker dies, a labourer (or a dependant) takes up the trade two days later as an apprentice and learns on the job (AT-09).
+- **Storage and spoilage:** grain spoils slowly; anything beyond a town's storage is lost.
+- **The Outside:** ships pull Saltmouth's stocks back toward fixed anchors at world prices (salt ×0.6, ore ×1.35 and so on).
+- **Travellers are consumers:** wayfarers eat where they stay and buy provisions from the market they leave.
+- **Market news** turns band changes (running low, all but out, back in the market, piling up unsold, the harvest) into chronicle entries, at most once per story every ten days.
+- **Without merchants (until step D)** the result is the opportunity map the game is built on: Kingscross and Copperford run out of grain in the second year, salt runs out everywhere when autumn salting starts, Greenhollow's tools wear out, and Copperford's ore piles up. The lab's opportunity board prices what fixing that is worth.
+
 ## 9. Living world: residents and schedules
 
 ### 9.1 Goal
@@ -251,6 +264,17 @@ Same loop as v0.1, with these changes:
 - Merchants reroute only at route nodes, or when a courier catches up with them.
 - **Couriers** are lightweight caravans carrying letters (cargo value ≈ information value).
 - Personality parameters as in v0.1, plus **honesty** (for factors and partners) and **ambition** (willingness to pay levies versus hide wealth).
+
+### 10.1 Traveller livelihoods (Andre's idea, staged)
+Travellers should live like everyone else: they carry a purse and goods, earn a living, pay for lodging and food, and may get robbed or murdered for what they carry.
+| Piece | Step |
+|---|---|
+| Eat where they stay; buy provisions before a trip | **B (built)** |
+| Purses; paying for food, lodging and tolls; wages for work done | C (coin) |
+| Peddling: a wayfarer with a small pack is the smallest merchant (buy cheap, sell dear) | D (merchants) |
+| Robbery and murder for what they carry; fenced goods and stolen letters | E (raiders) |
+| Homes and rent; the prosperous upgrade (cottage → townhouse), the ruined downsize or take to the road | I (town view) |
+| A traveller who can't pay for lodging sleeps rough, joins a camp or becomes a raider | E / §17.2 |
 
 ## 11. Raiders as economic actors
 | Behaviour | Economic effect |
@@ -333,6 +357,8 @@ So a caravan's round trip is roughly 5–10 minutes at 5×. That's long enough f
 
 **Measured in step A (wagon, 3.5 km/h).** Summer trips between neighbouring towns take 1.5–2.3 days. Winter's short days roughly double every trip. With the High Pass snowed shut, Copperford ↔ Greenhollow takes ~8 days and Greenhollow ↔ Saltmouth ~9. The Blackpine Track takes ~0.7× the King's Road's travelling time (the target was ~0.6; the map's geometry limits it). These are tuning levers, not fixed decisions.
 
+**Winter is harsh, and it pays.** Andre's rule: punishing winter routes are fine if a successful winter run is worth more. Step B shows the reward side emerging on its own. Winter need for firewood (×3) and medicine (×2.5), autumn salting (salt ×3) and the snowed-in High Pass push winter prices up: at Kingscross, firewood runs about 60% dearer than in summer, and medicine two to three times dearer. Step D must confirm that the best winter trips beat the best summer trips per journey (a new acceptance test, AT-25), even though they take longer.
+
 ## 17. Style modules
 Each module must name the thesis question it tests.
 
@@ -357,6 +383,23 @@ Name
   popularity   per settlement (0–1), spread by travellers and songs, decays unless reinforced
 ```
 Different towns can call the same thing different names at the same time. Greenhollow farmers say *Mother Kettle*, Kingscross merchants say *the Old Carrier*, and raiders say *Slowmarch*. Events and influence shift the popularity: a trampled harvest might spread *the Grey Ruin* for a season. The map, reports and letters use whichever name is most popular **where the writer lives**, so the names themselves tell you where information came from. The cartographer's map is simply the Kingscross view.
+
+### 17.2 The living map: camps become towns (Andre's idea)
+Settlements are born, grow and die. When travellers are stranded (both ways blocked by snow, flood or raiders) they make camp together, especially travellers who share a faction, faith or temper. A camp that nothing feeds disperses and leaves a mark on the map (a cold hearth, a ruined stockade, salvage). A camp that keeps getting supplied, because it sits on a busy road, near a resource or at a safe distance from raiders, grows.
+
+| Stage | Holds on if… | Grows into the next stage when… | Collapse leaves |
+|---|---|---|---|
+| **Camp** | stranded people have food | a trade flows through, or someone stays to sell to travellers | a cold hearth (a named place) |
+| **Waystation** | an inn or trader keeps it supplied | traffic and a water source hold for a season | an empty inn |
+| **Outpost** | guards are paid; raiders keep away | the lord or a guild invests; workers settle | a burned stockade (salvage: timber, tools) |
+| **Fort / hamlet** | walls and workers | families, a market day, a harvest | ruins (a place-name that outlives it) |
+| **Village → town** | as any settlement | population and trade | as any settlement |
+
+Growth runs on the same economy as everything else: people, need, production, storage and a market. A new settlement is a new node on the route graph with its own market. The names system (§17.1) names it, and drifting names can remember it after it's gone ("Oswin's Stockade", long burned).
+
+**Prerequisites.** Step B already keeps each settlement's economy as runtime state, so markets can be created mid-game. The route graph is still static data and must become runtime state too. Camps from *stranded* travellers need closures travellers can't foresee: sudden early snow, flash floods, a raided bridge (weather surprises, step E). Planned closures are avoided by the route planner, so nobody gets stranded today.
+
+**Scope.** Post-prototype, except one experiment after step E: stranded travellers form a camp that either disperses or becomes a waystation. It serves T1 (memorable, legible stories) and tests whether the map can evolve without scripts.
 
 ## 18. The Wending Fair (low-fantasy spitball)
 
@@ -407,6 +450,8 @@ Simulation state is separate from rendering. The simulation is data-driven: good
 
 The browser page on the site grows with the project: A–G show headless charts and logs; H onward is playable.
 
+**Status (September 2026):** A and B are complete. The lab shows the clock, roads and travellers (A) and every town's market, its people, price history, an opportunity board and lab tools (B). Step C (coin) is next.
+
 ## 21. Acceptance tests
 **AT-01 to AT-15 are kept from v0.1** (autonomy, price response, merchant response, physical trade, disruption, competition, risk sensitivity, day cycle, persistent death, contextual experience, combat explanation, player parity, debug legibility, performance, interest test).
 
@@ -422,6 +467,9 @@ New tests:
 | AT-22 | Seasons | Seasonal price cycles are visible, and at least one route is best only in some seasons |
 | AT-23 | Every resident works | Removing any resident changes some measurable output (production, service or security) |
 | AT-24 | Raider ecology | Unemployment raises raider recruitment; a starving winter shifts raids or disbands a group |
+| AT-25 | Winter pays | The best winter trips earn more per journey than the best summer trips, even though they take longer |
+
+Automated so far: the step A and B gates, AT-02 (price response to a forced shortage), AT-09 (a death leaves a vacancy that an apprentice fills), the seasonal half of AT-22, and a preview of AT-07 (bold and wary travellers choose different roads).
 
 ## 22. Continue / revise / kill
 The v0.1 table is kept, plus:
@@ -435,6 +483,8 @@ The v0.1 table is kept, plus:
 ## 23. Open questions
 1. How visible should the "ledger" UI metaphor be in the town view?
 2. *(Deferred)* Can the player become a fence or raider? Revisit after steps E and G.
+3. Should famine kill? Today hunger only slows work. Deaths, migration to better-fed towns and a shrinking population would make shortages permanent until someone fixes them. That's strong, but harsh.
+4. Coin denominations for step C: a single "mark", or marks and pennies (1 mark = 12 pennies) for cheap goods like grain?
 
 Resolved in v0.2.1: starting situation (§15.1), the lord (§15.2), the Carrier's names (§17.1).
 

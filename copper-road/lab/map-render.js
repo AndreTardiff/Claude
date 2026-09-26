@@ -1,7 +1,8 @@
 // Parchment map renderer for the laboratory. Reads simulation state; never changes it.
 
 import { DECOR } from './decor.js';
-import { segmentConditions, wayfarerPosition } from '../src/index.js';
+import { priceMultiplier, quote, segmentConditions, wayfarerPosition } from '../src/index.js';
+import { money, pressure } from './format.js';
 
 const TERRAIN_STYLE = {
   road: { width: 2.4, dash: [], color: 'ink' },
@@ -92,6 +93,8 @@ export function createMapRenderer(canvas, world) {
       night: v('--map-night'),
       nightStrength: Number(v('--map-night-strength')) || 0.6,
       highlight: v('--map-highlight'),
+      cheap: v('--cheap'),
+      dear: v('--dear'),
       vignette: v('--map-vignette'),
     };
   }
@@ -470,7 +473,44 @@ export function createMapRenderer(canvas, world) {
     };
   }
 
-  function draw({ sim, t, selected, highlight }) {
+  // Price of one good at each market: a chip with a pressure glyph and the price.
+  // Glyph shape and text carry the meaning; colour only reinforces it.
+  function drawPriceBadges(sim, gid) {
+    if (!gid || !sim.state.economy) return;
+    const font = `600 ${scaled(12.5)}px system-ui, -apple-system, "Segoe UI", sans-serif`;
+    for (const n of world.nodes) {
+      if (n.kind === 'waypoint' || !sim.state.economy.markets[n.id]) continue;
+      const q = quote(sim, n.id, gid);
+      const p = pressure(priceMultiplier(q));
+      const [dx, dy, align] = DECOR.badges[n.id] ?? [10, 12, 'left'];
+      const text = money(q.price);
+      ctx.font = font;
+      const tw = ctx.measureText(text).width;
+      const gw = scaled(10);
+      const w = gw + 4 + tw + 12;
+      const h = scaled(12.5) + 8;
+      const x0 = n.x * k + dx - (align === 'right' ? w : 0);
+      const y0 = n.y * k + dy - h / 2;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(x0, y0, w, h, 4);
+      else ctx.rect(x0, y0, w, h);
+      ctx.fillStyle = colors.paper;
+      ctx.fill();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = colors.border;
+      ctx.stroke();
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = 'left';
+      ctx.fillStyle = p.cls === 'cheap' ? colors.cheap : p.cls === 'dear' ? colors.dear : colors.muted;
+      ctx.font = `${scaled(10)}px system-ui, sans-serif`;
+      ctx.fillText(p.glyph, x0 + 6, y0 + h / 2 + 0.5);
+      ctx.font = font;
+      ctx.fillStyle = colors.ink;
+      ctx.fillText(text, x0 + 6 + gw + 4, y0 + h / 2 + 0.5);
+    }
+  }
+
+  function draw({ sim, t, selected, highlight, priceGood }) {
     if (!colors) readColors();
     if (!W) resize();
     hits = [];
@@ -492,6 +532,7 @@ export function createMapRenderer(canvas, world) {
       ctx.restore();
     }
     drawAfterNight();
+    drawPriceBadges(sim, priceGood);
     if (selected?.kind === 'node') {
       const n = nodeById.get(selected.id);
       ctx.beginPath();

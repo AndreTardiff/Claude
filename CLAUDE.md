@@ -34,6 +34,14 @@ and the home of **Caravans of the Copper Road**, a living-world merchant simulat
 - No Math.sin/cos/exp/log/pow or `**` (engine-dependent). Arithmetic and Math.sqrt are fine.
 - All mutable state lives in `sim.state` as plain JSON. Randomness comes from named streams: `sim.rng('name')`.
 - Log entries store ids, not display names; text is rendered by `narrative/describe.js`.
+- Outside instructions (lab tools, later the player) go through `sim.command(kind, data)`, never direct state edits.
+- Goods never teleport: stock changes only via work, use, spoilage, storage limits, the Outside's ships,
+  travellers' provisions, and (from step D) physical trade.
+
+## Lab charts
+- Load the `dataviz` skill before changing chart code. Chart colours live in `copper-road/lab/lab.css`
+  (`--chart-*`, `--cheap`, `--dear`) and were validated against the parchment surfaces; re-run the
+  skill's validator if you change them.
 
 ## Site
 - `index.html` + `style.css`: merchant's-ledger theme (parchment / copper, dark mode).

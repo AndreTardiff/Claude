@@ -34,6 +34,13 @@ export const DECOR = {
   fields: [
     { points: [[22, 118], [40, 112], [52, 118], [60, 132], [44, 146], [24, 140]] },
   ],
+  // Price badges per market: [dx, dy] in screen pixels from the node, and which side they grow.
+  badges: {
+    kingscross: [10, 12, 'left'],
+    copperford: [-10, 12, 'right'],
+    greenhollow: [10, 34, 'left'],
+    saltmouth: [-10, -14, 'right'],
+  },
   // Label placement per node: [dx, dy] in screen pixels from the node, and text alignment.
   labels: {
     kingscross: [10, -9, 'left'],

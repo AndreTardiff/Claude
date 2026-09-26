@@ -18,7 +18,8 @@
     <header class="lab-head">
       <p class="eyebrow">Caravans of the Copper Road</p>
       <h1>The Laboratory</h1>
-      <p class="tagline">Build step A: the clock, the roads and a dozen wayfarers. No trade yet, only a world that keeps time.</p>
+      <p class="tagline">Build step B: goods, prices, harvests and the people who make them. Named workers in every town
+        produce and consume; prices rise and fall with what's in store. There are no merchants yet, so nothing moves between towns.</p>
     </header>
 
     <section class="controls" aria-label="Time controls">
@@ -50,6 +51,10 @@
       <figure class="map-wrap">
         <div class="canvas-box"><canvas id="map" aria-label="Map of the Copper Road with travellers moving along the roads"></canvas></div>
         <figcaption class="legend">
+          <label class="price-pick">Prices on the map <select id="price-good"></select></label>
+          <span><b class="pressure cheap">▼</b> cheap</span>
+          <span><b class="pressure even">●</b> near its worth</span>
+          <span><b class="pressure dear">▲</b> dear</span>
           <span><i class="lg road"></i>road</span>
           <span><i class="lg forest"></i>forest track</span>
           <span><i class="lg hills"></i>hill path</span>
@@ -67,10 +72,39 @@
         </section>
 
         <section class="panel" aria-labelledby="chronicle-h">
-          <h2 id="chronicle-h">Chronicle</h2>
-          <ol id="chronicle-list" class="chronicle"></ol>
+          <div class="panel-head">
+            <h2 id="chronicle-h">Chronicle</h2>
+            <label class="small">Show <select id="chronicle-filter">
+              <option value="all">everything</option>
+              <option value="town">towns &amp; markets</option>
+              <option value="travel">travellers</option>
+            </select></label>
+          </div>
+          <ol id="chronicle-list" class="chronicle" data-filter="all"></ol>
         </section>
       </aside>
+    </div>
+
+    <section class="panel" id="markets-panel" aria-labelledby="markets-h">
+      <h2 id="markets-h">Markets</h2>
+      <p class="banner"><strong>No merchants yet.</strong> Until build step D, goods can't move between towns, so Kingscross and
+        Copperford slowly run out of grain, salt runs out everywhere when autumn salting begins, and Greenhollow's tools wear out.
+        The opportunity board shows what that's worth to whoever fixes it.</p>
+      <div id="markets"></div>
+    </section>
+
+    <div class="lab-lower">
+      <section class="panel" aria-labelledby="opps-h">
+        <h2 id="opps-h">Opportunity board</h2>
+        <p class="hint">The best wagon loads right now: 30 units, 3 crew eating as they go, prices moving as you buy and sell.
+          This is the lab's all-seeing view. Merchants in step D will only know what letters and rumours tell them.</p>
+        <div id="opps"></div>
+      </section>
+      <section class="panel" aria-labelledby="tools-h">
+        <h2 id="tools-h">Lab tools</h2>
+        <p class="hint">Meddle with the world. Every intervention is an ordinary event: it shows in the chronicle and replays exactly.</p>
+        <div id="tools"></div>
+      </section>
     </div>
 
     <div class="lab-lower">
@@ -92,7 +126,7 @@
 
       <section class="panel" aria-labelledby="check-h">
         <h2 id="check-h">Determinism check</h2>
-        <p>The build gate for step A: <em>100 simulated days run in seconds, deterministically</em>.
+        <p>Every build step keeps this promise: <em>100 simulated days run in seconds, and the same seed always makes the same world</em>.
           This runs a fresh world for 100 days as fast as your browser can. For seed 1 it compares the result with the same run in Node.js.</p>
         <p><button id="run-check">Run 100 days</button></p>
         <div id="check-result" aria-live="polite"></div>

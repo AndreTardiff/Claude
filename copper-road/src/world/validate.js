@@ -113,6 +113,68 @@ export function validateWorld(data) {
     }
   }
 
+  // Economy
+  const eco = data.economy;
+  if (eco) {
+    const goodIds = new Set();
+    for (const g of eco.goods) {
+      if (goodIds.has(g.id)) err(`duplicate good ${g.id}`);
+      goodIds.add(g.id);
+      if (!(g.base > 0)) err(`good ${g.id}: base value must be > 0`);
+      if (!eco.priceCurves[g.curve]) err(`good ${g.id}: unknown price curve ${g.curve}`);
+      if (!(g.reserveDays > 0)) err(`good ${g.id}: reserveDays must be > 0`);
+    }
+    for (const [id, c] of Object.entries(eco.priceCurves)) {
+      if (!(c.floor > 0 && c.floor < 1 && c.cap > 1)) err(`price curve ${id}: need 0 < floor < 1 < cap`);
+      if (c.power !== 1 && c.power !== 2) err(`price curve ${id}: power must be 1 or 2`);
+    }
+    const checkSeason = (where, season) => {
+      for (const [sid, mult] of Object.entries(season ?? {})) {
+        if (!seasonIds.has(sid)) err(`${where}: unknown season ${sid}`);
+        if (!(mult >= 0)) err(`${where}: seasonal multiplier must be ≥ 0`);
+      }
+    };
+    for (const [gid, need] of Object.entries(eco.needs)) {
+      if (!goodIds.has(gid)) err(`needs: unknown good ${gid}`);
+      if (!(need.perPerson > 0)) err(`needs.${gid}: perPerson must be > 0`);
+      checkSeason(`needs.${gid}`, need.season);
+    }
+    for (const [pid, p] of Object.entries(eco.professions)) {
+      const out = p.produces ?? p.makes;
+      if (out && !goodIds.has(out)) err(`profession ${pid}: unknown output ${out}`);
+      if (out && !(p.rate > 0)) err(`profession ${pid}: rate must be > 0`);
+      if (p.produces && p.makes) err(`profession ${pid}: produces and makes are exclusive`);
+      for (const gid of Object.keys(p.inputs ?? {})) if (!goodIds.has(gid)) err(`profession ${pid}: unknown input ${gid}`);
+      for (const gid of Object.keys(p.uses ?? {})) if (!goodIds.has(gid)) err(`profession ${pid}: unknown use ${gid}`);
+      if (p.inputs && !p.makes) err(`profession ${pid}: inputs need a 'makes' recipe`);
+      checkSeason(`profession ${pid}`, p.season);
+    }
+    for (const n of data.nodes) {
+      if (n.kind === 'waypoint') continue;
+      const pop = eco.populations[n.id];
+      if (!pop) {
+        err(`settlement ${n.id} has no population`);
+        continue;
+      }
+      let total = 0;
+      for (const [pid, count] of Object.entries(pop)) {
+        if (!eco.professions[pid]) err(`population ${n.id}: unknown profession ${pid}`);
+        if (!Number.isInteger(count) || count < 0) err(`population ${n.id}.${pid}: count must be a whole number`);
+        total += count;
+      }
+      if (total !== n.residents) err(`population ${n.id} totals ${total} but the node says ${n.residents} residents`);
+      if (!(eco.storage[n.id] > 0)) err(`settlement ${n.id} has no storage capacity`);
+    }
+    for (const [sid, o] of Object.entries(eco.outside ?? {})) {
+      if (!nodeById.get(sid)?.outside) err(`outside market ${sid} is not an outside node`);
+      if (!(o.relax > 0 && o.relax <= 1)) err(`outside market ${sid}: relax must be within (0, 1]`);
+      for (const [gid, a] of Object.entries(o.goods)) {
+        if (!goodIds.has(gid)) err(`outside market ${sid}: unknown good ${gid}`);
+        if (!(a.anchor > 0 && a.factor > 0)) err(`outside market ${sid}.${gid}: anchor and factor must be > 0`);
+      }
+    }
+  }
+
   // Wayfarers
   const wf = data.wayfarers;
   if (wf) {

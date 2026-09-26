@@ -111,16 +111,31 @@ export class Simulation {
     return entry;
   }
 
-  step() {
+  // Run queued events due at or before `until`, in order, moving the clock to each.
+  runDue(until) {
     const st = this.state;
-    const end = st.time + this.minutesPerTick;
     let n = 0;
-    while (st.queue.length && st.queue[0].t <= end) {
+    while (st.queue.length && st.queue[0].t <= until) {
       const ev = heapPop(st.queue);
       st.time = ev.t;
       this.handlers.get(ev.kind)(this, ev.data);
       if (++n > MAX_EVENTS_PER_TICK) throw new Error(`More than ${MAX_EVENTS_PER_TICK} events in one tick: runaway scheduling?`);
     }
+  }
+
+  /**
+   * An outside instruction (the lab, later the player): queued at the current time
+   * and run immediately, through the same event machinery as everything else.
+   */
+  command(kind, data = {}) {
+    this.schedule(this.state.time, kind, data);
+    this.runDue(this.state.time);
+  }
+
+  step() {
+    const st = this.state;
+    const end = st.time + this.minutesPerTick;
+    this.runDue(end);
     st.time = end;
     st.tick += 1;
     if (end % 60 === 0) for (const f of this.hooks.hourly) f(this);

@@ -9,6 +9,7 @@
 // Events carry the wayfarer's tripNo; a handler ignores events from a trip that is over.
 
 import { GIVEN_NAMES } from '../data/names.js';
+import { withdraw } from '../economy/market.js';
 import {
   estimateJourney,
   findPaths,
@@ -118,6 +119,7 @@ export function planRoute(sim, w, from, dest) {
   return {
     path: best.path,
     routes: best.routes,
+    hours: best.hours,
     reason: {
       caution: round2(caution),
       options: options.slice(0, 3).map((o) => ({
@@ -141,6 +143,9 @@ function onDepart(sim, { id, tripNo }) {
     scheduleDeparture(sim, w, 1);
     return;
   }
+  // Provisions for the road come out of the town's market: grain doesn't teleport.
+  const wanted = Math.ceil(plan.hours / 24) * sim.data.wayfarers.provisionsPerDay;
+  const provisions = withdraw(sim, from, 'grain', wanted);
   w.tripNo += 1;
   w.at = null;
   w.restingUntil = null;
@@ -152,6 +157,7 @@ function onDepart(sim, { id, tripNo }) {
     routes: plan.routes,
     reason: plan.reason,
     departedAt: sim.now,
+    provisions: Math.round(provisions * 1000) / 1000,
     leg: 0,
     at: from, // the last node reached
     waiting: false,

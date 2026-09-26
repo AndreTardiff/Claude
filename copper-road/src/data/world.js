@@ -3,6 +3,8 @@
 // Map coordinates are kilometres from the top-left corner (x east, y south).
 // Rendering-only geography (rivers, forests, coast) lives in lab/decor.js.
 
+import { ECONOMY } from './economy.js';
+
 export const WORLD = {
   id: 'copper-road-lab',
   version: 1,
@@ -106,10 +108,14 @@ export const WORLD = {
     { id: 'estuary-east', route: 'estuary-road', a: 'fenwatch', b: 'saltmouth', km: 62, terrain: 'marsh', danger: 0.1 },
   ],
 
+  economy: ECONOMY,
+
   // Step A placeholder travellers. They exercise the clock, the scheduler and the
-  // road network. Later they become rumour carriers for the information system.
+  // road network. They eat where they stay and buy provisions before each trip.
+  // Later they become rumour carriers for the information system.
   wayfarers: {
     count: 12,
+    provisionsPerDay: 0.1, // grain per traveller per day on the road
     restDays: [0, 2],
     maxSegments: 8,
     // How strongly a cautious wayfarer avoids danger when choosing a road.

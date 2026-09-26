@@ -4,7 +4,7 @@ The headless simulation core and the browser lab for the prototype described in
 [`docs/copper-road-spec-v0.2.md`](../docs/copper-road-spec-v0.2.md).
 
 - **Live lab:** https://andretardiff.github.io/Claude/copper-road/lab/
-- **Status:** build step A (clock, route graph, towns, test harness) is complete.
+- **Status:** build steps A (clock, route graph, test harness) and B (goods, prices, named workers, seasons) are complete. Next: C (coin).
 
 ## Run it
 
@@ -27,15 +27,20 @@ and open `/copper-road/lab/`. ES modules don't load from `file://`.
 src/
   core/        rng (seeded, named streams) · calendar (seasons, daylight, travel windows)
                scheduler (event heap) · hash (canonical state fingerprint)
-  data/        world.js (map, roads, seasons, travellers) · names.js
+  data/        world.js (map, roads, seasons, travellers) · economy.js (goods, needs,
+               trades, populations, the Outside) · names.js
   world/       routes.js (graph, paths, journey estimates) · validate.js
-  sim/         simulation.js (tick loop, events, hooks, snapshot/restore)
-  systems/     almanac (calendar events) · wayfarers (step A placeholder travellers)
+  economy/     pricing.js (price curve, quotes with reasons, trade value)
+               opportunities.js (the opportunity board) · market.js · people.js
+  sim/         simulation.js (tick loop, events, hooks, commands, snapshot/restore)
+  systems/     almanac · wayfarers (travellers) · residents (named people, succession)
+               economy (daily production, consumption, prices, news, lab interventions)
   narrative/   describe.js (log entries → chronicle text)
   view/        positions.js (map positions; pure, used by the lab)
-tools/         run.js (headless CLI) · reference.js
-test/          node:test suites; simulation.test.js holds the step A gate
-lab/           browser laboratory (canvas map, inspector, route explorer, chronicle)
+tools/         run.js (headless CLI with market table) · reference.js
+test/          node:test suites; the step A gate is in simulation.test.js, step B's in economy.test.js
+lab/           browser laboratory: map-render (canvas map, price badges), markets (market board,
+               "why this price?", price chart), opportunities, tools (lab interventions), charts (SVG)
 ```
 
 ## How the simulation works
@@ -56,6 +61,14 @@ lab/           browser laboratory (canvas map, inspector, route explorer, chroni
   wayfarer's scored route options), and the lab's inspector shows it.
 - **The log is structured** (ids, not names), so text can be rendered differently
   later (drifting names, spec §17.1).
+- **The economy settles once a day at midnight.** Each town's named workers
+  produce (skill × season × hunger × tools × effort), everyone eats and uses what
+  they need, tools wear, grain spoils, and the Outside's ships pull Saltmouth back
+  toward world prices. Prices are a pure function of stock and need: see
+  `economy/pricing.js`, whose quotes explain themselves.
+- **Outside instructions** (the lab's tools, later the player) go through
+  `sim.command(kind, data)`: an ordinary event at the current time, so they
+  replay exactly.
 
 ## Determinism rules
 
