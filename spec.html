@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Copper Road Spec</title>
+  <meta name="description" content="Caravans of the Copper Road: simulation prototype design specification.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IM+Fell+English+SC&family=EB+Garamond:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="wide">
+    <p class="crumb"><a href="./">← Back to the ledger</a></p>
+    <!-- Rendered from docs/copper-road-spec-v0.2.md; edit the Markdown, not this page. -->
+    <article id="doc" class="doc"><p>Unrolling the scroll…</p></article>
+  </main>
+  <script src="vendor/marked.min.js"></script>
+  <script>
+    fetch('docs/copper-road-spec-v0.2.md')
+      .then(r => r.ok ? r.text() : Promise.reject(r.status))
+      .then(md => {
+        const doc = document.getElementById('doc');
+        doc.innerHTML = marked.parse(md);
+        doc.querySelectorAll('table').forEach(t => {
+          const wrap = document.createElement('div');
+          wrap.className = 'table-wrap';
+          t.replaceWith(wrap);
+          wrap.appendChild(t);
+        });
+        doc.querySelectorAll('a[href$=".docx"]').forEach(a => a.href = 'docs/' + a.getAttribute('href'));
+      })
+      .catch(() => {
+        document.getElementById('doc').innerHTML =
+          '<p>Could not load the spec. <a href="docs/copper-road-spec-v0.2.md">Read the raw Markdown</a>.</p>';
+      });
+  </script>
+</body>
+</html>
