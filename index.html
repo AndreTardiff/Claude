@@ -5,11 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Andre Tardiff</title>
   <meta name="description" content="Personal page and progress log for Andre Tardiff.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IM+Fell+English+SC&family=EB+Garamond:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <main>
     <header>
+      <p class="eyebrow">Ledger of</p>
       <h1>Andre Tardiff</h1>
       <p class="tagline">Building things, one step at a time.</p>
     </header>
@@ -19,10 +23,36 @@
       <p>Welcome to my personal page. I'm using it to keep track of what I'm working on and how it's going.</p>
     </section>
 
+    <section id="project">
+      <h2>Current venture</h2>
+      <article class="venture">
+        <h3>Caravans of the Copper Road</h3>
+        <p class="venture-kind">A merchant-first living-world trade simulation</p>
+        <p>A world of settlements, merchants, raiders and hired blades that keeps moving whether or not you do.
+          You get rich by reading roads, prices, timing and risk better than anyone else.
+          The first goal is a small simulation laboratory: three towns, a handful of roads, and one question.
+          Does it tell stories on its own?</p>
+
+        <!-- Stages: mark the current one with class="now", finished ones with class="done". -->
+        <ol class="stages" aria-label="Project stages">
+          <li class="now">Define</li>
+          <li>Laboratory</li>
+          <li>Observe</li>
+          <li>Play</li>
+          <li>Validate</li>
+          <li>Expand</li>
+        </ol>
+      </article>
+    </section>
+
     <section id="progress">
       <h2>Progress</h2>
       <!-- Add new entries at the top of this list. -->
       <ol class="log">
+        <li>
+          <time datetime="2026-09-26">Sep 26, 2026</time>
+          <p>Reviewed the v0.1 prototype design spec for <em>Caravans of the Copper Road</em>. Open questions are being settled before prototyping begins.</p>
+        </li>
         <li>
           <time datetime="2026-09-26">Sep 26, 2026</time>
           <p>Launched this page.</p>

@@ -1,18 +1,23 @@
+/* Theme: merchant's ledger. Parchment by day, lamplit ink by night. */
 :root {
-  --bg: #fafaf9;
-  --text: #1c1917;
-  --muted: #78716c;
-  --accent: #2563eb;
-  --border: #e7e5e4;
+  --bg: #f3ead8;
+  --paper: #fbf5e8;
+  --text: #2b2118;
+  --muted: #7a6750;
+  --accent: #a4532a;      /* copper */
+  --accent-soft: #e7c9ae;
+  --border: #d8c6a6;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #1c1917;
-    --text: #f5f5f4;
-    --muted: #a8a29e;
-    --accent: #60a5fa;
-    --border: #44403c;
+    --bg: #1a1510;
+    --paper: #231c15;
+    --text: #efe3cc;
+    --muted: #a8977d;
+    --accent: #d9864f;
+    --accent-soft: #4a3222;
+    --border: #3d3226;
   }
 }
 
@@ -22,23 +27,76 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 17px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+  font: 19px/1.6 "EB Garamond", Georgia, serif;
 }
 
 main {
-  max-width: 40rem;
+  max-width: 42rem;
   margin: 0 auto;
-  padding: 3rem 1rem;
+  padding: 3rem 1rem 4rem;
 }
 
-h1 { margin: 0; font-size: 2.25rem; }
-h2 { margin-top: 2.5rem; font-size: 1.25rem; }
-.tagline { margin: 0.25rem 0 0; color: var(--muted); }
+h1, h2, h3, .eyebrow {
+  font-family: "IM Fell English SC", Georgia, serif;
+  font-weight: normal;
+}
+
+.eyebrow { margin: 0; color: var(--accent); letter-spacing: 0.08em; }
+h1 { margin: 0; font-size: 2.6rem; line-height: 1.1; }
+.tagline { margin: 0.25rem 0 0; color: var(--muted); font-style: italic; }
+
+h2 {
+  margin: 2.75rem 0 1rem;
+  font-size: 1.4rem;
+  color: var(--accent);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.25rem;
+}
 
 a { color: var(--accent); }
 
+/* Venture card */
+.venture {
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  padding: 1.25rem 1.25rem 1rem;
+}
+.venture h3 { margin: 0; font-size: 1.5rem; }
+.venture-kind { margin: 0 0 0.75rem; color: var(--muted); font-style: italic; }
+
+.stages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0 0;
+  counter-reset: stage;
+}
+.stages li {
+  counter-increment: stage;
+  font-size: 0.85rem;
+  padding: 0.15rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+}
+.stages li::before { content: counter(stage) ". "; }
+.stages li.done { color: var(--text); background: var(--accent-soft); border-color: var(--accent-soft); }
+.stages li.now { color: var(--paper); background: var(--accent); border-color: var(--accent); }
+
+/* Progress log */
 .log { list-style: none; padding: 0; margin: 0; }
-.log li { border-left: 2px solid var(--border); padding: 0 0 1.25rem 1rem; }
+.log li { border-left: 2px solid var(--border); padding: 0 0 1.25rem 1rem; position: relative; }
+.log li::before {
+  content: "";
+  position: absolute;
+  left: -6px; top: 0.45rem;
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+}
 .log time { color: var(--muted); font-size: 0.875rem; }
 .log p { margin: 0.25rem 0 0; }
 
