@@ -13,6 +13,7 @@ export function createToolsPanel(root, { getSim, onChange }) {
     <div class="tool-row">
       <button type="button" data-act="spoil">Spoil 70% of the stock</button>
       <button type="button" data-act="deliver">Deliver 30</button>
+      <button type="button" data-act="coin">Give 100 marks</button>
     </div>
     <div class="tool-row">
       <label>Trade <select data-tool="trade"></select></label>
@@ -56,6 +57,7 @@ export function createToolsPanel(root, { getSim, onChange }) {
     const before = sim.state.log.length;
     if (act === 'spoil') sim.command('lab:spoil', { at: town.value, good: good.value, fraction: 0.7 });
     if (act === 'deliver') sim.command('lab:deliver', { at: town.value, good: good.value, qty: 30 });
+    if (act === 'coin') sim.command('lab:coin', { at: town.value, marks: 100 });
     if (act === 'death') {
       if (!trade.value) {
         result.textContent = 'Nobody in that trade lives there.';

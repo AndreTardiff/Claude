@@ -3,13 +3,23 @@
 export const esc = (s) =>
   String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
-/** Marks: 3 sig. figures-ish. 4.21 · 21.4 · 187 */
-export function money(x) {
-  if (!Number.isFinite(x)) return '—';
-  if (x >= 100) return Math.round(x).toLocaleString('en');
-  if (x >= 10) return x.toFixed(1);
-  return x.toFixed(2);
+/**
+ * Money, from marks: copper marks and verdigris bits (12 to the mark).
+ * "3m 8b" · "11b" · "104m". Past 100 marks the bits stop mattering.
+ */
+export function money(marks) {
+  if (!Number.isFinite(marks)) return '—';
+  const sign = marks < 0 ? '−' : '';
+  const bits = Math.round(Math.abs(marks) * 12);
+  const m = Math.floor(bits / 12);
+  const b = bits % 12;
+  if (!m && !b) return '0';
+  if (m >= 100 || (m && !b)) return `${sign}${m.toLocaleString('en')}m`;
+  return sign + (m ? `${m}m ${b}b` : `${b}b`);
 }
+
+/** Money from whole bits. */
+export const moneyBits = (bits) => money(bits / 12);
 
 /** Quantities: whole numbers above 10, one decimal below. */
 export function qty(x) {

@@ -21,6 +21,7 @@
 import { economyIndex, quote } from '../economy/pricing.js';
 import { residentsAt, visitorsAt, workforce } from '../economy/people.js';
 import { deposit, round3, withdraw } from '../economy/market.js';
+import { balance, toBits, transfer } from '../economy/money.js';
 
 const round1 = (x) => Math.round(x * 10) / 10;
 const round2 = (x) => Math.round(x * 100) / 100;
@@ -125,7 +126,7 @@ function settleDay(sim) {
       continue;
     }
     refreshNeeds(sim, sid, endedSeason);
-    const today = { produced: {}, used: {}, consumed: {}, unmet: {}, lost: {}, trades: [], hunger: 0, tools: 1 };
+    const today = { produced: {}, used: {}, consumed: {}, unmet: {}, lost: {}, trades: [], hunger: 0, tools: 1, earned: 0, spent: 0, unpaid: 0, poor: 0 };
     produce(sim, sid, endedSeason, today);
     consume(sim, sid, endedSeason, today);
     decay(sim, sid, today);
@@ -150,19 +151,41 @@ function produce(sim, sid, seasonId, today) {
     const out = p.produces ?? p.makes;
     if (!out) continue;
     let capacity = p.rate * seasonMult(p.season, seasonId) * w.skill * common;
+    if (p.produces === 'grain') capacity *= eco.land?.[sid]?.yield ?? 1;
     if (p.toolWear) capacity *= tools;
     const effort = p.elastic ? clamp(quote(sim, sid, out).factor, eco.effort.min, eco.effort.max) : 1;
     capacity *= effort;
     let fromInputs = capacity;
     if (p.inputs) {
-      for (const [gid, perUnit] of Object.entries(p.inputs)) fromInputs = Math.min(fromInputs, markets[gid].stock / perUnit);
+      // Workshops buy their inputs from the market, as far as stock and purse allow.
+      let unitCost = 0;
       for (const [gid, perUnit] of Object.entries(p.inputs)) {
+        fromInputs = Math.min(fromInputs, markets[gid].stock / perUnit);
+        unitCost += perUnit * quote(sim, sid, gid).price;
+      }
+      if (sim.state.coin && unitCost > 0) fromInputs = Math.min(fromInputs, balance(sim, `purse:${sid}`) / toBits(sim, unitCost));
+      for (const [gid, perUnit] of Object.entries(p.inputs)) {
+        const price = quote(sim, sid, gid).price;
         const used = withdraw(sim, sid, gid, fromInputs * perUnit);
         today.used[gid] = round3((today.used[gid] ?? 0) + used);
+        today.spent += transfer(sim, `purse:${sid}`, `till:${sid}`, toBits(sim, price * used));
       }
     }
     const makeshift = p.inputs ? (capacity - fromInputs) * eco.makeshift : 0;
     const made = fromInputs + makeshift;
+    // Farming households keep what the town eats of their own harvest; no coin
+    // changes hands for it. The market's traders buy the rest at today's price,
+    // if their till can pay.
+    let sold = made;
+    if (out === 'grain') {
+      const kept = Math.min(made, markets.grain.need);
+      today.kept = round3(kept);
+      sold = made - kept;
+    }
+    const owed = toBits(sim, quote(sim, sid, out).price * sold);
+    const paid = transfer(sim, `till:${sid}`, `purse:${sid}`, owed);
+    today.earned += paid;
+    today.unpaid += Math.max(0, owed - paid);
     deposit(sim, sid, out, made);
     today.produced[out] = round3((today.produced[out] ?? 0) + made);
     today.trades.push({
@@ -180,17 +203,37 @@ function consume(sim, sid, seasonId, today) {
   const eco = sim.data.economy;
   const st = sim.state.economy;
   const heads = residentsAt(sim, sid).length + visitorsAt(sim, sid).length;
-  const want = {};
-  for (const [gid, n] of Object.entries(eco.needs)) want[gid] = n.perPerson * seasonMult(n.season, seasonId) * heads;
+  // Food first, then the rest. Households pay from the town purse; the lord's
+  // household (nobles) pays from the treasury.
+  const want = [];
+  for (const [gid, n] of Object.entries(eco.needs)) want.push({ gid, amount: n.perPerson * seasonMult(n.season, seasonId) * heads, payer: `purse:${sid}` });
+  let tools = 0;
   for (const w of workforce(sim, sid)) {
     const p = eco.professions[w.profession];
-    for (const [gid, per] of Object.entries(p.uses ?? {})) want[gid] = (want[gid] ?? 0) + per * w.count;
-    if (p.toolWear) want.tools = (want.tools ?? 0) + p.toolWear * w.count;
+    for (const [gid, per] of Object.entries(p.uses ?? {})) want.push({ gid, amount: per * w.count, payer: w.profession === 'noble' ? 'treasury' : `purse:${sid}` });
+    if (p.toolWear) tools += p.toolWear * w.count;
   }
-  for (const [gid, amount] of Object.entries(want)) {
-    const got = withdraw(sim, sid, gid, amount);
-    today.consumed[gid] = round3(got);
-    if (amount - got > 1e-9) today.unmet[gid] = round3(amount - got);
+  if (tools) want.push({ gid: 'tools', amount: tools, payer: `purse:${sid}` });
+  const fee = sim.data.coin?.marketFee ?? 0;
+  for (const { gid, amount, payer } of want) {
+    // Grain the town grew itself today is already the households' own.
+    const own = gid === 'grain' && payer === `purse:${sid}` ? Math.min(amount, today.kept ?? 0) : 0;
+    let affordable = amount;
+    const price = quote(sim, sid, gid).price;
+    if (sim.state.coin) {
+      const perUnit = toBits(sim, price * (1 + fee));
+      if (perUnit > 0) affordable = Math.min(amount, own + balance(sim, payer) / perUnit);
+    }
+    const got = withdraw(sim, sid, gid, affordable);
+    if (got > own && sim.state.coin) {
+      const cost = toBits(sim, price * (got - own));
+      today.spent += transfer(sim, payer, `till:${sid}`, cost);
+      const tax = transfer(sim, payer, 'treasury', cost * fee);
+      sim.state.coin.today.fees += tax;
+    }
+    if (affordable < amount && got === affordable && sim.state.economy.markets[sid][gid].stock > 1e-6) today.poor += 1;
+    today.consumed[gid] = round3((today.consumed[gid] ?? 0) + got);
+    if (amount - got > 1e-9) today.unmet[gid] = round3((today.unmet[gid] ?? 0) + amount - got);
     if (gid === 'grain') {
       const fed = amount > 0 ? got / amount : 1;
       // Hunger is a slow-moving average, so one lean day doesn't starve a town.
@@ -305,9 +348,11 @@ function reportNews(sim, day) {
     }
     const h = st.hunger[sid];
     const hb = h >= 0.6 ? 'famine' : h >= 0.25 ? 'hungry' : h < 0.1 ? 'fed' : news.hunger;
-    if (hb !== news.hunger) {
+    // A town hovering on a line doesn't make news every other day.
+    if (hb !== news.hunger && day - (news.hungerDay ?? -99) >= 10) {
       sim.log('town:hunger', { at: sid, band: hb });
       news.hunger = hb;
+      news.hungerDay = day;
     }
   }
 }

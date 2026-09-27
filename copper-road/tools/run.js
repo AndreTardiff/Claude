@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Headless run: node copper-road/tools/run.js [--seed 1] [--days 100] [--wayfarers 12] [--chronicle 12] [--json]
 
-import { Simulation, WORLD, describe, economyIndex, quote, routesLabel, tradeOpportunities } from '../src/index.js';
+import { Simulation, WORLD, balance, describe, economyIndex, formatMoney, moneySupply, quote, residentsAt, routesLabel, tradeOpportunities } from '../src/index.js';
 
 const args = process.argv.slice(2);
 const opt = (name, fallback) => {
@@ -73,6 +73,12 @@ if (args.includes('--json')) {
     console.log('  ' + gid.padEnd(11) + cells.join(''));
   }
   console.log('  ' + 'hunger'.padEnd(11) + ix.markets.map((sid) => col(sim.state.economy.hunger[sid].toFixed(2), 17)).join(''));
+  console.log('  ' + 'people'.padEnd(11) + ix.markets.map((sid) => col(residentsAt(sim, sid).length, 17)).join(''));
+  console.log('  ' + 'purse'.padEnd(11) + ix.markets.map((sid) => col(formatMoney(sim, balance(sim, `purse:${sid}`), { short: true }), 17)).join(''));
+  const f = sim.state.coin.flows;
+  const m = (b) => formatMoney(sim, b, { short: true });
+  console.log('');
+  console.log(`Money: ${m(moneySupply(sim))} in circulation = ${m(sim.state.coin.opening)} opening + ${m(f.minted)} minted + ${m(f.gifted)} gifted − ${m(f.crown)} Crown − ${m(f.worn)} worn − ${m(f.hoarded)} buried. Treasury ${m(balance(sim, 'treasury'))}.`);
   const opps = tradeOpportunities(sim, { limit: 5 });
   if (opps.length) {
     console.log('');
@@ -80,7 +86,7 @@ if (args.includes('--json')) {
     for (const o of opps) {
       const from = sim.graph.nodes.get(o.from).name;
       const to = sim.graph.nodes.get(o.to).name;
-      console.log(`  ${o.good.padEnd(9)} ${from} ${o.buy.toFixed(1)} → ${to} ${o.sell.toFixed(1)}  ${o.days.toFixed(1)} days  profit ${o.profit.toFixed(0)} (${o.perDay.toFixed(0)}/day)`);
+      console.log(`  ${o.good.padEnd(9)} ${from} ${o.buy.toFixed(1)} → ${to} ${o.sell.toFixed(1)}  ${o.days.toFixed(1)} days  profit ${o.profit.toFixed(0)} marks (${o.perDay.toFixed(0)}/day)`);
     }
   }
   if (chronicle > 0) {

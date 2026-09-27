@@ -4,7 +4,7 @@ The headless simulation core and the browser lab for the prototype described in
 [`docs/copper-road-spec-v0.2.md`](../docs/copper-road-spec-v0.2.md).
 
 - **Live lab:** https://andretardiff.github.io/Claude/copper-road/lab/
-- **Status:** build steps A (clock, route graph, test harness) and B (goods, prices, named workers, seasons) are complete. Next: C (coin).
+- **Status:** build steps A (clock, roads), B (goods, prices, named workers, seasons) and C (coin, famine and recovery) are complete. Next: D (merchants and caravans).
 
 ## Run it
 
@@ -30,15 +30,15 @@ src/
   data/        world.js (map, roads, seasons, travellers) · economy.js (goods, needs,
                trades, populations, the Outside) · names.js
   world/       routes.js (graph, paths, journey estimates) · validate.js
-  economy/     pricing.js (price curve, quotes with reasons, trade value)
+  economy/     pricing.js (price curve, quotes with reasons, trade value) · money.js (bits, accounts, transfers)
                opportunities.js (the opportunity board) · market.js · people.js
   sim/         simulation.js (tick loop, events, hooks, commands, snapshot/restore)
-  systems/     almanac · wayfarers (travellers) · residents (named people, succession)
-               economy (daily production, consumption, prices, news, lab interventions)
+  systems/     almanac · wayfarers (travellers) · residents (named people, succession, famine, migration, growth)
+               economy (daily production, consumption, prices, news) · coin (wages, the Mint, taxes, the Crown, hoards)
   narrative/   describe.js (log entries → chronicle text)
   view/        positions.js (map positions; pure, used by the lab)
 tools/         run.js (headless CLI with market table) · reference.js
-test/          node:test suites; the step A gate is in simulation.test.js, step B's in economy.test.js
+test/          node:test suites; step gates: A in simulation.test.js, B in economy.test.js, C in coin.test.js
 lab/           browser laboratory: map-render (canvas map, price badges), markets (market board,
                "why this price?", price chart), opportunities, tools (lab interventions), charts (SVG)
 ```
@@ -66,6 +66,9 @@ lab/           browser laboratory: map-render (canvas map, price badges), market
   they need, tools wear, grain spoils, and the Outside's ships pull Saltmouth back
   toward world prices. Prices are a pure function of stock and need: see
   `economy/pricing.js`, whose quotes explain themselves.
+- **Money is whole bits** (12 to the copper mark) in named accounts, moved only by
+  `transfer()` in `economy/money.js`. The books always balance: circulation =
+  opening + minted + gifted − Crown − worn − buried.
 - **Outside instructions** (the lab's tools, later the player) go through
   `sim.command(kind, data)`: an ordinary event at the current time, so they
   replay exactly.

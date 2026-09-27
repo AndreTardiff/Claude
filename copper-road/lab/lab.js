@@ -8,8 +8,11 @@ import {
   describe,
   economyIndex,
   formatDuration,
+  balance,
   getResident,
   getWayfarer,
+  legMinutes,
+  quote,
   professionName,
   residentsAt,
   routeOptions,
@@ -23,7 +26,8 @@ import { createMapRenderer } from './map-render.js';
 import { createMarketsPanel } from './markets.js';
 import { createOpportunityPanel } from './opportunities.js';
 import { createToolsPanel } from './tools.js';
-import { esc, goodOf, pct, placeName, qty } from './format.js';
+import { createMoneyPanel } from './money.js';
+import { esc, goodOf, money, moneyBits, pct, placeName, qty } from './format.js';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -71,6 +75,7 @@ const opportunities = createOpportunityPanel($('#opps'), {
     highlight = o ? { path: o.path, key: `opp:${o.good}|${o.from}|${o.to}`, pinned: Boolean(pinned) } : null;
   },
 });
+const moneyPanel = createMoneyPanel($('#money'));
 const tools = createToolsPanel($('#tools'), {
   getSim: () => sim,
   onChange() {
@@ -96,6 +101,7 @@ function newWorld(seed) {
   renderInspector();
   renderRoutes();
   renderMarkets(true);
+  moneyPanel.render(sim, true);
 }
 
 // ── Time ─────────────────────────────────────────────────────────────────────
@@ -137,6 +143,7 @@ function frame(now) {
       opportunities.render(sim, { mode: currentMode() });
     }
     renderMarkets(false);
+    moneyPanel.render(sim, false);
   }
   requestAnimationFrame(frame);
 }
@@ -247,6 +254,7 @@ function wayfarerHtml(id) {
       <dt>Temper</dt><dd>${temper} (${w.boldness}/1000 bold)</dd>
       <dt>Pace</dt><dd>${w.speedKmh} km/h</dd>
       ${food}
+      <dt>Purse</dt><dd>${moneyBits(balance(sim, `wayfarer:${w.id}`))}</dd>
       <dt>Journeys</dt><dd>${w.trips} finished, ${w.km} km walked</dd>
     </dl>
     ${why}`;
@@ -295,7 +303,8 @@ function nodeHtml(id) {
     const hunger = sim.state.economy.hunger[id];
     const economyFacts = economyIndex(sim.data).isOutside(id) ? '' : `
       <dt>Hunger</dt><dd>${hunger >= 0.6 ? '<span class="bad">famine</span>' : hunger >= 0.25 ? '<span class="bad">hungry</span>' : hunger >= 0.1 ? 'lean' : 'well fed'} (${pct(hunger)})</dd>
-      <dt>Tools</dt><dd>${pct(toolFactor(sim, id))} of full strength</dd>`;
+      <dt>Tools</dt><dd>${pct(toolFactor(sim, id))} of full strength</dd>
+      <dt>Coin</dt><dd>${moneyBits(balance(sim, `purse:${id}`))} in households, ${moneyBits(balance(sim, `till:${id}`))} in the traders' till</dd>`;
     const vacancies = sim.state.residents.vacancies.filter((v) => v.at === id);
     const lists = [...byTrade].map(([pid, list]) => `
       <details><summary>${list.length} ${esc(professionName(sim, pid, list.length !== 1))}</summary>
@@ -424,10 +433,73 @@ canvas.addEventListener('click', (ev) => {
   const hit = renderer.hitTest(ev.clientX - r.left, ev.clientY - r.top);
   select(hit ? { kind: hit.kind, id: hit.id } : null);
 });
+const tip = document.createElement('div');
+tip.className = 'map-tip';
+tip.hidden = true;
+canvas.parentElement.appendChild(tip);
+
 canvas.addEventListener('mousemove', (ev) => {
   const r = canvas.getBoundingClientRect();
-  canvas.style.cursor = renderer.hitTest(ev.clientX - r.left, ev.clientY - r.top) ? 'pointer' : 'default';
+  const x = ev.clientX - r.left;
+  const y = ev.clientY - r.top;
+  canvas.style.cursor = renderer.hitTest(x, y) ? 'pointer' : 'default';
+  const html = tipHtml(renderer.describeAt(x, y));
+  if (!html) {
+    tip.hidden = true;
+    return;
+  }
+  tip.innerHTML = html;
+  tip.hidden = false;
+  // Keep the tip inside the map: flip left or up near the edges.
+  const w = tip.offsetWidth;
+  const h = tip.offsetHeight;
+  tip.style.left = `${x + 14 + w > r.width ? x - 14 - w : x + 14}px`;
+  tip.style.top = `${y + 14 + h > r.height ? y - 10 - h : y + 14}px`;
 });
+canvas.addEventListener('mouseleave', () => { tip.hidden = true; });
+
+// What the pointer is over, in a sentence or two.
+function tipHtml(hit) {
+  if (!hit) return null;
+  const season = sim.cal.season(Math.floor(renderT));
+  if (hit.kind === 'wayfarer') {
+    const w = getWayfarer(sim, hit.id);
+    const t = w.trip;
+    const doing = !t ? `resting in ${place(w.at)}`
+      : t.waiting ? `stuck at ${place(t.at)}, waiting for the road to open`
+        : wayfarerPosition(sim, w, renderT).moving ? `on the ${road(t.routes)} to ${place(t.dest)}` : `camped on the way to ${place(t.dest)}`;
+    return `<strong>${esc(w.name)}</strong><p>The ${esc(tradeName(sim, w))}, ${esc(doing)}.</p><p class="dim">Click for why they chose this road.</p>`;
+  }
+  if (hit.kind === 'node') {
+    const n = sim.graph.nodes.get(hit.id);
+    const lines = [];
+    if (sim.state.economy.markets[n.id]) {
+      const people = residentsAt(sim, n.id).length;
+      const h = sim.state.economy.hunger[n.id];
+      const good = $('#price-good').value || 'grain';
+      const q = quote(sim, n.id, good);
+      lines.push(`${people} people${h >= 0.25 ? `, <span class="bad">${h >= 0.6 ? 'starving' : 'hungry'}</span>` : ''}. ${esc(goodOf(sim, good).name)} ${money(q.price)} a ${esc(goodOf(sim, good).unit)}.`);
+    }
+    if (n.toll) lines.push(`Toll: ${n.toll.wagon} marks a wagon, ${n.toll.foot ? `${n.toll.foot} on foot` : 'free on foot'}.`);
+    lines.push(`<span class="dim">${esc(n.blurb ?? '')}</span>`);
+    return `<strong>${esc(n.name)}</strong>${lines.map((l) => `<p>${l}</p>`).join('')}`;
+  }
+  if (hit.kind === 'segment') {
+    const sg = sim.graph.segments.get(hit.id);
+    const c = segmentConditions(sim.graph, hit.id, season.id);
+    const minutes = legMinutes(sim.graph, hit.id, season.id, 3.5);
+    const state = c.closed ? `<span class="bad">Closed this ${esc(season.name.toLowerCase())}: ${esc(c.note ?? 'impassable')}.</span>`
+      : c.note ? `<span class="warn">This ${esc(season.name.toLowerCase())}: ${esc(c.note)}.</span>` : 'Open.';
+    const other = Object.entries(sg.seasonal ?? {}).filter(([sid]) => sid !== season.id)
+      .map(([sid, m]) => `${sim.cal.seasons.find((x) => x.id === sid).name.toLowerCase()}: ${m.note ?? (m.closed ? 'closed' : 'slow')}`);
+    return `<strong>${esc(sim.graph.routes.get(sg.route).name)}</strong>` +
+      `<p>${esc(place(sg.a))} – ${esc(place(sg.b))} · ${sg.km} km of ${esc(sg.terrainDef.name)} · ${dangerWord(sg.danger * sg.km / 100)} danger</p>` +
+      `<p>${state}${minutes ? ` About ${Math.round(minutes / 60)} hours on the move by wagon.` : ''}</p>` +
+      (other.length ? `<p class="dim">Other seasons: ${esc(other.join('; '))}.</p>` : '');
+  }
+  if (hit.kind === 'area') return `<strong>${esc(hit.name)}</strong><p>${esc(hit.about ?? '')}</p>`;
+  return null;
+}
 $('#inspector-body').addEventListener('click', (ev) => {
   const t = ev.target.closest('[data-wayfarer], [data-resident], [data-node], [data-market]');
   if (!t) return;

@@ -11,6 +11,7 @@ export {
   estimateJourney,
   findPaths,
   isSettlement,
+  legMinutes,
   pathExposure,
   pathKm,
   pathNodes,
@@ -28,3 +29,5 @@ export { tradeOpportunities } from './economy/opportunities.js';
 export { residentsAt, visitorsAt, workforce } from './economy/people.js';
 export { hungerFactor, marketBand, refreshNeeds, toolFactor } from './systems/economy.js';
 export { getResident, killResident, professionName } from './systems/residents.js';
+export { balance, formatMoney, moneySupply, toBits, toMarks } from './economy/money.js';
+export { mintStatus } from './systems/coin.js';

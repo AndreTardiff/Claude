@@ -35,6 +35,8 @@ and the home of **Caravans of the Copper Road**, a living-world merchant simulat
 - All mutable state lives in `sim.state` as plain JSON. Randomness comes from named streams: `sim.rng('name')`.
 - Log entries store ids, not display names; text is rendered by `narrative/describe.js`.
 - Outside instructions (lab tools, later the player) go through `sim.command(kind, data)`, never direct state edits.
+- Money never appears or vanishes: whole bits in accounts, moved only by `transfer()` (economy/money.js);
+  new coin only from the Mint (or the lab), and it leaves only via the Crown, wear or hoards.
 - Goods never teleport: stock changes only via work, use, spoilage, storage limits, the Outside's ships,
   travellers' provisions, and (from step D) physical trade.
 

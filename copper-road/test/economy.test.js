@@ -174,11 +174,11 @@ test('seasons move prices: firewood dearest in winter, medicine too', () => {
   assert.ok(winterMedicine > summerMedicine * 2, `medicine ${summerMedicine.toFixed(1)} → ${winterMedicine.toFixed(1)}`);
 });
 
-test('elastic trades slack off in a glut: Copperford ore piles up and the miners idle', () => {
+test('elastic trades slack off in a glut: Copperford\'s woodcutters idle when timber piles up', () => {
   const sim = run(30);
-  const miners = sim.state.economy.today.copperford.trades.find((t) => t.profession === 'miner');
-  assert.ok(miners.effort < 0.5, `miners working at ${miners.effort}`);
-  const news = sim.state.log.filter((e) => e.type === 'market:news' && e.good === 'ore' && e.at === 'copperford');
+  const cutters = sim.state.economy.today.copperford.trades.find((t) => t.profession === 'woodcutter');
+  assert.ok(cutters.effort < 0.6, `woodcutters working at ${cutters.effort}`);
+  const news = sim.state.log.filter((e) => e.type === 'market:news' && e.good === 'timber' && e.at === 'copperford');
   assert.ok(news.some((e) => e.band === 'glut'));
 });
 
@@ -283,7 +283,7 @@ test('the opportunity board finds the trades a merchant would want', () => {
   const has = (good, from, to) => opps.some((o) => o.good === good && o.from === from && (!to || o.to === to));
   assert.ok(has('grain', 'greenhollow'), 'Greenhollow grain to the hungry towns');
   assert.ok(has('salt', 'saltmouth'), 'salt from the Outside');
-  assert.ok(has('ore', 'copperford'), 'Copperford ore to someone who needs it');
+  assert.ok(opps.some((o) => o.from === 'kingscross' && o.to === 'saltmouth'), 'Kingscross goods to the Outside');
 });
 
 test('economy events all have chronicle text', () => {

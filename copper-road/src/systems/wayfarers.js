@@ -10,6 +10,8 @@
 
 import { GIVEN_NAMES } from '../data/names.js';
 import { withdraw } from '../economy/market.js';
+import { quote } from '../economy/pricing.js';
+import { balance, toBits, transfer } from '../economy/money.js';
 import {
   estimateJourney,
   findPaths,
@@ -144,8 +146,16 @@ function onDepart(sim, { id, tripNo }) {
     return;
   }
   // Provisions for the road come out of the town's market: grain doesn't teleport.
-  const wanted = Math.ceil(plan.hours / 24) * sim.data.wayfarers.provisionsPerDay;
+  let wanted = Math.ceil(plan.hours / 24) * sim.data.wayfarers.provisionsPerDay;
+  let price = 0;
+  if (sim.state.coin && sim.state.economy) {
+    // They buy only what their purse can cover.
+    price = quote(sim, from, 'grain').price;
+    const perUnit = toBits(sim, price);
+    if (perUnit > 0) wanted = Math.min(wanted, balance(sim, `wayfarer:${w.id}`) / perUnit);
+  }
   const provisions = withdraw(sim, from, 'grain', wanted);
+  if (provisions > 0) transfer(sim, `wayfarer:${w.id}`, `till:${from}`, toBits(sim, price * provisions));
   w.tripNo += 1;
   w.at = null;
   w.restingUntil = null;
@@ -223,6 +233,12 @@ function onNode(sim, { id, tripNo }) {
   const trip = w.trip;
   w.km += sim.graph.segments.get(trip.legSeg).km;
   trip.at = trip.legTo;
+  // Crossing a tolled bridge or ferry: pay the lord, or slip past if the purse is empty.
+  const toll = sim.graph.nodes.get(trip.at).toll?.foot ?? 0;
+  if (toll && sim.state.coin) {
+    const paid = transfer(sim, `wayfarer:${w.id}`, 'treasury', toBits(sim, toll));
+    sim.state.coin.today.tolls += paid;
+  }
   trip.leg += 1;
   trip.legSeg = null;
   if (trip.at !== trip.dest) {

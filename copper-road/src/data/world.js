@@ -3,7 +3,7 @@
 // Map coordinates are kilometres from the top-left corner (x east, y south).
 // Rendering-only geography (rivers, forests, coast) lives in lab/decor.js.
 
-import { ECONOMY } from './economy.js';
+import { COIN, ECONOMY } from './economy.js';
 
 export const WORLD = {
   id: 'copper-road-lab',
@@ -109,6 +109,7 @@ export const WORLD = {
   ],
 
   economy: ECONOMY,
+  coin: COIN,
 
   // Step A placeholder travellers. They exercise the clock, the scheduler and the
   // road network. They eat where they stay and buy provisions before each trip.

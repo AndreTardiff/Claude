@@ -1,7 +1,7 @@
 # Caravans of the Copper Road
-## Simulation Prototype Design Specification — v0.2.2
+## Simulation Prototype Design Specification — v0.2.3
 
-*v0.2.2 adds: step B's economy as built (§8.5), traveller livelihoods (§10.1), the living map from camps to towns (§17.2) and winter's rewards (§16). v0.2.1 added the player's starting situation, Lord Aldric and drifting names (§15.1, §15.2, §17.1). Supersedes v0.1 ([original document](copper-road-spec-v0.1.docx)). Status: prototype design authority. Target: a headless simulation core with a browser prototype (HTML5 canvas). Godot is a later option if we decide to go big.*
+*v0.2.3 adds: coin and famine as built in step C (§8.6, §8.7) and map tooltips. v0.2.2 added step B's economy as built (§8.5), traveller livelihoods (§10.1), the living map from camps to towns (§17.2) and winter's rewards (§16). v0.2.1 added the player's starting situation, Lord Aldric and drifting names (§15.1, §15.2, §17.1). Supersedes v0.1 ([original document](copper-road-spec-v0.1.docx)). Status: prototype design authority. Target: a headless simulation core with a browser prototype (HTML5 canvas). Godot is a later option if we decide to go big.*
 
 > **What changed in v0.2, in one breath.** The player is now a *person in one place* who learns about the world through letters that travel at road speed. There are two theses to prove, not one: the world must be worth watching, *and* the player's choices must be hard and meaningful. The closed three-town economy is opened with seasons, an Outside port, a copper mint, and money sinks that grow with a merchant's wealth. Every citizen does economic work, and the player's home town gets full Ultima VII-style daily schedules. Raiders fence, starve, recruit and bury treasure. Caravans leave with standing orders. Style modules (place names earned by history, ledger UI, songs, the Wending Fair) are scheduled in, each tied to a prototype question.
 
@@ -221,6 +221,37 @@ Merchants act only on **their own knowledge records**. Stale knowledge produces 
 - **Travellers are consumers:** wayfarers eat where they stay and buy provisions from the market they leave.
 - **Market news** turns band changes (running low, all but out, back in the market, piling up unsold, the harvest) into chronicle entries, at most once per story every ten days.
 - **Without merchants (until step D)** the result is the opportunity map the game is built on: Kingscross and Copperford run out of grain in the second year, salt runs out everywhere when autumn salting starts, Greenhollow's tools wear out, and Copperford's ore piles up. The lab's opportunity board prices what fixing that is worth.
+
+### 8.6 Coin, as built in step C (Andre's currency)
+**Denominations.** Copper is the heart of it:
+| Coin | Worth | What it is |
+|---|---|---|
+| **Verdigris bit** | ¹⁄₁₂ mark | A sliver of old copper gone green. Small change is the same metal, aged. |
+| **Copper mark** | 12 bits | Struck at the Mint in Copperford from the region's own ore. |
+| **Scute** | 20 marks | A shed shell plate of the Old Carrier (§18). Nobody mints scutes: only the tortoise makes them, so they arrive with the Wending Fair experiment (K), and forged scutes are a raider's dream. |
+
+Money is counted in whole bits, so every sum is exact on every engine.
+
+**Where coin sits:** each town's households (a purse), its market traders (a till), Lord Aldric's treasury, and every wayfarer's purse. Money only moves by transfer, and five flows cross the edge of circulation: **minted** (the Mint), **gifted** (the lab), **the Crown's due** (leaves the region), **worn** (clipped, lost and worn away) and **buried** (hoards under the floorboards, tallied per town so raiders or the player can dig them up later). At every moment, *money in circulation = opening + minted + gifted − Crown − worn − buried* (a step C test).
+
+**Flows:**
+- Traders buy what's made at the day's price and sell what's used, taking a 4% market fee for the lord. They pay out takings above their float to households.
+- Households buy food first, then the rest, and only what they can afford. **Poverty is now a cause of hunger alongside empty granaries.** Farming households eat what they grow without coin changing hands.
+- The treasury pays the guards (a mark a day each), buys luxuries for the lord's household, gathers a spring hearth tax (a mark a head, never more than a tenth of a town's purse), takes tolls at Aldric's Bridge, and sends the Crown a quarter of whatever it holds above 300 marks each season.
+- **The Mint strikes coin only to top up the lord's treasury** (to 600 marks), and only while ore costs less than 80% of the 16 marks a load yields. The ore's price goes to Copperford's market; the difference (seigniorage) goes to the lord. Early on, the lord's appetite for luxuries is what sets the Mint working. Nobody wrote that as a story, but it's one.
+- **Coin with nothing to buy goes under the floorboards:** households holding more than 40 marks a head bury 2% of the excess each day.
+
+**Result (the step C gate):** without a player or merchants, money in circulation rises from about 2,850 marks, levels off between 4,000 and 5,500 within two years, and stays there. In step D, imports from the Outside become the big outflow and exports the big inflow.
+
+### 8.7 Famine, migration and recovery (Andre's rule)
+Famine can kill, but the region must settle into an equilibrium rather than race to the bottom.
+- **Deaths:** at famine level hunger, the weakest die first (dependants, then labourers, then the trades, with farmers and shepherds last). The lord's household and officials never die of hunger.
+- **Turning to the land:** in a hungry town, people give up their trade to farm, up to the town's farmland (Kingscross 5 farmers at 80% yield, Copperford 3 at 60%, Greenhollow 12). Both towns stay grain importers, so merchants have work.
+- **Migration:** people leave hungry towns for the best-fed town with room. If nowhere has room, they take ship at Saltmouth for the wider world.
+- **Growth:** well-fed towns with grain to spare grow through births and newcomers, faster while below their founding size.
+- **Bounds:** no town falls below 40% of its founding size or grows past 120%.
+
+Result, without merchants: Kingscross falls from 55 to the high 30s in its second-year famine, turns to the land, and recovers to the mid-40s, fed. Copperford settles around 20. Greenhollow fills to its ceiling. Hunger ends and stays low.
 
 ## 9. Living world: residents and schedules
 
@@ -450,7 +481,7 @@ Simulation state is separate from rendering. The simulation is data-driven: good
 
 The browser page on the site grows with the project: A–G show headless charts and logs; H onward is playable.
 
-**Status (September 2026):** A and B are complete. The lab shows the clock, roads and travellers (A) and every town's market, its people, price history, an opportunity board and lab tools (B). Step C (coin) is next.
+**Status (September 2026):** A, B and C are complete. C added coin (§8.6), famine and recovery (§8.7), and hover tooltips on the lab's map for towns, roads (with seasonal closures), travellers and geography. D (merchants, caravans and the information system) is next. Before C: A and B were complete. The lab shows the clock, roads and travellers (A) and every town's market, its people, price history, an opportunity board and lab tools (B). Step C (coin) is next.
 
 ## 21. Acceptance tests
 **AT-01 to AT-15 are kept from v0.1** (autonomy, price response, merchant response, physical trade, disruption, competition, risk sensitivity, day cycle, persistent death, contextual experience, combat explanation, player parity, debug legibility, performance, interest test).
@@ -483,8 +514,9 @@ The v0.1 table is kept, plus:
 ## 23. Open questions
 1. How visible should the "ledger" UI metaphor be in the town view?
 2. *(Deferred)* Can the player become a fence or raider? Revisit after steps E and G.
-3. Should famine kill? Today hunger only slows work. Deaths, migration to better-fed towns and a shrinking population would make shortages permanent until someone fixes them. That's strong, but harsh.
-4. Coin denominations for step C: a single "mark", or marks and pennies (1 mark = 12 pennies) for cheap goods like grain?
+3. *(Resolved in v0.2.3)* Famine kills, with recovery (§8.7). Denominations: bits, marks and scutes (§8.6).
+4. Prices don't yet respond to how much money is about (no inflation). Worth adding once merchants move coin between towns?
+5. Wayfarers earn little (odd jobs while resting) and most end up nearly broke. Step D's peddling should give them a living.
 
 Resolved in v0.2.1: starting situation (§15.1), the lord (§15.2), the Carrier's names (§17.1).
 

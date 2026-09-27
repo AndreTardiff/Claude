@@ -559,5 +559,35 @@ export function createMapRenderer(canvas, world) {
     return best;
   }
 
-  return { draw, resize, hitTest, refreshColors: readColors };
+  /**
+   * Everything under the pointer, for hover tooltips: travellers and places
+   * first, then roads, then rivers and the gorge, then areas (forest, hills,
+   * fields, sea). Returns the topmost thing or null.
+   */
+  function describeAt(x, y) {
+    const top = hitTest(x, y);
+    if (top) return top;
+    const km = [x / k, y / k];
+    const near = 7 / k; // 7 pixels, in km
+    let bestSeg = null;
+    let bestD = near;
+    for (const sg of segs) {
+      const d = distToSegment(km[0], km[1], sg.A.x, sg.A.y, sg.B.x, sg.B.y);
+      if (d < bestD) {
+        bestSeg = sg;
+        bestD = d;
+      }
+    }
+    if (bestSeg) return { kind: 'segment', id: bestSeg.id };
+    const onLine = (pts) => pts.some((p, i) => i > 0 && distToSegment(km[0], km[1], pts[i - 1][0], pts[i - 1][1], p[0], p[1]) < near);
+    for (const r of DECOR.rivers) if (onLine(r.points)) return { kind: 'area', name: r.name, about: r.about };
+    if (onLine(DECOR.gorge.points)) return { kind: 'area', name: DECOR.gorge.name, about: DECOR.gorge.about };
+    for (const a of [...DECOR.forests, ...DECOR.hills, ...DECOR.fields]) {
+      if (a.name && pointInPolygon(km[0], km[1], a.points)) return { kind: 'area', name: a.name, about: a.about };
+    }
+    if (pointInPolygon(km[0], km[1], DECOR.sea)) return { kind: 'area', name: DECOR.seaLabel.text, about: DECOR.seaAbout };
+    return null;
+  }
+
+  return { draw, resize, hitTest, describeAt, refreshColors: readColors };
 }

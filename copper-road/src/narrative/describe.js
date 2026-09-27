@@ -8,6 +8,7 @@ import { formatDuration } from '../core/calendar.js';
 import { routesLabel } from '../world/routes.js';
 import { getWayfarer, tradeName } from '../systems/wayfarers.js';
 import { getResident, professionName } from '../systems/residents.js';
+import { formatMoney, toBits } from '../economy/money.js';
 
 // What a lab "spoil" looks like in the world.
 const DISASTERS = {
@@ -22,7 +23,7 @@ const DISASTERS = {
   luxuries: 'A warehouse fire',
 };
 
-const money = (x) => (x >= 100 ? Math.round(x).toString() : x >= 10 ? x.toFixed(1).replace(/\.0$/, '') : x.toFixed(2).replace(/0$/, ''));
+
 const article = (word) => (/^[aeiou]/i.test(word) ? 'an' : 'a');
 
 export function describe(entry, sim) {
@@ -56,7 +57,7 @@ export function describe(entry, sim) {
       return `${who(entry.who)} could find no open road from ${place(entry.at)} to ${place(entry.dest)}.`;
     case 'market:news': {
       const g = good(entry.good);
-      const each = `${money(entry.price)} marks a ${g.unit}`;
+      const each = `${sim.data.coin ? formatMoney(sim, toBits(sim, entry.price)) : entry.price.toFixed(2) + ' marks'} a ${g.unit}`;
       const days = entry.daysLeft === null ? '' : `${Math.round(entry.daysLeft)} days left`;
       switch (entry.band) {
         case 'low': return `${place(entry.at)} is running low on ${lower(entry.good)}: ${days}, ${each}.`;
@@ -76,7 +77,7 @@ export function describe(entry, sim) {
       return `${place(entry.at)} eats again.`;
     case 'resident:died': {
       const prof = professionName(sim, entry.profession);
-      const how = entry.cause === 'lab' ? ', struck down by the experimenter' : '';
+      const how = entry.cause === 'lab' ? ', struck down by the experimenter' : entry.cause === 'famine' ? ' of hunger' : '';
       return `${person(entry.who)}, ${prof} of ${place(entry.at)}, has died${how}.`;
     }
     case 'resident:succeeded': {
@@ -91,6 +92,29 @@ export function describe(entry, sim) {
       const g = good(entry.good);
       return `A cart nobody ordered delivers ${Math.round(entry.qty)} ${g.units} of ${lower(entry.good)} to ${place(entry.at)}.`;
     }
+    case 'resident:migrated':
+      return `${person(entry.who)}, once ${article(professionName(sim, entry.was))} ${professionName(sim, entry.was)}, gives up on hungry ${place(entry.from)} and walks to ${place(entry.to)} to find work.`;
+    case 'resident:emigrated':
+      return `${person(entry.who)} gives up on hungry ${place(entry.from)} and takes ship at Saltmouth for the wider world.`;
+    case 'resident:to-the-land':
+      return sim.data.economy.professions[entry.was]?.pool
+        ? `In hungry ${place(entry.at)}, ${person(entry.who)} goes out to work the fields.`
+        : `In hungry ${place(entry.at)}, ${person(entry.who)} puts down the ${professionName(sim, entry.was)}'s tools and turns to the land.`;
+    case 'resident:arrived':
+      return entry.born ? `A child is born in ${place(entry.at)}: ${person(entry.who)}.` : `Newcomers settle in well-fed ${place(entry.at)}: ${person(entry.who)} and family.`;
+    case 'coin:crown':
+      return `Lord Aldric sends the Crown its due: ${formatMoney(sim, entry.bits)} ride out of the region under guard.`;
+    case 'coin:hearth-tax':
+      return `The spring hearth tax is gathered: ${formatMoney(sim, entry.bits)} for Lord Aldric's treasury.`;
+    case 'coin:unpaid':
+      return `Lord Aldric's treasury is empty and his guards go unpaid.`;
+    case 'coin:mint':
+      if (entry.striking) return `The Mint at ${place(entry.at)} is striking coin again.`;
+      return `The Mint at ${place(entry.at)} falls silent: ${entry.reason === 'ore too dear' ? 'ore costs too much to strike' : entry.reason === 'no ore' ? 'there is no ore to strike' : 'there is no mint-master'}.`;
+    case 'coin:hoarded':
+      return `With little worth buying, ${place(entry.at)}'s households buried ${formatMoney(sim, entry.bits)} under their floors this season.`;
+    case 'coin:windfall':
+      return `A purse nobody claims turns up in ${place(entry.at)}: ${formatMoney(sim, entry.bits)} for its households.`;
     default:
       return `${entry.type}`;
   }

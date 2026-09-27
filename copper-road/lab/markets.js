@@ -69,7 +69,8 @@ export function createMarketsPanel(root, { onSelect }) {
       root.querySelector('.market-summary').innerHTML =
         `${people} residents${visitors ? ` and ${visitors} travelling guest${visitors === 1 ? '' : 's'}` : ''} · ` +
         `<span class="${hunger >= 0.25 ? 'bad' : ''}">${hungerWord}</span>${hunger >= 0.1 ? ` (${pct(hunger)} hungry)` : ''} · ` +
-        `tools ${pct(toolFactor(sim, town))} of full strength`;
+        `tools ${pct(toolFactor(sim, town))} of full strength` +
+        (today?.poor ? ` · <span class="bad">some households couldn't afford what was on sale</span>` : '');
     }
 
     tbody.innerHTML = ix.goodIds.map((gid) => {
@@ -143,7 +144,7 @@ export function createMarketsPanel(root, { onSelect }) {
         ` (never below ×${curve.floor} or above ×${curve.cap}).`;
     }
     root.querySelector('.why').innerHTML = `
-      <h3>${esc(g.name)} in ${esc(name)} <span class="sub">${money(q.price)} marks a ${esc(g.unit)}</span></h3>
+      <h3>${esc(g.name)} in ${esc(name)} <span class="sub">${money(q.price)} a ${esc(g.unit)}</span></h3>
       <p class="calc">${parts.join(' × ')} = <b>${money(q.price)}</b></p>
       <p class="story">${story}</p>`;
   }

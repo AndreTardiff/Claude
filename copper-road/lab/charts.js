@@ -87,7 +87,9 @@ export function createPriceChart(host) {
     // name, the rest as context. Line keys mirror the marks.
     legend.replaceChildren();
     const emphasised = series.find((sr) => sr.emphasis);
-    const entries = emphasised ? [[emphasised.name, true], ['other markets', false]] : series.map((sr) => [sr.name, false]);
+    const entries = emphasised
+      ? [[emphasised.name, true], ...(series.length > 1 ? [[data.contextName ?? 'other markets', false]] : [])]
+      : series.map((sr) => [sr.name, false]);
     for (const [label, isEmph] of entries) {
       const item = document.createElement('span');
       item.className = 'legend-item';
@@ -104,7 +106,7 @@ export function createPriceChart(host) {
     const m = { l: 40, r: Math.min(144, Math.round(width * 0.3)), t: 16, b: 24 };
     const n = days.length;
     const all = series.flatMap((s) => s.values).filter(Number.isFinite);
-    const top = Math.max(base * 1.1, ...all, 1);
+    const top = Math.max(base ? base * 1.1 : 0, ...all, 1);
     const step = niceStep(top, 4);
     const yMax = Math.ceil(top / step) * step;
     const x = (i) => m.l + (n <= 1 ? 0 : (i * (width - m.l - m.r)) / (n - 1));
@@ -123,9 +125,11 @@ export function createPriceChart(host) {
       t.textContent = v >= 1000 ? `${v / 1000}k` : String(Math.round(v * 100) / 100);
     }
     // Base value reference
-    el('line', { x1: m.l, x2: width - m.r, y1: y(base), y2: y(base), class: 'chart-base' }, svg);
-    const bl = el('text', { x: m.l + 4, y: y(base) - 5, class: 'chart-note' }, svg);
-    bl.textContent = `base value ${base}`;
+    if (base) {
+      el('line', { x1: m.l, x2: width - m.r, y1: y(base), y2: y(base), class: 'chart-base' }, svg);
+      const bl = el('text', { x: m.l + 4, y: y(base) - 5, class: 'chart-note' }, svg);
+      bl.textContent = `base value ${data.formatValue(base)}`;
+    }
     // X ticks: as many day labels as fit, counted back from today, never crowding.
     const maxTicks = Math.max(2, Math.floor((width - m.l - m.r) / 72));
     const every = Math.max(1, Math.ceil((n - 1) / (maxTicks - 1)));
