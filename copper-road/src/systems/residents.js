@@ -7,6 +7,7 @@
 // Step I will give these same people homes and daily schedules.
 
 import { improvementsOf, landOf } from '../world/improvements.js';
+import { lureToHills } from './raiders.js';
 import { GIVEN_NAMES, SURNAMES } from '../data/names.js';
 import { refreshNeeds } from './economy.js';
 import { residentsAt } from '../economy/people.js';
@@ -159,7 +160,7 @@ function pickWeakest(sim, people, rng) {
   return rng.pick(people.filter((r) => weakness(sim, r) === rank));
 }
 
-function newName(sim, rng) {
+export function newName(sim, rng) {
   const used = new Set(sim.state.residents.order.map((id) => sim.state.residents.byId[id].name));
   for (let i = 0; i < 60; i++) {
     const name = `${rng.pick(GIVEN_NAMES)} ${rng.pick(SURNAMES)}`;
@@ -218,8 +219,12 @@ function demography(sim) {
       const dest = towns
         .filter((t) => t !== sid && hunger[t] < 0.1 && residentsAt(sim, t).length < ceiling(t))
         .sort((a, b) => hunger[a] - hunger[b] || (a < b ? -1 : 1))[0];
-      const migrant = pickWeakest(sim, people, rng);
-      if (migrant && !dest) {
+      // Some of the able-bodied take to the hills instead (step E); otherwise the weakest go.
+      const lured = lureToHills(sim, sid);
+      const migrant = lured ? null : pickWeakest(sim, people, rng);
+      if (lured) {
+        people = residentsAt(sim, sid);
+      } else if (migrant && !dest) {
         // Nowhere in the region has room: they take ship at Saltmouth for the wider world.
         if (isTrade(sim, migrant.profession)) sim.state.residents.vacancies.push({ at: sid, profession: migrant.profession, since: sim.now, predecessor: migrant.id });
         migrant.alive = false;

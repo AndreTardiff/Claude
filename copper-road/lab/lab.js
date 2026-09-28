@@ -293,7 +293,8 @@ function merchantHtml(id) {
   const cargo = Object.entries(m.cargo)[0];
   const load = cargo ? `${qty(cargo[1])} ${esc(goodUnits(cargo[0]))} of ${esc(goodOf(sim, cargo[0]).name.toLowerCase())}` : 'empty wagons';
   let status;
-  if (!m.active) status = `Ruined ${esc(sim.cal.format(m.ruinedAt).stamp)}. The house is closed.`;
+  if (!m.active) status = m.killed ? `Killed by outlaws ${esc(sim.cal.format(m.ruinedAt).stamp)}, no ransom paid. The house is ended.` : `Ruined ${esc(sim.cal.format(m.ruinedAt).stamp)}. The house is closed.`;
+  else if (m.captive) status = `<span class="bad">Held for ransom</span> by ${esc(sim.state.raiders.bands[m.captive.band]?.name ?? 'outlaws')}: they want ${moneyBits(m.captive.ransom)} by ${esc(sim.cal.format(m.captive.deadline).stamp)}.`;
   else if (m.trip) status = tripStatus(m.trip, `Carrying ${load}:`);
   else status = cargo ? `In <strong>${esc(place(m.at))}</strong>, trying to sell ${load}.` : `In <strong>${esc(place(m.at))}</strong>, looking for a trade.`;
 
@@ -597,7 +598,7 @@ function tipHtml(hit) {
     const m = getMerchant(sim, hit.id);
     const cargo = Object.entries(m.cargo)[0];
     const load = cargo ? `${qty(cargo[1])} ${goodUnits(cargo[0])} of ${goodOf(sim, cargo[0]).name.toLowerCase()}` : 'empty wagons';
-    const doing = m.trip ? `${load}, bound for ${place(m.trip.dest)}` : cargo ? `selling ${load} in ${place(m.at)}` : `in ${place(m.at)}, looking for a trade`;
+    const doing = m.captive ? 'held for ransom' : m.trip ? `${load}, bound for ${place(m.trip.dest)}` : cargo ? `selling ${load} in ${place(m.at)}` : `in ${place(m.at)}, looking for a trade`;
     return `<strong>${esc(m.name)}</strong><p>Merchant, ${m.wagons} wagon${m.wagons > 1 ? 's' : ''}: ${esc(doing)}.</p><p class="dim">Click for what they know and why this trade.</p>`;
   }
   if (hit.kind === 'rider') {

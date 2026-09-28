@@ -31,6 +31,7 @@ import { finishLeg, newTrip, planJourney, reroute, startLeg } from '../world/jou
 import { pathNodes } from '../world/routes.js';
 import { belief, swapNews } from './knowledge.js';
 import { fillOrder, knownOrder } from './lord.js';
+import { afterLeg, onLegStart } from './raiders.js';
 
 const DAY = 1440;
 const round2 = (x) => Math.round(x * 100) / 100;
@@ -63,7 +64,7 @@ export const merchants = {
       const acct = account(m);
       const keep = toBits(sim, cfg.keepPerWagon * m.wagons);
       // A thriving house buys another wagon from its home town's wheelwrights.
-      if (m.wagons < cfg.maxWagons && balance(sim, acct) > 2 * keep + toBits(sim, cfg.wagonCost) && !m.trip) {
+      if (m.wagons < cfg.maxWagons && balance(sim, acct) > 2 * keep + toBits(sim, cfg.wagonCost) && !m.trip && !m.captive) {
         m.spent += transfer(sim, acct, `purse:${m.home}`, toBits(sim, cfg.wagonCost));
         m.wagons += 1;
         m.capacity = m.wagons * cfg.wagonCapacity;
@@ -198,7 +199,7 @@ export function tradeCandidates(sim, m) {
   const plans = new Map();
   for (const dest of ix.markets) {
     if (dest === here) continue;
-    const plan = planJourney(sim, here, dest, { speedKmh: cfg.speedKmh, caution: caution(m) });
+    const plan = planJourney(sim, here, dest, { speedKmh: cfg.speedKmh, caution: caution(m), holder: m.id });
     if (plan) plans.set(dest, plan);
   }
   const out = [];
@@ -264,7 +265,7 @@ function tomorrow(sim, m) {
 
 function onDecide(sim, { id, tripNo }) {
   const m = getMerchant(sim, id);
-  if (!m || !m.active || m.trip || m.tripNo !== tripNo) return;
+  if (!m || !m.active || m.trip || m.captive || m.tripNo !== tripNo) return;
   const cfg = sim.data.merchants;
   swapNews(sim, m.id, m.at);
 
@@ -317,7 +318,7 @@ function bestPlaceToBuy(sim, m) {
   let best = null;
   for (const t of ix.markets) {
     if (t === m.at) continue;
-    const plan = planJourney(sim, m.at, t, { speedKmh: cfg.speedKmh, caution: caution(m) });
+    const plan = planJourney(sim, m.at, t, { speedKmh: cfg.speedKmh, caution: caution(m), holder: m.id });
     if (!plan) continue;
     let margin = 0;
     for (const gid of ix.goodIds) {
@@ -387,11 +388,11 @@ function travel(sim, m, dest, plan, crew) {
 
 // Start the next leg, find another way round, or wait for the road to open.
 function go(sim, m) {
-  if (!startLeg(sim, m.trip, 'merchant:node', m.id)) return;
-  const plan = planJourney(sim, m.trip.at, m.trip.dest, { speedKmh: sim.data.merchants.speedKmh, caution: caution(m) });
+  if (!startLeg(sim, m.trip, 'merchant:node', m.id)) return onLegStart(sim, 'merchant', m.id, m.trip);
+  const plan = planJourney(sim, m.trip.at, m.trip.dest, { speedKmh: sim.data.merchants.speedKmh, caution: caution(m), holder: m.id });
   if (plan) {
     reroute(m.trip, plan);
-    if (!startLeg(sim, m.trip, 'merchant:node', m.id)) return;
+    if (!startLeg(sim, m.trip, 'merchant:node', m.id)) return onLegStart(sim, 'merchant', m.id, m.trip);
   }
   m.trip.waiting = true;
   sim.schedule(sim.cal.travelWindow(sim.cal.day(sim.now) + 1)[0], 'merchant:retry', { id: m.id, tripNo: m.tripNo });
@@ -406,7 +407,8 @@ function onRetry(sim, { id, tripNo }) {
 function onNode(sim, { id, tripNo }) {
   const m = getMerchant(sim, id);
   if (!m?.trip || m.trip.tripNo !== tripNo || !m.trip.legSeg) return;
-  finishLeg(sim, m.trip);
+  const seg = finishLeg(sim, m.trip);
+  afterLeg(sim, m.id, seg.id, m.trip);
   const toll = (sim.graph.nodes.get(m.trip.at).toll?.wagon ?? 0) * m.wagons;
   if (toll) {
     const paid = transfer(sim, account(m), 'treasury', toBits(sim, toll));
@@ -505,6 +507,26 @@ function sellCargo(sim, m, { dump = false } = {}) {
   if (m.venture && !hasCargo(m)) settle(sim, m);
 }
 
+/**
+ * Goods taken from the wagons on the road (raiders, step E). Returns what was lost.
+ */
+export function loseCargo(sim, m, gid, qty) {
+  const have = m.cargo[gid] ?? 0;
+  let lost = Math.min(have, qty);
+  if (!(lost > 0)) return 0;
+  if (have - lost < 0.1) lost = have; // the crumbs go too
+  const left = round3(have - lost);
+  if (left > 0) m.cargo[gid] = left;
+  else delete m.cargo[gid];
+  if (m.venture) m.venture.lost = round3((m.venture.lost ?? 0) + lost);
+  return lost;
+}
+
+/** After a robbery: a venture with nothing left to sell is written off. */
+export function writeOffIfEmpty(sim, m) {
+  if (m.venture && !hasCargo(m)) settle(sim, m);
+}
+
 function settle(sim, m) {
   const v = m.venture;
   const costs = v.bought + v.provisions + v.tolls + v.wages;
@@ -513,14 +535,18 @@ function settle(sim, m) {
   m.profit += profit;
   if (profit < 0) m.losses += 1;
   const entry = {
-    good: v.good, qty: v.soldQty, from: v.from, to: v.at, days: round2((sim.now - v.departedAt) / DAY),
-    sold: v.sold, costs, profit, expected: v.expected, ageDays: v.ageDays, source: v.source, dumped: v.dumped, t: sim.now,
+    good: v.good, qty: v.soldQty, from: v.from, to: v.at ?? v.to, days: round2((sim.now - v.departedAt) / DAY),
+    sold: v.sold, costs, profit, expected: v.expected, ageDays: v.ageDays, source: v.source, dumped: v.dumped, lost: v.lost ?? 0, t: sim.now,
   };
   m.ledger.push(entry);
   if (m.ledger.length > 12) m.ledger.shift();
-  sim.log('merchant:sold', {
-    who: m.id, at: v.at, good: v.good, qty: v.soldQty, sold: v.sold, profit, expected: v.expected, ageDays: v.ageDays, dumped: v.dumped,
-  });
+  if (v.soldQty > 0) {
+    sim.log('merchant:sold', {
+      who: m.id, at: v.at, good: v.good, qty: v.soldQty, sold: v.sold, profit, expected: v.expected, ageDays: v.ageDays, dumped: v.dumped, lost: v.lost ?? 0,
+    });
+  } else {
+    sim.log('merchant:lost', { who: m.id, good: v.good, qty: v.lost ?? v.qty, profit });
+  }
   m.venture = null;
 }
 
@@ -531,7 +557,7 @@ function carryOn(sim, m) {
   let best = null;
   for (const dest of economyIndex(sim.data).markets) {
     if (dest === m.at) continue;
-    const plan = planJourney(sim, m.at, dest, { speedKmh: cfg.speedKmh, caution: caution(m) });
+    const plan = planJourney(sim, m.at, dest, { speedKmh: cfg.speedKmh, caution: caution(m), holder: m.id });
     const b = belief(sim, m.id, dest, gid);
     if (!plan || !b) continue;
     const days = plan.hours / 24;

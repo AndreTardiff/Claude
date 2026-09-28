@@ -46,6 +46,26 @@ Each checkpoint ends with all tests green, `npm run reference` rerun, this file 
 
 ## Next
 
+**Step E: raiders** (Andre: go E with my suggestions: named merchants are captured and ransomed rather than
+killed outright; nights get eventful plus a lab toggle to fast-forward quiet nights). Checkpoints:
+- [x] **E1–E2** *(done: `src/systems/raiders.js`, `test/raiders.test.js`)*: bands of named outlaws (residents with
+      `home: null`, profession `outlaw`) in hideouts by the wild roads; recruitment from the idle, more in hungry,
+      broke towns, and hungry able-bodied workers are lured to the hills instead of leaving; lookouts track what each
+      road carries and bands watch the best one. Roads are news: travellers report each road (quiet, signs,
+      raided) as `road:<segment>` knowledge records that spread, get retold and fade; route planners and merchants'
+      risk use *believed* danger (`believedExposure`). Encounters (hooks `onLegStart`/`afterLeg` in merchants,
+      wayfarers and post): demand a toll / attack / steal at night; fight, flee or pay; hired hands die (residents of
+      the town the caravan left), outlaws die, merchants are captured and ransomed (house, lord or town pays; a cruel
+      band kills if nobody does), post letters are stolen. Gate E passes (a raided grain caravan leaves a shortage).
+- [ ] **E3**: the raiders' economy: fencing loot (grey market), food and hunger, hoards and unearthing them, farm
+      raids when starving, disbanding, moving hideouts; the lord's road patrols. AT-24 second half.
+- [ ] **E4**: night and camps: fireside news, night raids (already: `steal`), lab fast-nights toggle; surprise
+      closures and the camps experiment (§17.2).
+- [ ] **E5**: lab (bands, hideouts, danger shading, band inspector, encounter reports, lab tool to summon a band:
+      `lab:band` command exists), spec §11 as built, spec §20 status line (stale), site entry.
+Finding so far: without E3's pressures (bands don't eat yet), raiding can be heavy (one world: 52 encounters in
+200 days, Copperford down to 20 people).
+
 **Step E0: Lord Aldric as an engaged NPC** (Andre's direction, Sep 28). Built:
 `src/systems/lord.js` (traits, moods, decisions every 3 days with reasons; relief orders filled by merchants
 and paid by the treasury, cried at inns and carried by the post; commissions for glutted crafts; festivals

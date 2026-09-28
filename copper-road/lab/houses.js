@@ -26,9 +26,9 @@ export function createHousesPanel(root, { onSelect }) {
     const rows = all.filter((m) => m.active).map((m) => {
       const cargo = Object.entries(m.cargo)[0];
       const what = cargo ? `${Math.round(cargo[1])} ${sim.data.economy.goods.find((g) => g.id === cargo[0]).units}` : null;
-      const doing = m.trip
-        ? `${what ? `${esc(what)} to` : 'empty to'} ${esc(placeName(sim, m.trip.dest))}`
-        : what ? `selling ${esc(what)} in ${esc(placeName(sim, m.at))}` : `in ${esc(placeName(sim, m.at))}`;
+      const doing = m.captive ? '<span class="bad">held for ransom</span>'
+        : m.trip ? `${what ? `${esc(what)} to` : 'empty to'} ${esc(placeName(sim, m.trip.dest))}`
+          : what ? `selling ${esc(what)} in ${esc(placeName(sim, m.at))}` : `in ${esc(placeName(sim, m.at))}`;
       return `<tr>
         <td><button class="linkish" data-merchant="${esc(m.id)}">${esc(m.name)}</button> <span class="dim">${esc(placeName(sim, m.home))}</span></td>
         <td>${doing}</td>

@@ -36,8 +36,10 @@ test('merchants open with named houses, wagons, purses and tempers', () => {
   assert.equal(names.size, ms.length, 'no two merchants share a name');
 });
 
+const peaceful = { ...WORLD, raiders: undefined }; // for tests of trade itself, with no bandits on the roads
+
 test('AT-04: goods travel in the wagons: they leave the market at departure and arrive with the caravan', () => {
-  const sim = new Simulation({ seed: 1 });
+  const sim = new Simulation({ seed: 1, data: peaceful });
   // The first caravan carrying something other than grain (grain also moves as provisions).
   const dep = stepUntil(sim, at(80), (entries, before) => {
     const e = entries.find((x) => x.type === 'merchant:departed' && x.good !== 'grain');
@@ -118,7 +120,7 @@ test('AT-07: caution buys safety: timid merchants take the safer road and price 
 
   // The same trade, valued by the same merchant at either temper.
   sim.advanceTo(at(30));
-  const m = activeMerchants(sim).find((x) => x.at);
+  const m = activeMerchants(sim).find((x) => x.at && tradeCandidates(sim, x).length);
   const saved = m.boldness;
   m.boldness = 1000;
   const reckless = tradeCandidates(sim, m);
@@ -189,7 +191,7 @@ test('merchants trade at a profit overall, and sometimes misjudge', () => {
 });
 
 test('a town that cannot pay leaves goods in the wagons, and the merchant does not wait forever', () => {
-  const sim = new Simulation({ seed: 1 });
+  const sim = new Simulation({ seed: 1, data: peaceful });
   // The first caravan bound for an inland town: empty that town's tills and purses behind its back.
   const dep = stepUntil(sim, at(80), (entries) => entries.find((x) => x.type === 'merchant:departed' && x.to !== 'saltmouth'));
   assert.ok(dep);
@@ -218,11 +220,12 @@ test('houses rise and fall: a ruined house is replaced by one a town backs', () 
   assert.ok(ruined, 'the house should be ruined');
   const founded = sim.state.log.filter((e) => e.type === 'merchant:founded' && e.t > ruined.t);
   assert.ok(founded.length > 0, 'a town should back a new house');
+  // (The new house may have fallen since, to raiders or bad trade; what matters is how it began.)
   const fresh = getMerchant(sim, founded[0].who);
-  assert.ok(fresh.active && fresh.home === founded[0].at);
+  assert.ok(fresh.home === founded[0].at && fresh.founded === founded[0].t);
   assert.notEqual(fresh.house, m.house, 'the new house has a new name');
   const n = activeMerchants(sim).length;
-  assert.ok(n >= WORLD.merchants.count && n <= WORLD.merchants.count + WORLD.merchants.peddlerHouses, `${n} houses`);
+  assert.ok(n <= WORLD.merchants.count + WORLD.merchants.peddlerHouses, `${n} houses`);
   assert.equal(moneySupply(sim), booksBalance(sim));
   for (const e of [ruined, founded[0]]) assert.ok(!/undefined|NaN/.test(describe(e, sim)));
 });
@@ -246,7 +249,7 @@ test('rich houses spend at home, and the lord borrows from the richest', () => {
 test('peddlers carry a pack where word says it pays, and sell it on arrival', () => {
   let sales = 0;
   let profit = 0;
-  for (const seed of [1, 23]) {
+  for (const seed of [1, 7, 23]) {
     const sim = new Simulation({ seed });
     sim.advanceTo(at(150));
     for (const e of sim.state.log.filter((x) => x.type === 'wayfarer:peddled')) {

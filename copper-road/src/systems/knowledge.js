@@ -11,11 +11,18 @@
 //            nudges the prices a little and lowers the confidence.
 //
 // Holders: every inn ('inn:<town>'), every traveller (wayfarers, post riders,
-// later merchants). A holder keeps only its freshest list per market.
+// merchants), every raider band. A holder keeps only its freshest list per market.
+//
+// Roads are news too (step E): a traveller who comes along a road reports on it
+// ('road:<segment>'): quiet, signs of bandits, or a raid. Reports travel and get
+// retold like price lists, and fade from memory, so a road's reputation lags
+// what is really waiting on it.
 // Travellers and inns swap news when a traveller arrives, so knowledge spreads
 // at road speed, and a town's picture of the others is always somewhat out of date.
 
 import { economyIndex, quote } from '../economy/pricing.js';
+
+const DAY = 1440;
 import { balance } from '../economy/money.js';
 
 const round1 = (x) => Math.round(x * 10) / 10;
@@ -81,8 +88,40 @@ export function learn(sim, holder, rec) {
   if (!h) return false;
   const have = h[rec.at];
   if (have && (have.t > rec.t || (have.t === rec.t && have.confidence >= rec.confidence))) return false;
+  // Bad news outlives good for a while: "the road was quiet when I came" doesn't
+  // undo a raid reported a day or two before.
+  if (have && rec.road && rec.what === 'quiet' && have.what !== 'quiet' && rec.t - have.t < sim.data.knowledge.badNewsDays * DAY) return false;
   h[rec.at] = rec;
   return true;
+}
+
+export const roadKey = (segId) => `road:${segId}`;
+
+/** A traveller's report on a road they have just come along. */
+export function reportRoad(sim, holder, segId, { danger, what, band = null, source = 'seen', confidence = 1000 }) {
+  if (!sim.state.knowledge) return false;
+  return learn(sim, holder, { at: roadKey(segId), road: segId, t: sim.now, source, confidence, danger: round2(danger), what, band });
+}
+
+/**
+ * How dangerous a holder believes a road to be (on the same 0–1 scale as the
+ * world data's danger). With no word of it, the road's old reputation; a report
+ * pulls it toward what was seen, fading as the report ages.
+ */
+export function believedDanger(sim, holder, segId) {
+  const base = sim.graph.segments.get(segId).danger;
+  const rec = holder ? sim.state.knowledge?.holders[holder]?.[roadKey(segId)] : null;
+  if (!rec) return base;
+  const age = (sim.now - rec.t) / DAY;
+  const fade = 1 / (1 + age / sim.data.knowledge.roadMemoryDays);
+  return base + (rec.danger - base) * fade * (0.5 + 0.5 * rec.confidence / 1000);
+}
+
+/** Believed exposure of a path: danger per 100 km, summed (compare pathExposure in world/routes.js). */
+export function believedExposure(sim, holder, path) {
+  let e = 0;
+  for (const segId of path) e += (believedDanger(sim, holder, segId) * sim.graph.segments.get(segId).km) / 100;
+  return e;
 }
 
 /** See a market for yourself. */
@@ -95,6 +134,12 @@ export function observe(sim, holder, sid) {
 function retell(sim, rec) {
   const noise = sim.data.knowledge.rumourNoise;
   const rng = sim.rng('rumour');
+  if (rec.road) {
+    // A road story grows or shrinks in the telling.
+    const wobble = 1 + (rng.float() * 2 - 1) * noise * 3;
+    const danger = Math.min(1, Math.max(0, rec.danger * wobble));
+    return { ...rec, danger: round2(danger), source: 'rumour', confidence: Math.round(rec.confidence * sim.data.knowledge.rumourTrust) };
+  }
   const goods = {};
   for (const [gid, g] of Object.entries(rec.goods)) {
     const wobble = 1 + (rng.float() * 2 - 1) * noise;

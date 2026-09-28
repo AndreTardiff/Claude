@@ -17,21 +17,25 @@ import {
   segmentConditions,
 } from './routes.js';
 
+import { believedExposure } from '../systems/knowledge.js';
+
 const round1 = (x) => Math.round(x * 10) / 10;
 const round2 = (x) => Math.round(x * 100) / 100;
 
 /**
  * Choose a road from `from` to `dest`. Score = hours × (1 + dangerWeight × exposure × caution);
+ * exposure is the danger the traveller (`holder`) believes the roads hold;
  * lowest wins. Blocked paths (a closure on the way) are skipped. Keeps the top options as the reason.
  */
-export function planJourney(sim, from, dest, { speedKmh, caution = 0.5, dangerWeight = 8, maxSegments = 8 }) {
+export function planJourney(sim, from, dest, { speedKmh, caution = 0.5, dangerWeight = 8, maxSegments = 8, holder = null }) {
   const options = [];
   for (const path of findPaths(sim.graph, from, dest, maxSegments)) {
     const est = estimateJourney(sim.graph, sim.cal, from, path, sim.now, speedKmh);
     if (est.blocked) continue;
     const routes = pathRoutes(sim.graph, path);
     const hours = est.elapsed / 60;
-    const exposure = pathExposure(sim.graph, path);
+    // A traveller judges danger by what they've heard of the roads (step E); without a holder, by reputation alone.
+    const exposure = holder ? believedExposure(sim, holder, path) : pathExposure(sim.graph, path);
     const score = hours * (1 + dangerWeight * exposure * caution);
     options.push({ path, routes, label: routesLabel(sim.graph, routes), hours, exposure, score });
   }

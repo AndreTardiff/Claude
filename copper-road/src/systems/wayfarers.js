@@ -12,15 +12,15 @@ import { GIVEN_NAMES } from '../data/names.js';
 import { load, round3, traderAccount, unload } from '../economy/market.js';
 import { economyIndex, estimateSale, purchaseCost, quote, saleValue } from '../economy/pricing.js';
 import { believedCash, sellable, stockOnArrival } from './merchants.js';
-import { belief } from './knowledge.js';
+import { belief, believedExposure } from './knowledge.js';
 import { balance, toBits, transfer } from '../economy/money.js';
 import { swapNews } from './knowledge.js';
+import { afterLeg, onLegStart } from './raiders.js';
 import {
   estimateJourney,
   findPaths,
   legMinutes,
   otherEnd,
-  pathExposure,
   pathRoutes,
   routesLabel,
   segmentConditions,
@@ -117,7 +117,7 @@ export function planRoute(sim, w, from, dest) {
     if (est.blocked) continue;
     const routes = pathRoutes(sim.graph, path);
     const hours = est.elapsed / 60;
-    const exposure = pathExposure(sim.graph, path);
+    const exposure = believedExposure(sim, w.id, path);
     const score = hours * (1 + cfg.dangerWeight * exposure * caution);
     options.push({ path, routes, label: routesLabel(sim.graph, routes), hours, exposure, score });
   }
@@ -142,7 +142,7 @@ export function planRoute(sim, w, from, dest) {
 
 function onDepart(sim, { id, tripNo }) {
   const w = getWayfarer(sim, id);
-  if (!w || w.retired || w.trip || w.tripNo !== tripNo) return;
+  if (!w || w.retired || w.dead || w.trip || w.tripNo !== tripNo) return;
   const from = w.at;
   // A peddler with a pack to sell, or a good trade in sight, goes where it pays;
   // everyone else wanders where their feet take them.
@@ -208,6 +208,7 @@ function startLeg(sim, w, depth = 0) {
   trip.legMinutes = minutes;
   trip.legEnd = sim.cal.addTravel(sim.now, minutes);
   sim.schedule(trip.legEnd, 'wayfarer:node', { id: w.id, tripNo: trip.tripNo });
+  onLegStart(sim, 'wayfarer', w.id, trip);
 }
 
 // The next road is closed. Find another way from here, or wait for it to open.
@@ -250,7 +251,9 @@ function onNode(sim, { id, tripNo }) {
     sim.state.coin.today.tolls += paid;
   }
   trip.leg += 1;
+  const travelled = trip.legSeg;
   trip.legSeg = null;
+  afterLeg(sim, w.id, travelled, trip);
   if (trip.at !== trip.dest) {
     startLeg(sim, w);
     return;
@@ -340,6 +343,17 @@ function buyPack(sim, w, sid, deal) {
   const fee = transfer(sim, `wayfarer:${w.id}`, 'treasury', toBits(sim, cost * sim.data.coin.marketFee));
   sim.state.coin.today.fees += fee;
   w.pack = { good: deal.good, qty: round3(got), cost: paid + fee, from: sid };
+}
+
+/** Goods taken from the pack on the road (raiders, step E). Returns what was lost. */
+export function losePack(sim, w, qty) {
+  if (!w.pack) return 0;
+  const lost = w.pack.qty - qty < 0.1 ? w.pack.qty : qty;
+  const cost = Math.round((w.pack.cost * lost) / w.pack.qty);
+  w.peddled -= cost;
+  const left = round3(w.pack.qty - lost);
+  w.pack = left > 0 ? { ...w.pack, qty: left, cost: w.pack.cost - cost } : null;
+  return lost;
 }
 
 // Sell what the town can pay for; anything left stays in the pack for the next town.

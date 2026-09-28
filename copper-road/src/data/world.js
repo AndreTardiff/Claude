@@ -148,6 +148,60 @@ export const WORLD = {
     forcedLoanShare: 0.2, // …this share of the excess, each season
   },
 
+  // Raiders (step E): bands of outlaws with hideouts near the wild roads. They
+  // recruit from the hungry and jobless, watch the road that pays, and rob,
+  // extort or steal from those who pass. x/y place the hideouts on the map.
+  raiders: {
+    hideouts: [
+      {
+        id: 'blackpine-hollows', name: 'the Blackpine hollows', band: 'the Blackpine band', x: 101, y: 66,
+        watches: ['blackpine-east', 'blackpine-west'], fence: 'kingscross', near: ['kingscross', 'copperford'],
+      },
+      {
+        id: 'saddle-caves', name: 'the caves under the Saddle', band: 'the Saddle band', x: 60, y: 88,
+        watches: ['high-pass-south', 'high-pass-north'], fence: 'greenhollow', near: ['greenhollow', 'copperford'],
+      },
+      {
+        id: 'fen-islands', name: 'the fen islands', band: 'the Fen band', x: 190, y: 122,
+        watches: ['estuary-west', 'estuary-east'], fence: 'saltmouth', near: ['kingscross', 'saltmouth'],
+      },
+      {
+        id: 'gorge-ledges', name: 'the ledges of the Grey Gorge', band: 'the Gorge band', x: 101, y: 24,
+        watches: ['kings-road-north', 'kings-road-south'], fence: 'copperford', near: ['copperford', 'kingscross'],
+      },
+    ],
+    start: [{ hideout: 'blackpine-hollows', members: 5 }, { hideout: 'fen-islands', members: 4 }],
+    maxBands: 4,
+    maxMembers: 12,
+    minToRaid: 2, // a band needs this many to take the road
+    // Recruitment: each day, per town, chance × labourers × (1 + hunger × 3) × (1 + poverty × 2).
+    // lure: share of those leaving a hungry town (not children or elders) who head for the hills instead.
+    recruit: { chance: 0.003, hungerWeight: 3, povertyWeight: 2, poorBelow: 8, newBandHunger: 0.35, lure: 0.4 },
+    // Lookouts: chance a band spots a traveller on its road, by how visible they are.
+    spot: 0.8,
+    visibility: { merchant: 1, wayfarer: 0.5, peddler: 0.75, rider: 0.6 },
+    noticeChance: 0.35, // chance a traveller who isn't attacked notices the band's signs
+    takeMemory: 0.9, // lookouts' running estimate of each road's takings fades by this a day
+    fearMemory: 0.93, // …and so does the fear a bloody road leaves
+    watchEvery: 2, // days between a band reconsidering which road to watch
+    // Encounters: numbers × nerve, a bounded roll, and tempers on both sides.
+    encounter: {
+      minLoot: 12, // marks: less isn't worth the trouble (unless the band is desperate)
+      maxOdds: 0.6, // a band won't take on travellers with better than this chance of beating it
+      desperateHunger: 0.4, // a band this hungry takes any chance
+      nightShare: 0.45, // share of ambushes on a leg that runs past dusk that come at the night's camp
+      nightEdge: 1.25, // surprise, in the dark
+      tollShare: 0.25, // a toll: this share of what they carry
+      stealShare: 0.4, // what night thieves get away with, if the watch sleeps
+      fleeCaution: 0.7, // the timid cut loose and run
+      flee: { rider: 0.8, wayfarer: 0.5 }, // chance of getting away (a caravan that drops its cargo always does)
+      captureChance: 0.4, // a merchant whose crew lose a fight may be dragged off (more if timid)
+      murderChance: 0.25, // a wayfarer who fights and loses may not live
+      letterValue: 20, // marks a band reckons the post's letters are worth to a fence
+    },
+    ransom: { share: 0.3, min: 60, days: 6, lordGenerosity: 600, townKeepsPerHead: 15, killAbove: 650 },
+  },
+
   // Lord Aldric: temperament, and what he does with a treasury beyond its reserve.
   lord: {
     name: 'Aldric',
@@ -174,7 +228,9 @@ export const WORLD = {
   },
 
   // Word of mouth: each retelling moves prices by up to ±6% and costs 15% of the trust.
-  knowledge: { rumourNoise: 0.06, rumourTrust: 0.85 },
+  // Road reports fade: a raid ten days old weighs half as much. For a few days, bad
+  // news isn't undone by someone who came along the road and saw nothing.
+  knowledge: { rumourNoise: 0.06, rumourTrust: 0.85, roadMemoryDays: 10, badNewsDays: 3 },
 
   // The lord's post: riders on a fixed circuit through Kingscross, carrying every
   // town's posted prices to the others' inns as letters (exact, but as old as the ride).

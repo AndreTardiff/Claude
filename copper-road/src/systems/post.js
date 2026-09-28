@@ -6,6 +6,7 @@ import { GIVEN_NAMES } from '../data/names.js';
 import { finishLeg, newTrip, planJourney, reroute, startLeg } from '../world/journey.js';
 import { swapNews } from './knowledge.js';
 import { cryOrders } from './lord.js';
+import { afterLeg, onLegStart } from './raiders.js';
 
 export const post = {
   id: 'post',
@@ -35,8 +36,8 @@ export const post = {
 
 export const getRider = (sim, id) => sim.state.post?.byId[id];
 
-function plan(sim, from, dest) {
-  return planJourney(sim, from, dest, { speedKmh: sim.data.post.speedKmh, caution: 0.3 });
+function plan(sim, from, dest, holder) {
+  return planJourney(sim, from, dest, { speedKmh: sim.data.post.speedKmh, caution: 0.3, holder });
 }
 
 function onDepart(sim, { id, tripNo }) {
@@ -44,7 +45,7 @@ function onDepart(sim, { id, tripNo }) {
   if (!r || r.trip || r.tripNo !== tripNo) return;
   const circuit = sim.data.post.circuit;
   const dest = circuit[(r.idx + 1) % circuit.length];
-  const p = plan(sim, r.at, dest);
+  const p = plan(sim, r.at, dest, r.id);
   if (!p) {
     sim.schedule(sim.cal.travelWindow(sim.cal.day(sim.now) + 1)[0], 'post:depart', { id, tripNo });
     return;
@@ -58,11 +59,11 @@ function onDepart(sim, { id, tripNo }) {
 // Start the next leg, or find another way round, or wait for the road to open.
 function go(sim, r) {
   const blocked = startLeg(sim, r.trip, 'post:node', r.id);
-  if (!blocked) return;
-  const p = plan(sim, r.trip.at, r.trip.dest);
+  if (!blocked) return onLegStart(sim, 'rider', r.id, r.trip);
+  const p = plan(sim, r.trip.at, r.trip.dest, r.id);
   if (p) {
     reroute(r.trip, p);
-    if (!startLeg(sim, r.trip, 'post:node', r.id)) return;
+    if (!startLeg(sim, r.trip, 'post:node', r.id)) return onLegStart(sim, 'rider', r.id, r.trip);
   }
   r.trip.waiting = true;
   sim.schedule(sim.cal.travelWindow(sim.cal.day(sim.now) + 1)[0], 'post:retry', { id: r.id, tripNo: r.tripNo });
@@ -77,7 +78,8 @@ function onRetry(sim, { id, tripNo }) {
 function onNode(sim, { id, tripNo }) {
   const r = getRider(sim, id);
   if (!r?.trip || r.trip.tripNo !== tripNo || !r.trip.legSeg) return;
-  finishLeg(sim, r.trip);
+  const seg = finishLeg(sim, r.trip);
+  afterLeg(sim, r.id, seg.id, r.trip);
   if (r.trip.at !== r.trip.dest) {
     go(sim, r);
     return;

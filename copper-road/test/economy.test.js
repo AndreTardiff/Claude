@@ -12,6 +12,7 @@ import {
   stockFactor,
   tradeOpportunities,
 } from '../src/index.js';
+import { storageOf } from '../src/world/improvements.js';
 
 const DAY = 1440;
 const START = 330; // the world opens at 05:30 on day 0
@@ -217,7 +218,7 @@ test('five years on: no negative stocks, nothing overflows, prices stay on the c
       const m = sim.state.economy.markets[sid][gid];
       const g = ix.goods.get(gid);
       const c = curves[g.curve];
-      assert.ok(m.stock >= 0 && m.stock <= WORLD.economy.storage[sid] + 1e-9, `${sid} ${gid} stock ${m.stock}`);
+      assert.ok(m.stock >= 0 && m.stock <= storageOf(sim, sid) + 1e-9, `${sid} ${gid} stock ${m.stock}`); // granaries the lord built count
       const q = quote(sim, sid, gid);
       assert.ok(q.price >= g.base * q.local * c.floor - 1e-9 && q.price <= g.base * q.local * c.cap + 1e-9);
       for (const p of sim.state.economy.history.price[sid][gid]) assert.ok(Number.isFinite(p) && p > 0);
@@ -256,6 +257,11 @@ test('every settlement has its full population of named residents', () => {
     const people = residentsAt(sim, n.id);
     assert.equal(people.length, n.residents);
     for (const r of people) names.add(r.name);
+  }
+  // Outlaws in the hills (step E) have no town, but they have names too.
+  for (const id of sim.state.residents.order) {
+    const r = sim.state.residents.byId[id];
+    if (r.profession === 'outlaw') names.add(r.name);
   }
   assert.equal(names.size, sim.state.residents.order.length, 'no two residents share a name');
 });

@@ -11,6 +11,7 @@ import { getResident, professionName } from '../systems/residents.js';
 import { formatMoney, toBits } from '../economy/money.js';
 import { getRider } from '../systems/post.js';
 import { getMerchant } from '../systems/merchants.js';
+import { getBand } from '../systems/raiders.js';
 
 // What a lab "spoil" looks like in the world.
 const DISASTERS = {
@@ -36,6 +37,9 @@ const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 const article = (word) => (/^[aeiou]/i.test(word) ? 'an' : 'a');
 
 export function describe(entry, sim) {
+  const bandName = (id) => getBand(sim, id)?.name ?? 'a band of outlaws';
+  const hideout = (id) => sim.data.raiders?.hideouts.find((h) => h.id === getBand(sim, id)?.hideout)?.name ?? 'the hills';
+  const segRoad = (segId) => sim.graph.routes.get(sim.graph.segments.get(segId)?.route)?.name ?? segId;
   const WORKS = (id) => sim.data.lord?.works.find((w) => w.id === id)?.name ?? id;
   const place = (id) => sim.graph.nodes.get(id)?.name ?? id;
   const road = (routeIds) => routesLabel(sim.graph, routeIds);
@@ -101,7 +105,8 @@ export function describe(entry, sim) {
       return `${place(entry.at)} eats again.`;
     case 'resident:died': {
       const prof = professionName(sim, entry.profession);
-      const how = entry.cause === 'lab' ? ', struck down by the experimenter' : entry.cause === 'famine' ? ' of hunger' : '';
+      const how = entry.cause === 'lab' ? ', struck down by the experimenter' : entry.cause === 'famine' ? ' of hunger'
+        : entry.cause === 'raid' ? ', killed by raiders on the road with a caravan' : '';
       return `${person(entry.who)}, ${prof} of ${place(entry.at)}, has died${how}.`;
     }
     case 'resident:succeeded': {
@@ -198,6 +203,32 @@ export function describe(entry, sim) {
       return `Work on ${WORKS(entry.work)} in ${place(entry.at)} is given up for want of materials.`;
     case 'lord:skimmed':
       return `The accounts at the castle don't add up: someone has had their fingers in Lord Aldric's treasury, ${formatMoney(sim, entry.bits)} this season.`;
+    case 'merchant:lost':
+      return `${trader(entry.who)} writes off the ${lower(entry.good)} venture: a loss of ${formatMoney(sim, -entry.profit)}.`;
+    case 'raid:recruit': {
+      const r = getResident(sim, entry.who);
+      const why = entry.hunger >= 0.35 ? `with nothing left in hungry ${place(entry.from)}` : entry.poverty >= 0.6 ? `with nothing left in penniless ${place(entry.from)}` : `out of work in ${place(entry.from)}`;
+      const was = professionName(sim, r?.was ?? 'labourer');
+      return entry.founded
+        ? `${person(entry.who)}, ${article(was)} ${was} ${why}, takes to the hills and gathers a band at ${hideout(entry.band)}.`
+        : `${person(entry.who)}, ${article(was)} ${was} ${why}, goes off to join ${bandName(entry.band)}.`;
+    }
+    case 'raid:moved':
+      return `${cap(bandName(entry.band))} ${bandName(entry.band).startsWith('the') ? 'move' : 'moves'} their lookouts to the ${segRoad(entry.to)}.`;
+    case 'raid:encounter':
+      return encounterText(entry, { place, person, bandName, segRoad, amount, sim });
+    case 'raid:ransomed': {
+      const by = entry.payer === 'house' ? 'the house pays' : entry.payer === 'lord' ? 'Lord Aldric pays' : `${place(getMerchant(sim, entry.who)?.home)}'s households club together to pay`;
+      return `${trader(entry.who)} is set free by ${bandName(entry.band)}: ${by} a ransom of ${formatMoney(sim, entry.bits)}.`;
+    }
+    case 'raid:released':
+      return `${cap(bandName(entry.band))} let ${trader(entry.who)} go without a ransom, penniless, to walk home.`;
+    case 'raid:captive-killed':
+      return `No ransom came for ${trader(entry.who)}, and ${bandName(entry.band)} don't keep captives they can't sell. The house of ${house(entry.who)} is ended.`;
+    case 'raid:disbanded':
+      return `${cap(bandName(entry.band))} ${entry.why === 'wiped out' ? 'is wiped out' : `breaks up: ${entry.why}`}.`;
+    case 'raid:summoned':
+      return `The experimenter sends outlaws into ${hideout(entry.band)}: ${bandName(entry.band)} now counts ${entry.members}.`;
     case 'merchant:forced-loan':
       return `Lord Aldric "borrows" ${formatMoney(sim, entry.bits)} from ${trader(entry.who)}. Nobody expects to see it again.`;
     default:
@@ -219,4 +250,41 @@ export function seasonalRoadNotes(sim, seasonId) {
   const parts = [...seen.values()];
   const sentence = parts.join('; ');
   return sentence.charAt(0).toUpperCase() + sentence.slice(1) + '.';
+}
+
+// The after-action report of an encounter on the road (spec §13).
+function encounterText(e, { place, person, bandName, segRoad, amount, sim }) {
+  const band = bandName(e.band);
+  const Band = band.charAt(0).toUpperCase() + band.slice(1);
+  const road = `the ${segRoad(e.seg)}`;
+  const m = e.kind === 'merchant' ? getMerchant(sim, e.who) : null;
+  const w = e.kind === 'wayfarer' ? getWayfarer(sim, e.who) : null;
+  const r = e.kind === 'rider' ? getRider(sim, e.who) : null;
+  const name = m ? m.name : w ? `${w.name} the ${tradeName(sim, w)}` : r ? `${r.name} of the lord's post` : e.who;
+  const party = m ? `${m.name}'s caravan` : name;
+  const goods = Object.entries(e.goods ?? {}).filter(([, q]) => q > 0.05).map(([gid, q]) => amount(q, gid));
+  const took = [goods.join(' and '), e.bits ? formatMoney(sim, e.bits) : ''].filter(Boolean).join(' and ');
+  const hands = e.hands ? ` ${e.hands === 1 ? 'One hired hand is' : `${e.hands} hired hands are`} killed.` : '';
+  const outlaws = e.outlaws ? ` ${e.outlaws === 1 ? 'One outlaw is' : `${e.outlaws} outlaws are`} left dead${e.leaderFell ? ', their leader among them' : ''}.` : '';
+  switch (e.outcome) {
+    case 'toll':
+      return `On ${road}, ${band} stop ${party} and demand a toll${m ? `; ${m.name} pays` : `. ${name} pays`} ${took || 'what they ask'} rather than fight.`;
+    case 'stolen':
+      return `In the night, thieves from ${band} creep into ${party === name ? `${name}'s camp` : `the camp of ${party}`} on ${road} and are gone before dawn with ${took || 'what they could carry'}.`;
+    case 'escaped':
+      return `${Band} try to stop ${name} on ${road}, but the rider spurs through and away, letters safe.`;
+    case 'dropped':
+      return `Seeing ${band} on ${road}, ${m ? `${m.name}'s crew cut loose and run` : `${name} drops everything and runs`}, leaving ${took || 'the load'} behind.`;
+    case 'fought off':
+      return `${Band} fall on ${party} on ${road}${e.night ? ' in the dark' : ''} and are driven off.${outlaws}${hands}`;
+    case 'murdered':
+      return `${name} is found dead on ${road}, robbed by ${band} of ${took || 'everything'}.`;
+    case 'robbed':
+      if (e.kind === 'rider') return `${Band} waylay ${name} on ${road} and take the rider's letters.`;
+      return `${Band} fall on ${party} on ${road}${e.night ? ' in the dark' : ''}.${e.response === 'fought' || e.response === 'refused' || e.response === 'woke' ? ' They fight and lose.' : ''}` +
+        ` ${took ? `${took.charAt(0).toUpperCase() + took.slice(1)} ${took.includes(' and ') || /s\b/.test(took) ? 'are' : 'is'} taken.` : ''}${hands}${outlaws}` +
+        (e.captured ? ` ${m.name} is dragged off to be held for ransom.` : '');
+    default:
+      return `${Band} trouble ${name} on ${road}.`;
+  }
 }
