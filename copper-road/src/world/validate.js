@@ -175,6 +175,17 @@ export function validateWorld(data) {
     }
   }
 
+  // Knowledge and the post
+  if (data.knowledge && !(data.knowledge.rumourNoise >= 0 && data.knowledge.rumourTrust > 0 && data.knowledge.rumourTrust <= 1)) {
+    err('knowledge: rumourNoise must be ≥ 0 and rumourTrust within (0, 1]');
+  }
+  if (data.post) {
+    if (!(data.post.speedKmh > 0) || !Number.isInteger(data.post.riders) || data.post.riders < 0) err('post: riders and speed must be positive');
+    for (const sid of data.post.circuit ?? []) if (!nodeById.get(sid) || nodeById.get(sid).kind === 'waypoint') err(`post circuit: ${sid} is not a settlement`);
+    const c = data.post.circuit ?? [];
+    for (let i = 0; i < c.length; i++) if (c[i] === c[(i + 1) % c.length]) err('post circuit: a stop repeats back to back');
+  }
+
   // Wayfarers
   const wf = data.wayfarers;
   if (wf) {

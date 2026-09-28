@@ -9,6 +9,7 @@ import { routesLabel } from '../world/routes.js';
 import { getWayfarer, tradeName } from '../systems/wayfarers.js';
 import { getResident, professionName } from '../systems/residents.js';
 import { formatMoney, toBits } from '../economy/money.js';
+import { getRider } from '../systems/post.js';
 
 // What a lab "spoil" looks like in the world.
 const DISASTERS = {
@@ -115,6 +116,12 @@ export function describe(entry, sim) {
       return `With little worth buying, ${place(entry.at)}'s households buried ${formatMoney(sim, entry.bits)} under their floors this season.`;
     case 'coin:windfall':
       return `A purse nobody claims turns up in ${place(entry.at)}: ${formatMoney(sim, entry.bits)} for its households.`;
+    case 'post:arrived': {
+      const rider = getRider(sim, entry.who)?.name ?? entry.who;
+      return entry.letters
+        ? `${rider} of the lord's post rides into ${place(entry.at)} from ${place(entry.from)} with fresh prices from ${entry.letters} market${entry.letters === 1 ? '' : 's'}.`
+        : `${rider} of the lord's post rides into ${place(entry.at)} from ${place(entry.from)}; no news the inn hasn't already heard.`;
+    }
     default:
       return `${entry.type}`;
   }

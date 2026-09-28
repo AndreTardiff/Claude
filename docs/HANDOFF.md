@@ -18,7 +18,7 @@ Read this first when resuming in a fresh session. It's updated at every checkpoi
 
 Each checkpoint ends with all tests green, `npm run reference` rerun, this file updated, and a push.
 
-- [ ] **D1: knowledge.** Price lists as dated records (`src/systems/knowledge.js`): who knows what about which
+- [x] **D1: knowledge.** *(done: `src/systems/knowledge.js`, `src/systems/post.js`, `src/world/journey.js`, `test/knowledge.test.js`)* Price lists as dated records (`src/systems/knowledge.js`): who knows what about which
       market, from where (seen, rumour, letter), how old. Inns hold the freshest word each town has heard; travellers
       carry and trade price lists when they arrive; rumours are a little wrong. The lord's post riders ride a circuit
       carrying every town's price board. Tests: knowledge ages, spreads at road speed, rumours are noisy.
@@ -37,7 +37,19 @@ Each checkpoint ends with all tests green, `npm run reference` rerun, this file 
 
 ## Next
 
-Start D1.
+Start D2 (merchants and caravans). Build on:
+- `src/world/journey.js`: `planJourney`, `newTrip`, `startLeg` (returns a blocked note or null), `finishLeg`,
+  `reroute`, `tripPosition`. `post.js` is a small, complete example of a traveller using it.
+- `src/systems/knowledge.js`: `observe`, `swapNews(sim, holderId, town, { letters })`, `belief(sim, holder, town, good)`,
+  `snapshot`. Merchants should hold knowledge under their own id and swap news at every town they reach.
+- Pricing: `quote`, `purchaseCost`, `saleValue` (`src/economy/pricing.js`); the price curve `stockFactor` lets a
+  merchant estimate the impact of selling into a market from its *believed* stock and desired stock.
+- Tolls: nodes have `toll.wagon` (marks). Pay with `transfer(sim, account, 'treasury', toBits(...))`.
+- Systems order is in `src/systems/index.js`: merchants must create their coin accounts before `coin.init`
+  computes the opening supply (or add them in `coin.init` like wayfarers).
+
+Findings from D1: news of a Copperford disaster reaches Kingscross in ~4.5 days (post rider), Greenhollow ~6,
+Saltmouth 8+. 100 days now run in ~140 ms (knowledge snapshots).
 
 ## Notes for whoever picks this up
 

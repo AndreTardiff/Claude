@@ -12,6 +12,7 @@ import { GIVEN_NAMES } from '../data/names.js';
 import { withdraw } from '../economy/market.js';
 import { quote } from '../economy/pricing.js';
 import { balance, toBits, transfer } from '../economy/money.js';
+import { swapNews } from './knowledge.js';
 import {
   estimateJourney,
   findPaths,
@@ -255,6 +256,8 @@ function onNode(sim, { id, tripNo }) {
   w.at = trip.dest;
   w.trip = null;
   w.trips += 1;
+  // Wayfarers are the region's gossip: they trade news at every inn they reach.
+  swapNews(sim, w.id, trip.dest);
   const [lo, hi] = sim.data.wayfarers.restDays;
   scheduleDeparture(sim, w, sim.rng('wayfarers').int(lo, hi));
 }

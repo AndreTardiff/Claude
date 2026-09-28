@@ -111,6 +111,18 @@ export const WORLD = {
   economy: ECONOMY,
   coin: COIN,
 
+  // Word of mouth: each retelling moves prices by up to ±6% and costs 15% of the trust.
+  knowledge: { rumourNoise: 0.06, rumourTrust: 0.85 },
+
+  // The lord's post: riders on a fixed circuit through Kingscross, carrying every
+  // town's posted prices to the others' inns as letters (exact, but as old as the ride).
+  post: {
+    riders: 2,
+    speedKmh: 7,
+    restHours: 8,
+    circuit: ['kingscross', 'copperford', 'kingscross', 'greenhollow', 'kingscross', 'saltmouth'],
+  },
+
   // Step A placeholder travellers. They exercise the clock, the scheduler and the
   // road network. They eat where they stay and buy provisions before each trip.
   // Later they become rumour carriers for the information system.
