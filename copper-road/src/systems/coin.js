@@ -40,7 +40,7 @@ export const coin = {
     }
     sim.state.coin = {
       accounts,
-      flows: { minted: 0, gifted: 0, exported: 0, crown: 0, worn: 0, hoarded: 0, imported: 0 },
+      flows: { minted: 0, gifted: 0, exported: 0, unearthed: 0, crown: 0, worn: 0, hoarded: 0, imported: 0 },
       hoards: {},
       hoardedThisSeason: {},
       treasuryIn: 0, // bits the treasury has taken in this season

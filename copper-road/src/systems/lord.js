@@ -13,6 +13,8 @@
 //                and cooks; a feasting town grows faster for a while
 //   works        paid labour, timber and tools over days, leaving something
 //                lasting: a granary, new fields, new houses, a workshop
+//   patrol       guards ride a road his seat has heard is dangerous (step E);
+//                bands see them and move off, or get run down
 //
 // Spending brings the treasury down, so the Mint strikes again and buys ore.
 // A fat treasury also tempts his steward, who skims a little and buries it.
@@ -26,6 +28,7 @@ import { balance, toBits, toMarks, transfer } from '../economy/money.js';
 import { residentsAt } from '../economy/people.js';
 import { improve, improvementsOf, landOf, storageOf } from '../world/improvements.js';
 import { refreshNeeds } from './economy.js';
+import { believedDanger } from './knowledge.js';
 
 const DAY = 1440;
 const round2 = (x) => Math.round(x * 100) / 100;
@@ -47,9 +50,10 @@ export const lord = {
       mood: { worry: 0, pride: 0, grievance: 0 }, // 0–1
       orders: [],
       projects: [],
+      patrols: [], // { route, segs, guards, until }
       nextDecision: sim.cal.day(sim.now) + cfg.decideEvery,
       reason: null,
-      spent: { relief: 0, commission: 0, festival: 0, works: 0 },
+      spent: { relief: 0, commission: 0, festival: 0, works: 0, patrol: 0 },
       skimmed: 0,
       skimmedSeason: 0,
       done: [], // finished works, for the inspector
@@ -64,6 +68,7 @@ export const lord = {
     updateMood(sim);
     runOrders(sim);
     runProjects(sim);
+    runPatrols(sim);
     steward(sim);
     const day = sim.cal.day(sim.now);
     if (day >= st.nextDecision) {
@@ -111,6 +116,7 @@ function committed(sim) {
   const st = sim.state.lord;
   let marks = 0;
   for (const o of st.orders) marks += o.remaining * o.price;
+  for (const p of st.patrols ?? []) marks += (Math.max(0, p.until - sim.now) / DAY) * p.guards * sim.data.lord.patrol.pay;
   for (const p of st.projects) marks += Math.min(cfg.worksAhead, p.days - p.progress) * p.labour;
   return marks;
 }
@@ -188,8 +194,42 @@ export function lordOptions(sim) {
       out.push({ kind: 'works', work: w.id, at: sid, cost, affordable, score: round2((t.ambition / 1000) * need.weight), why: need.why });
     }
   }
+  // Patrols: guards for a road his seat has heard is dangerous.
+  const pc = cfg.patrol;
+  if (pc) {
+    for (const route of sim.data.routes) {
+      if ((st.patrols ?? []).some((p) => p.route === route.id)) continue;
+      let worst = 0;
+      for (const seg of route.segments) worst = Math.max(worst, believedDanger(sim, `inn:${st.seat}`, seg) - sim.graph.segments.get(seg).danger);
+      if (worst < pc.minDanger) continue;
+      const cost = round2(pc.guards * pc.pay * pc.days);
+      if (cost > budget) continue;
+      out.push({ kind: 'patrol', at: st.seat, route: route.id, cost, score: round2(((t.ambition + t.generosity) / 2000) * (0.4 + worst) * 1.2), why: `word in ${st.seat} is of raiders on the ${route.name}` });
+    }
+  }
   out.sort((a, b) => b.score - a.score || (a.at < b.at ? -1 : a.at > b.at ? 1 : 0) || (a.kind < b.kind ? -1 : 1));
   return out;
+}
+
+/** The lord's patrol on a road, if one is riding it now. */
+export function patrolOn(sim, segId) {
+  return sim.state.lord?.patrols?.find((p) => p.segs.includes(segId) && p.until > sim.now) ?? null;
+}
+
+function runPatrols(sim) {
+  const st = sim.state.lord;
+  const pc = sim.data.lord.patrol;
+  const keep = [];
+  for (const p of st.patrols ?? []) {
+    if (p.until <= sim.now) {
+      sim.log('lord:patrol-home', { route: p.route });
+      continue;
+    }
+    // Extra pay for the guards on the road, spent at home.
+    st.spent.patrol += transfer(sim, 'treasury', `purse:${st.seat}`, toBits(sim, p.guards * pc.pay));
+    keep.push(p);
+  }
+  st.patrols = keep;
 }
 
 // Does this town need this work, and how much? Null if not.
@@ -241,7 +281,7 @@ function decide(sim) {
     t: sim.now,
     budget: round2(purseOfLord(sim)),
     mood: { ...st.mood },
-    options: options.slice(0, 5).map((o) => ({ kind: o.kind, work: o.work, at: o.at, good: o.good, qty: o.qty, cost: o.cost, score: o.score, why: o.why, affordable: o.affordable !== false })),
+    options: options.slice(0, 5).map((o) => ({ kind: o.kind, work: o.work, route: o.route, at: o.at, good: o.good, qty: o.qty, cost: o.cost, score: o.score, why: o.why, affordable: o.affordable !== false })),
     choice: null,
     note: null,
   };
@@ -264,6 +304,11 @@ function decide(sim) {
   else if (best.kind === 'commission') commission(sim, best);
   else if (best.kind === 'festival') festival(sim, best);
   else if (best.kind === 'works') beginWorks(sim, best);
+  else if (best.kind === 'patrol') {
+    const route = sim.data.routes.find((r) => r.id === best.route);
+    st.patrols = [...(st.patrols ?? []), { route: route.id, segs: route.segments, guards: sim.data.lord.patrol.guards, until: sim.now + sim.data.lord.patrol.days * DAY }];
+    sim.log('lord:patrol', { route: route.id, guards: sim.data.lord.patrol.guards, days: sim.data.lord.patrol.days });
+  }
 }
 
 // ── Orders: the treasury pays for goods delivered ───────────────────────────

@@ -57,14 +57,18 @@ killed outright; nights get eventful plus a lab toggle to fast-forward quiet nig
       wayfarers and post): demand a toll / attack / steal at night; fight, flee or pay; hired hands die (residents of
       the town the caravan left), outlaws die, merchants are captured and ransomed (house, lord or town pays; a cruel
       band kills if nobody does), post letters are stolen. Gate E passes (a raided grain caravan leaves a shortage).
-- [ ] **E3**: the raiders' economy: fencing loot (grey market), food and hunger, hoards and unearthing them, farm
-      raids when starving, disbanding, moving hideouts; the lord's road patrols. AT-24 second half.
+- [x] **E3** *(done)*: bands eat (forage by hideout, stolen grain, grain bought through the fence; stock up in
+      autumn), fence loot at half price into the fence town's market (grey market), spend half their surplus in the
+      fence town and bury half (caches in `raiders.hoards`; a starving band digs its own up; strangers find old ones:
+      new money flow `unearthed`), and when starving raid the weakest nearby town (only with a fair chance), move to a
+      hideout with open roads, or break up (members go home as labourers). Drifters keep the hills from emptying.
+      The lord's patrols (`lord.patrol`): guards ride a road his seat believes dangerous; lookouts spot less, fights
+      go worse for bands, bands fear the road and may be run down. Balance (5 worlds × 400 days): 1–2 bands of 4–16,
+      12–23 encounters per 100 days, a few town raids, rare breakups.
 - [ ] **E4**: night and camps: fireside news, night raids (already: `steal`), lab fast-nights toggle; surprise
       closures and the camps experiment (§17.2).
 - [ ] **E5**: lab (bands, hideouts, danger shading, band inspector, encounter reports, lab tool to summon a band:
       `lab:band` command exists), spec §11 as built, spec §20 status line (stale), site entry.
-Finding so far: without E3's pressures (bands don't eat yet), raiding can be heavy (one world: 52 encounters in
-200 days, Copperford down to 20 people).
 
 **Step E0: Lord Aldric as an engaged NPC** (Andre's direction, Sep 28). Built:
 `src/systems/lord.js` (traits, moods, decisions every 3 days with reasons; relief orders filled by merchants

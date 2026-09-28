@@ -8,7 +8,7 @@ const DAY = 1440;
 const at = (day) => 330 + day * DAY;
 const accounted = (sim) => {
   const f = sim.state.coin.flows;
-  return sim.state.coin.opening + f.minted + f.gifted + f.exported - f.crown - f.worn - f.hoarded - f.imported;
+  return sim.state.coin.opening + f.minted + f.gifted + f.exported + f.unearthed - f.crown - f.worn - f.hoarded - f.imported;
 };
 
 test('money is counted in whole bits: 12 bits to the mark', () => {
@@ -20,7 +20,7 @@ test('money is counted in whole bits: 12 bits to the mark', () => {
   for (const v of Object.values(sim.state.coin.accounts)) assert.ok(Number.isInteger(v));
 });
 
-test('GATE C: every bit is accounted for: supply = opening + minted + gifted + exported − crown − worn − hoarded − imported', () => {
+test('GATE C: every bit is accounted for: supply = opening + minted + gifted + exported + unearthed − crown − worn − hoarded − imported', () => {
   const sim = new Simulation({ seed: 4 });
   sim.command('lab:coin', { at: 'greenhollow', marks: 50 });
   for (const d of [1, 10, 37, 80, 150]) {

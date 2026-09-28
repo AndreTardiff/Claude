@@ -56,6 +56,7 @@ export function createMoneyPanel(root) {
       `<strong>The books balance:</strong> ${moneyBits(c.opening)} at the start + ${moneyBits(f.minted)} minted` +
       (f.gifted ? ` + ${moneyBits(f.gifted)} from the lab` : '') +
       ` + ${moneyBits(f.exported)} paid by the ships − ${moneyBits(f.imported)} paid to the ships` +
+      (f.unearthed ? ` + ${moneyBits(f.unearthed)} dug up` : '') +
       ` − ${moneyBits(f.crown)} to the Crown − ${moneyBits(f.worn)} worn away − ${moneyBits(f.hoarded)} buried = <strong>${moneyBits(supply)}</strong>.`;
 
     const day = c.history.days.at(-1);

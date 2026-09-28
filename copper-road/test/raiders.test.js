@@ -90,46 +90,55 @@ test('encounters: goods move from wagons to the band, every factor is kept, and 
     for (const b of Object.values(sim.state.raiders.bands)) for (const [g, q] of Object.entries(b.loot)) held[g] = (held[g] ?? 0) + q;
     const fenced = {};
     for (const e of sim.state.log.filter((x) => x.type === 'raid:fenced')) fenced[e.good] = (fenced[e.good] ?? 0) + e.qty;
-    for (const g of Object.keys(stolen)) assert.ok(Math.abs(stolen[g] - (held[g] ?? 0) - (fenced[g] ?? 0)) < 0.01, `${g}: stole ${stolen[g]}, hold ${held[g] ?? 0}, fenced ${fenced[g] ?? 0}`);
+    // Stolen grain is also eaten in the hills.
+    const eaten = Object.values(sim.state.raiders.bands).reduce((a, b) => a + (b.eatenLoot ?? 0), 0);
+    for (const g of Object.keys(stolen)) {
+      const gone = (held[g] ?? 0) + (fenced[g] ?? 0) + (g === 'grain' ? eaten : 0);
+      assert.ok(g === 'grain' ? gone >= stolen[g] - 0.01 : Math.abs(stolen[g] - gone) < 0.01, `${g}: stole ${stolen[g]}, hold ${held[g] ?? 0}, fenced ${fenced[g] ?? 0}`);
+    }
     assert.equal(moneySupply(sim), booksBalance(sim));
   }
   assert.ok(seen >= 10, `only ${seen} encounters`);
 });
 
 test('GATE E: a caravan lost on the road leaves a visible shortage where it was bound', () => {
-  // Find a grain caravan whose road runs past a hideout; replay its trip twice from the
-  // moment it sets out: once with a strong, merciless band waiting on that road, once without.
+  // Find a grain caravan whose road runs past a hideout. Replay the world from the day
+  // before it set out, twice: once with a strong, merciless band waiting on that road,
+  // once without. Where the caravan got through and sold, compare the town it was bound for.
   const watched = new Map(WORLD.raiders.hideouts.flatMap((h) => h.watches.map((s) => [s, h.id])));
   for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
-    const sim = new Simulation({ seed, data: { ...WORLD } });
+    const sim = new Simulation({ seed });
+    let before = sim.snapshot();
     for (let d = 5; d < 120; d++) {
       const seen = sim.state.log.length;
+      const yesterday = sim.snapshot();
       sim.advanceTo(at(d));
       const dep = sim.state.log.slice(seen).find((e) => e.type === 'merchant:departed' && e.good === 'grain');
+      before = yesterday;
       if (!dep) continue;
       const m = getMerchant(sim, dep.who);
       const seg = m.trip?.path.find((s) => watched.has(s));
-      if (!seg || m.trip.path.indexOf(seg) < m.trip.leg) continue;
-      const snap = sim.snapshot();
-      const twin = (raid) => {
-        const s = Simulation.restore(snap, { data: sim.data });
+      if (!seg) continue;
+      const replay = (raid, until) => {
+        const s = Simulation.restore(before, { data: sim.data });
         if (raid) {
           s.command('lab:band', { hideout: watched.get(seg), members: 12, watch: seg });
-          const band = activeBands(s).find((b) => b.hideout === watched.get(seg));
-          band.cruelty = 1000;
+          activeBands(s).find((b) => b.hideout === watched.get(seg)).cruelty = 1000;
         }
-        s.advanceTo(s.now + 10 * DAY);
+        s.advanceTo(until);
         return s;
       };
-      const raided = twin(true);
-      const hit = raided.state.log.find((e) => e.type === 'raid:encounter' && e.who === dep.who && e.goods.grain > 5);
+      const horizon = dep.t + 10 * DAY;
+      const safe = replay(false, horizon);
+      const sold = safe.state.log.find((e) => e.type === 'merchant:sold' && e.who === dep.who && e.at === dep.to && e.t > dep.t && e.t < horizon);
+      if (!sold || !safe.state.log.some((e) => e.type === 'merchant:departed' && e.who === dep.who && e.t === dep.t)) continue;
+      const raided = replay(true, sold.t + DAY);
+      const hit = raided.state.log.find((e) => e.type === 'raid:encounter' && e.who === dep.who && e.seg === seg && e.goods.grain > 5 && e.t >= dep.t);
       if (!hit) continue;
-      const safe = twin(false);
-      // Only a fair comparison if, left alone, the caravan would have sold its grain there.
-      if (!safe.state.log.some((e) => e.type === 'merchant:sold' && e.who === dep.who && e.at === dep.to && e.t > dep.t)) continue;
+      const calm = replay(false, sold.t + DAY);
       const stock = (s) => s.state.economy.markets[dep.to].grain.stock;
-      assert.ok(stock(safe) > stock(raided) + 5, `${dep.to} grain: ${stock(safe)} safe vs ${stock(raided)} raided`);
-      assert.ok(quote(raided, dep.to, 'grain').price > quote(safe, dep.to, 'grain').price, 'dearer where the caravan never came');
+      assert.ok(stock(calm) > stock(raided) + 5, `${dep.to} grain: ${stock(calm)} safe vs ${stock(raided)} raided`);
+      assert.ok(quote(raided, dep.to, 'grain').price > quote(calm, dep.to, 'grain').price, 'dearer where the caravan never came');
       return;
     }
   }
@@ -176,4 +185,100 @@ test('a merchant taken on the road is held for ransom, and the house pays to get
     }
   }
   assert.fail('nobody was ever captured');
+});
+
+// ── E3: the raiders' economy ────────────────────────────────────────────────
+
+test('AT-24: a starving winter changes what a band does: it raids a town, moves, or breaks up', () => {
+  let changed = 0;
+  for (const seed of [1, 2, 3, 4]) {
+    const sim = new Simulation({ seed });
+    sim.advanceTo(at(29)); // the eve of winter, when the High Pass is snowed shut
+    sim.command('lab:band', { hideout: 'saddle-caves', members: 6, watch: 'high-pass-south' });
+    const band = activeBands(sim).find((b) => b.hideout === 'saddle-caves');
+    band.food = 0;
+    band.loot = {};
+    transfer(sim, `band:${band.id}`, 'hoard', balance(sim, `band:${band.id}`));
+    sim.advanceTo(at(45));
+    const log = sim.state.log.filter((e) => e.band === band.id && e.t > at(29));
+    assert.ok(!log.some((e) => e.type === 'raid:encounter' && e.seg.startsWith('high-pass') && sim.cal.season(e.t).id === 'winter'), 'nobody travels a closed pass');
+    if (log.some((e) => ['raid:town', 'raid:relocated', 'raid:disbanded'].includes(e.type))) changed++;
+  }
+  assert.ok(changed >= 3, `only ${changed} of 4 starving bands changed their ways`);
+});
+
+test('fenced loot turns up cheap in the fence town, through its market', () => {
+  let fenced = 0;
+  for (const seed of [7, 23]) {
+    const sim = new Simulation({ seed });
+    let pending = [];
+    for (let d = 1; d <= 200; d++) {
+      sim.advanceTo(at(d));
+      // Fencing happens at midnight, after the day's books close: it shows in the next day's.
+      for (const e of pending) {
+        if (e.at !== 'saltmouth') assert.ok(sim.state.economy.today[e.at].road.in[e.good] >= e.qty - 0.01, `${e.good} fenced in ${e.at}`);
+      }
+      pending = sim.state.log.filter((x) => x.type === 'raid:fenced' && x.t > at(d - 1));
+      for (const e of pending) {
+        fenced++;
+        assert.ok(WORLD.raiders.hideouts.some((h) => h.fence === e.at), `${e.at} is some band's fence town`);
+        assert.ok(e.bits > 0 && e.bits <= Math.ceil(e.qty * quote(sim, e.at, e.good).base * 12 * 2.5));
+      }
+      // Tomorrow's check needs tomorrow's books.
+      if (pending.length) sim.advanceTo(at(d) + DAY - 330 + 5);
+    }
+  }
+  assert.ok(fenced > 0, 'nothing was ever fenced');
+});
+
+test('bands bury coin, and buried coin can come back: the books still balance', () => {
+  for (const seed of [2, 7]) {
+    const sim = new Simulation({ seed });
+    sim.advanceTo(at(250));
+    const f = sim.state.coin.flows;
+    assert.ok(f.unearthed <= f.hoarded);
+    const cached = sim.state.raiders.hoards.reduce((a, h) => a + h.bits, 0);
+    assert.ok(cached >= 0 && cached <= f.hoarded);
+    for (const e of sim.state.log.filter((x) => x.type === 'raid:unearthed')) assert.ok(!/undefined|NaN/.test(describe(e, sim)));
+    assert.equal(moneySupply(sim), booksBalance(sim));
+  }
+});
+
+test("the lord's patrols: word of raids sends guards, and bands on that road suffer or move", () => {
+  let patrols = 0;
+  let felt = 0;
+  for (const seed of [1, 2, 7, 23]) {
+    const sim = new Simulation({ seed });
+    sim.advanceTo(at(200));
+    for (const e of sim.state.log.filter((x) => x.type === 'lord:patrol')) {
+      patrols++;
+      const route = WORLD.routes.find((r) => r.id === e.route);
+      // Bands watching that road while the patrol rode: a clash, or they moved off it.
+      const during = sim.state.log.filter((x) => x.t >= e.t && x.t < e.t + e.days * DAY);
+      if (during.some((x) => (x.type === 'raid:patrol-clash' && x.route === e.route) || (x.type === 'raid:moved' && route.segments.includes(x.from)))) felt++;
+      assert.ok(!/undefined|NaN/.test(describe(e, sim)));
+    }
+  }
+  assert.ok(patrols >= 2, `${patrols} patrols`);
+  assert.ok(felt >= 1, 'no band ever felt a patrol');
+});
+
+test('a band that breaks up sends its people home as labourers', () => {
+  const sim = new Simulation({ seed: 3 });
+  sim.advanceTo(at(12));
+  sim.command('lab:band', { hideout: 'gorge-ledges', members: 4 });
+  const band = activeBands(sim).find((b) => b.hideout === 'gorge-ledges');
+  const people = [...band.members];
+  band.starving = WORLD.raiders.food.disbandAfter;
+  band.hunger = 0.9;
+  band.food = 0;
+  transfer(sim, `band:${band.id}`, 'hoard', balance(sim, `band:${band.id}`));
+  sim.advanceTo(at(14));
+  assert.equal(getBand(sim, band.id).active, false);
+  for (const id of people) {
+    const r = sim.state.residents.byId[id];
+    assert.ok(!r.alive || (r.home && r.profession === 'labourer'), `${r.name}: ${r.home} ${r.profession}`);
+  }
+  const e = sim.state.log.find((x) => x.type === 'raid:disbanded' && x.band === band.id);
+  assert.ok(e && !/undefined|NaN/.test(describe(e, sim)));
 });

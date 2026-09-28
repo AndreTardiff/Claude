@@ -19,10 +19,17 @@
 // Travellers report what they met on each road, so a road's reputation spreads
 // and fades like any other news (knowledge.js).
 //
+// Bands have to live (E3): they eat (what they stole, what they forage, what they
+// buy through their fence), sell loot cheap through a fence in a nearby town,
+// bury coin they don't need, and when they starve they fall on a town's granary,
+// move to another hideout, or break up and go home. The lord's patrols make a
+// road costly to watch.
+//
 // Coin moves only by transfer (bands hold 'band:<id>' accounts); stolen goods
 // leave the wagons for the band's loot and reach a market only when fenced.
 
 import { economyIndex, quote } from '../economy/pricing.js';
+import { load, traderAccount, unload } from '../economy/market.js';
 import { balance, toBits, transfer } from '../economy/money.js';
 import { residentsAt } from '../economy/people.js';
 import { refreshNeeds } from './economy.js';
@@ -31,6 +38,7 @@ import { holderOf, learn, reportRoad } from './knowledge.js';
 import { getMerchant, loseCargo, writeOffIfEmpty } from './merchants.js';
 import { getWayfarer, losePack } from './wayfarers.js';
 import { getRider } from './post.js';
+import { patrolOn } from './lord.js';
 
 const DAY = 1440;
 const round2 = (x) => Math.round(x * 100) / 100;
@@ -57,15 +65,27 @@ export const raiders = {
     if (!st) return;
     const cfg = sim.data.raiders;
     recruit(sim);
+    drifters(sim);
     const day = sim.cal.day(sim.now);
     for (const band of activeBands(sim)) {
       for (const seg of Object.keys(band.take)) {
         band.take[seg] = round2(band.take[seg] * cfg.takeMemory);
         band.fear[seg] = round3(band.fear[seg] * cfg.fearMemory);
       }
-      if (day % cfg.watchEvery === 0) chooseRoad(sim, band);
+      patrolled(sim, band);
+      // Too few to take the road for too long: the last of them give up.
+      band.fewDays = band.members.length < cfg.minToRaid ? (band.fewDays ?? 0) + 1 : 0;
+      if (band.active && band.fewDays > cfg.fewDays) disband(sim, band, 'too few');
+      if (!band.active) continue;
+      eat(sim, band);
+      if (day % cfg.fence.every === 0) fence(sim, band);
+      provision(sim, band);
+      bury(sim, band);
+      if (band.hunger >= cfg.food.starving) starving(sim, band);
+      if (band.active && day % cfg.watchEvery === 0) chooseRoad(sim, band);
     }
     captives(sim);
+    unearth(sim);
   },
 
   handlers: {
@@ -163,6 +183,25 @@ function recruit(sim) {
   }
 }
 
+// While the hills are nearly empty, the odd stranger turns up to join or start a band.
+function drifters(sim) {
+  const cfg = sim.data.raiders;
+  const bands = activeBands(sim);
+  if (bands.length >= cfg.drifters.minBands) return;
+  const rng = sim.rng('raiders');
+  if (!rng.chance(cfg.drifters.chance)) return;
+  let band = bands.sort((a, b) => a.members.length - b.members.length || (a.id < b.id ? -1 : 1))[0];
+  if (!band || band.members.length >= cfg.maxMembers) {
+    const taken = new Set(bands.map((b) => b.hideout));
+    const free = cfg.hideouts.filter((h) => !taken.has(h.id));
+    if (!free.length) return;
+    band = foundBand(sim, rng.pick(free), rng);
+  }
+  const r = newOutlaw(sim, rng, null);
+  join(band, r);
+  sim.log('raid:drifter', { who: r.id, band: band.id, hideout: band.hideout, founded: band.members.length === 1 });
+}
+
 // Who could take to the hills from a hungry town: the idle first, then any able
 // worker. Not children or elders, and not the lord's people or the guard.
 const STAYS = new Set(['dependant', 'noble', 'mintmaster', 'guard']);
@@ -206,7 +245,7 @@ function enlist(sim, r, sid, rng) {
   r.learning = false;
   join(band, r);
   refreshNeeds(sim, sid);
-  sim.log('raid:recruit', { who: r.id, from: sid, band: band.id, founded: band.members.length === 1, hunger: round2(hunger), poverty: round2(poverty) });
+  sim.log('raid:recruit', { who: r.id, from: sid, band: band.id, hideout: band.hideout, founded: band.members.length === 1, hunger: round2(hunger), poverty: round2(poverty) });
   return band;
 }
 
@@ -256,7 +295,7 @@ function victim(sim, kind, id) {
   if (kind === 'merchant') {
     const m = getMerchant(sim, id);
     if (!m?.active || !m.trip) return null;
-    return { kind, id, who: m, name: m.name, trip: m.trip, account: `merchant:${id}`, carried: 0.2, cargo: { ...m.cargo }, people: (m.trip.crew ?? 3) + 1, boldness: m.boldness };
+    return { kind, id, who: m, name: m.name, trip: m.trip, account: `merchant:${id}`, carried: 0.1, cargo: { ...m.cargo }, people: (m.trip.crew ?? 3) + 1, boldness: m.boldness };
   }
   if (kind === 'wayfarer') {
     const w = getWayfarer(sim, id);
@@ -290,7 +329,7 @@ export function onLegStart(sim, kind, id, trip) {
     if (ambush || band.watching !== seg || band.members.length < cfg.minToRaid) continue;
     const rng = sim.rng('raids');
     const n = band.members.length;
-    const spot = cfg.spot * cfg.visibility[v.peddler ? 'peddler' : kind] * (n / (n + 3));
+    const spot = cfg.spot * cfg.visibility[v.peddler ? 'peddler' : kind] * (n / (n + 3)) * (patrolOn(sim, seg) ? cfg.patrol.spot : 1);
     if (!rng.chance(spot)) continue;
     ambush = { band, ...ambushTime(sim, trip, rng) };
   }
@@ -329,11 +368,12 @@ function resolve(sim, band, v, seg, night) {
   const caution = (1000 - v.boldness) / 1000;
   const value = visibleValue(sim, band, v);
   const att = band.members.length * moraleOf(band) * (night ? cfg.nightEdge : 1);
-  const def = v.people * (1 + 0.3 * (v.boldness / 1000));
+  const patrol = patrolOn(sim, seg);
+  const def = v.people * (1 + 0.3 * (v.boldness / 1000)) + (patrol ? patrol.guards * sim.data.raiders.patrol.strength : 0);
   const odds = def / (def + att); // the traveller's chance in a straight fight
   const desperate = band.hunger >= cfg.desperateHunger;
   const rec = {
-    t: sim.now, band: band.id, seg, kind: v.kind, id: v.id, night, value: round2(value), att: round2(att), def: round2(def),
+    t: sim.now, band: band.id, seg, kind: v.kind, id: v.id, night, value: round2(value), att: round2(att), def: round2(def), patrol: Boolean(patrol),
     odds: round2(odds), approach: null, response: null, outcome: null, roll: null, goods: {}, bits: 0, hands: [], outlaws: [], captured: false,
   };
 
@@ -394,6 +434,7 @@ function resolve(sim, band, v, seg, night) {
     leaderFell: rec.leaderFell ?? false,
   });
   if (v.kind === 'merchant') writeOffIfEmpty(sim, v.who);
+  checkWiped(sim, band);
   return rec;
 }
 
@@ -402,7 +443,7 @@ function fight(sim, band, v, rec, odds, rng, caution) {
   rec.roll = round2(rng.float());
   if (rec.roll < odds) {
     rec.outcome = 'fought off';
-    killOutlaws(sim, band, rec, 1 + (rng.chance(0.4) ? 1 : 0));
+    killOutlaws(sim, band, rec, 1 + (rng.chance(0.3) ? 1 : 0));
     if (rng.chance(0.25)) killHands(sim, v, rec, 1);
     band.fear[rec.seg] = round3(band.fear[rec.seg] + 0.5 * rec.outlaws.length);
     return;
@@ -410,7 +451,7 @@ function fight(sim, band, v, rec, odds, rng, caution) {
   rec.outcome = 'robbed';
   takeGoods(sim, band, v, rec, 1);
   takeCoin(sim, band, v, rec);
-  if (rng.chance(0.25)) killOutlaws(sim, band, rec, 1);
+  if (rng.chance(0.15)) killOutlaws(sim, band, rec, 1);
   if (v.kind === 'wayfarer') {
     if (rng.chance(cfg.murderChance)) {
       rec.outcome = 'murdered';
@@ -497,7 +538,11 @@ function killOutlaws(sim, band, rec, n) {
       rec.leaderFell = true;
     }
   }
-  if (!band.members.length) disband(sim, band, 'wiped out');
+}
+
+// After a fight has been told: a band with nobody left is finished.
+function checkWiped(sim, band) {
+  if (band.active && !band.members.length) disband(sim, band, 'wiped out');
 }
 
 function murderWayfarer(sim, band, v, rec) {
@@ -600,8 +645,267 @@ function disband(sim, band, why) {
   band.active = false;
   band.ended = sim.now;
   // Anyone still held is let go.
-  for (const mid of band.captives) release(sim, band, getMerchant(sim, mid), 'released', {});
-  sim.log('raid:disbanded', { band: band.id, why });
+  for (const mid of [...band.captives]) release(sim, band, getMerchant(sim, mid), 'released', {});
+  // The rest go home, or somewhere that will feed them, as labourers; failing that, they take ship.
+  let home = 0;
+  for (const id of [...band.members]) {
+    const r = getResident(sim, id);
+    const town = homecoming(sim, r);
+    if (town) {
+      r.home = town;
+      r.profession = 'labourer';
+      r.band = null;
+      refreshNeeds(sim, town);
+      home++;
+    } else {
+      r.alive = false;
+      r.diedAt = sim.now;
+      r.cause = 'emigrated';
+    }
+  }
+  band.members = [];
+  // Whatever coin is left goes into the ground at the hideout.
+  const buried = transfer(sim, bandAccount(band), 'hoard', balance(sim, bandAccount(band)));
+  if (buried) addHoard(sim, band, buried);
+  sim.log('raid:disbanded', { band: band.id, why, home, buried });
+}
+
+// Where an outlaw goes when the band breaks up: back where they came from if it
+// will feed them, else the best-fed town with room.
+function homecoming(sim, r) {
+  const d = sim.data.economy.demography;
+  const ix = economyIndex(sim.data);
+  const hunger = sim.state.economy.hunger;
+  const room = (sid) => residentsAt(sim, sid).length < Math.floor(sim.graph.nodes.get(sid).residents * d.ceiling);
+  if (r.from && ix.markets.includes(r.from) && hunger[r.from] < d.migrateHunger && room(r.from)) return r.from;
+  return ix.markets.filter((sid) => !ix.isOutside(sid) && hunger[sid] < 0.1 && room(sid)).sort((a, b) => hunger[a] - hunger[b] || (a < b ? -1 : 1))[0] ?? null;
+}
+
+// ── Living: food, the fence, the hoard ──────────────────────────────────────
+
+function eat(sim, band) {
+  const cfg = sim.data.raiders.food;
+  const hideout = hideoutById(sim, band.hideout);
+  const n = band.members.length;
+  const need = n * cfg.perHead;
+  // What they find for themselves: game, fish, snares (less in winter).
+  const winter = sim.cal.season(sim.now).id === 'winter';
+  let got = Math.min(need, n * hideout.forage * (winter ? cfg.winterForage : 1));
+  // Then stolen grain, then grain bought through the fence.
+  const fromLoot = Math.min(band.loot.grain ?? 0, need - got);
+  if (fromLoot > 0) {
+    band.loot.grain = round3(band.loot.grain - fromLoot);
+    if (band.loot.grain <= 0) delete band.loot.grain;
+    band.eatenLoot = round3((band.eatenLoot ?? 0) + fromLoot);
+    got += fromLoot;
+  }
+  const fromStore = Math.min(band.food, need - got);
+  band.food = round3(band.food - fromStore);
+  got += fromStore;
+  const fed = need > 0 ? got / need : 1;
+  band.hunger = round3(band.hunger * 0.7 + (1 - fed) * 0.3);
+  band.starving = band.hunger >= cfg.starving ? (band.starving ?? 0) + 1 : 0;
+}
+
+// Low on food: buy grain through the fence, as far as the band's coin goes.
+function provision(sim, band) {
+  const cfg = sim.data.raiders.food;
+  const n = band.members.length;
+  const have = band.food + (band.loot.grain ?? 0);
+  const autumn = sim.cal.season(sim.now).id === 'autumn';
+  const keepDays = autumn ? cfg.winterDays : cfg.keepDays;
+  const buyDays = autumn ? cfg.winterDays + cfg.keepDays : cfg.buyDays;
+  if (have >= n * cfg.perHead * keepDays) return;
+  const town = hideoutById(sim, band.hideout).fence;
+  const price = quote(sim, town, 'grain').price;
+  const market = sim.state.economy.markets[town].grain;
+  // Short of coin: dig into the band's own cache first.
+  const cache = sim.state.raiders.hoards.find((h) => h.place === band.hideout && h.band === band.id);
+  const wanted = toBits(sim, price * n * cfg.perHead * buyDays);
+  if (cache && balance(sim, bandAccount(band)) < wanted) {
+    const dug = transfer(sim, 'hoard', bandAccount(band), Math.min(cache.bits, wanted));
+    cache.bits -= dug;
+    if (cache.bits <= 0) sim.state.raiders.hoards = sim.state.raiders.hoards.filter((h) => h !== cache);
+  }
+  const afford = balance(sim, bandAccount(band)) / Math.max(1, toBits(sim, price));
+  const qty = Math.floor(Math.min(n * cfg.perHead * buyDays - have, afford, market.stock * 0.3) * 10) / 10;
+  if (!(qty > 0)) return;
+  const got = load(sim, town, 'grain', qty);
+  transfer(sim, bandAccount(band), traderAccount(sim, town), toBits(sim, price * got));
+  band.food = round3(band.food + got);
+}
+
+// Every few days, loot goes to a fence in the nearby town, who pays half the
+// market price and passes it to the town's traders: cheap goods leak into that market.
+function fence(sim, band) {
+  const cfg = sim.data.raiders;
+  const town = hideoutById(sim, band.hideout).fence;
+  const buyer = traderAccount(sim, town);
+  const keepGrain = band.members.length * cfg.food.perHead * 20; // stolen grain they'll eat themselves
+  for (const gid of Object.keys(band.loot).sort()) {
+    const spare = gid === 'grain' ? band.loot[gid] - keepGrain : band.loot[gid];
+    if (!(spare >= 1)) continue;
+    const price = quote(sim, town, gid).price * cfg.fence.share;
+    const cash = buyer === 'ships' ? Infinity : balance(sim, buyer);
+    const qty = Math.floor(Math.min(spare, cash / Math.max(1, toBits(sim, price))) * 10) / 10;
+    if (!(qty >= 1)) continue;
+    const bits = transfer(sim, buyer, bandAccount(band), toBits(sim, price * qty));
+    unload(sim, town, gid, qty);
+    band.loot[gid] = round3(band.loot[gid] - qty);
+    if (band.loot[gid] <= 0.001) delete band.loot[gid];
+    sim.log('raid:fenced', { band: band.id, at: town, good: gid, qty, bits });
+  }
+}
+
+// Coin beyond what the band needs to hand: half is drunk and gambled away in the
+// fence town (its households are glad of it), half goes into the ground near the hideout.
+function bury(sim, band) {
+  const cfg = sim.data.raiders.hoard;
+  const keep = toBits(sim, cfg.keepPerHead * band.members.length + cfg.keepBase);
+  const excess = balance(sim, bandAccount(band)) - keep;
+  if (excess < toBits(sim, cfg.minBury)) return;
+  band.spent = (band.spent ?? 0) + transfer(sim, bandAccount(band), `purse:${hideoutById(sim, band.hideout).fence}`, excess * cfg.spendShare);
+  const bits = transfer(sim, bandAccount(band), 'hoard', (balance(sim, bandAccount(band)) - keep) * cfg.share);
+  if (bits) addHoard(sim, band, bits);
+}
+
+// Coin goes into the band's cache at the hideout: one hole, topped up, until it's found.
+function addHoard(sim, band, bits) {
+  const cache = sim.state.raiders.hoards.find((h) => h.place === band.hideout && h.band === band.id);
+  if (cache) cache.bits += bits;
+  else sim.state.raiders.hoards.push({ id: sim.nextId('h'), place: band.hideout, band: band.id, bits, t: sim.now });
+}
+
+// Now and then someone out on the hills stumbles on an old hoard.
+function unearth(sim) {
+  const cfg = sim.data.raiders.hoard;
+  const st = sim.state.raiders;
+  const rng = sim.rng('hoards');
+  const keep = [];
+  for (const h of st.hoards) {
+    if (sim.now - h.t < cfg.hiddenDays * DAY || !rng.chance(cfg.findChance)) {
+      keep.push(h);
+      continue;
+    }
+    const hideout = hideoutById(sim, h.place);
+    const town = rng.pick(hideout.near);
+    const outdoors = residentsAt(sim, town).filter((r) => ['shepherd', 'woodcutter', 'farmer', 'miner', 'labourer'].includes(r.profession));
+    const finder = outdoors.length ? rng.pick(outdoors) : null;
+    if (!finder) {
+      keep.push(h);
+      continue;
+    }
+    const bits = transfer(sim, 'hoard', `purse:${town}`, h.bits);
+    sim.log('raid:unearthed', { who: finder.id, at: town, place: h.place, bits, band: h.band });
+  }
+  st.hoards = keep;
+}
+
+// ── Starving ────────────────────────────────────────────────────────────────
+
+// A starving band falls on a town's granary, moves to a hideout with open roads,
+// or, starved long enough, breaks up.
+function starving(sim, band) {
+  const cfg = sim.data.raiders;
+  const rng = sim.rng('raiders');
+  if ((band.starving ?? 0) >= cfg.food.disbandAfter) {
+    disband(sim, band, 'starving');
+    return;
+  }
+  const move = betterHideout(sim, band);
+  if (move) {
+    relocate(sim, band, move);
+    return;
+  }
+  if (rng.chance(cfg.town.raidChance)) raidTown(sim, band, rng);
+}
+
+// A free hideout with a road open this season, when every road this band watches is shut or dead.
+function betterHideout(sim, band) {
+  const cfg = sim.data.raiders;
+  const season = sim.cal.season(sim.now).id;
+  const open = (seg) => !sim.graph.segments.get(seg).seasonal?.[season]?.closed;
+  const here = hideoutById(sim, band.hideout);
+  const dead = here.watches.every((seg) => !open(seg)) || Object.values(band.take).every((v) => v < 5);
+  if (!dead) return null;
+  band.idleDays = (band.idleDays ?? 0) + 1;
+  if (band.idleDays < cfg.relocateIdleDays && here.watches.some(open)) return null;
+  const taken = new Set(activeBands(sim).map((b) => b.hideout));
+  const free = cfg.hideouts.filter((h) => !taken.has(h.id) && h.watches.some(open));
+  return free.length ? free.sort((a, b) => b.forage - a.forage || (a.id < b.id ? -1 : 1))[0] : null;
+}
+
+function relocate(sim, band, hideout) {
+  const from = band.hideout;
+  band.hideout = hideout.id;
+  band.watching = hideout.watches[0];
+  band.take = Object.fromEntries(hideout.watches.map((s) => [s, 0]));
+  band.fear = Object.fromEntries(hideout.watches.map((s) => [s, 0]));
+  band.idleDays = 0;
+  sim.log('raid:relocated', { band: band.id, from, to: hideout.id });
+}
+
+// Night raid on the weakest town near the hideout: its guards and townsfolk against the band.
+function raidTown(sim, band, rng) {
+  const cfg = sim.data.raiders.town;
+  const ix = economyIndex(sim.data);
+  const towns = hideoutById(sim, band.hideout).near.filter((sid) => !ix.isOutside(sid));
+  const defence = (sid) => {
+    const people = residentsAt(sim, sid);
+    return people.filter((r) => r.profession === 'guard').length * cfg.guardStrength + people.length * cfg.folkStrength;
+  };
+  const target = towns.sort((a, b) => defence(a) - defence(b) || (a < b ? -1 : 1))[0];
+  if (!target) return;
+  const att = band.members.length * moraleOf(band);
+  const def = defence(target);
+  if (att / (att + def) < cfg.minChance) return; // even starving, they won't throw themselves at the walls
+  const roll = rng.float();
+  const rec = { band: band.id, at: target, success: roll < att / (att + def), grain: 0, bits: 0, dead: null, outlaws: 0 };
+  if (rec.success) {
+    const market = sim.state.economy.markets[target].grain;
+    rec.grain = round3(load(sim, target, 'grain', Math.min(market.stock * cfg.grainShare, band.members.length * cfg.grainPerMember)));
+    band.food = round3(band.food + rec.grain);
+    rec.bits = transfer(sim, `till:${target}`, bandAccount(band), balance(sim, `till:${target}`) * cfg.tillShare);
+    if (rng.chance(0.4)) {
+      const people = residentsAt(sim, target).filter((r) => r.profession !== 'noble' && r.profession !== 'mintmaster' && r.profession !== 'dependant');
+      const victim = people.find((r) => r.profession === 'guard') ?? (people.length ? rng.pick(people) : null);
+      if (victim) rec.dead = killResident(sim, { id: victim.id, cause: 'raid' })?.id ?? null;
+    }
+    band.raids += 1;
+  } else {
+    const r = { outlaws: [] };
+    killOutlaws(sim, band, r, 1 + (rng.chance(0.4) ? 1 : 0));
+    rec.outlaws = r.outlaws.length;
+  }
+  sim.log('raid:town', rec);
+  checkWiped(sim, band);
+}
+
+// ── The lord's patrols ──────────────────────────────────────────────────────
+
+// Soldiers on the road the band watches: fear grows, and they may be run down.
+function patrolled(sim, band) {
+  const cfg = sim.data.raiders.patrol;
+  const p = patrolOn(sim, band.watching);
+  if (!p) return;
+  band.fear[band.watching] = round3(band.fear[band.watching] + cfg.fear);
+  const rng = sim.rng('raids');
+  if (!rng.chance(cfg.clash)) return;
+  const att = band.members.length * moraleOf(band);
+  const def = p.guards * cfg.strength;
+  const guardsWin = rng.float() < def / (att + def);
+  const rec = { band: band.id, route: p.route, guardsWin, outlaws: 0, guard: null };
+  if (guardsWin) {
+    const r = { outlaws: [] };
+    killOutlaws(sim, band, r, 1 + (rng.chance(0.5) ? 1 : 0));
+    rec.outlaws = r.outlaws.length;
+    band.fear[band.watching] = round3(band.fear[band.watching] + 1);
+  } else {
+    const guards = residentsAt(sim, sim.state.lord.seat).filter((r) => r.profession === 'guard');
+    if (guards.length) rec.guard = killResident(sim, { id: rng.pick(guards).id, cause: 'raid' })?.id ?? null;
+  }
+  sim.log('raid:patrol-clash', rec);
+  checkWiped(sim, band);
 }
 
 // ── The lab ─────────────────────────────────────────────────────────────────
@@ -615,5 +919,5 @@ function onLabBand(sim, { hideout: hid, members = 6, watch = null }) {
   if (!band) band = foundBand(sim, hideout, rng);
   for (let i = 0; i < members; i++) join(band, newOutlaw(sim, rng, hideout.near[0]));
   if (watch && hideout.watches.includes(watch)) band.watching = watch;
-  sim.log('raid:summoned', { band: band.id, members: band.members.length, lab: true });
+  sim.log('raid:summoned', { band: band.id, hideout: band.hideout, members: band.members.length, lab: true });
 }

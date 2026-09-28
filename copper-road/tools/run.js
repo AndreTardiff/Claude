@@ -80,7 +80,7 @@ if (args.includes('--json')) {
   console.log('');
   console.log(
     `Money: ${m(moneySupply(sim))} in circulation = ${m(sim.state.coin.opening)} opening + ${m(f.minted)} minted + ${m(f.gifted)} gifted` +
-      ` + ${m(f.exported)} from the ships − ${m(f.crown)} Crown − ${m(f.worn)} worn − ${m(f.hoarded)} buried − ${m(f.imported)} to the ships.` +
+      ` + ${m(f.exported)} from the ships + ${m(f.unearthed ?? 0)} dug up − ${m(f.crown)} Crown − ${m(f.worn)} worn − ${m(f.hoarded)} buried − ${m(f.imported)} to the ships.` +
       ` Treasury ${m(balance(sim, 'treasury'))}.`,
   );
   const opps = tradeOpportunities(sim, { limit: 5 });

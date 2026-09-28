@@ -38,7 +38,8 @@ const article = (word) => (/^[aeiou]/i.test(word) ? 'an' : 'a');
 
 export function describe(entry, sim) {
   const bandName = (id) => getBand(sim, id)?.name ?? 'a band of outlaws';
-  const hideout = (id) => sim.data.raiders?.hideouts.find((h) => h.id === getBand(sim, id)?.hideout)?.name ?? 'the hills';
+  // Where a band was when it happened (bands move), falling back to where it is now.
+  const hideout = (id) => sim.data.raiders?.hideouts.find((h) => h.id === (entry.hideout ?? getBand(sim, id)?.hideout))?.name ?? 'the hills';
   const segRoad = (segId) => sim.graph.routes.get(sim.graph.segments.get(segId)?.route)?.name ?? segId;
   const WORKS = (id) => sim.data.lord?.works.find((w) => w.id === id)?.name ?? id;
   const place = (id) => sim.graph.nodes.get(id)?.name ?? id;
@@ -161,7 +162,8 @@ export function describe(entry, sim) {
         return `${trader(entry.who)} lets the last of the ${lower(entry.good)} go in ${place(entry.at)} for whatever it fetches: ` +
           (entry.profit < 0 ? `a loss of ${formatMoney(sim, -entry.profit)} on the venture.` : `still ${formatMoney(sim, entry.profit)} up on the venture.`);
       }
-      const sale = `${trader(entry.who)} sells ${amount(entry.qty, entry.good)} in ${place(entry.at)} for ${formatMoney(sim, entry.sold)}`;
+      const sale = `${trader(entry.who)} sells ${amount(entry.qty, entry.good)} in ${place(entry.at)} for ${formatMoney(sim, entry.sold)}` +
+        (entry.lost > 0.05 ? `, the rest (${amount(entry.lost, entry.good)}) lost to robbers on the road` : '');
       if (entry.profit < 0) return `${sale}: a loss of ${formatMoney(sim, -entry.profit)} on news ${days(entry.ageDays)} old.`;
       const hoped = entry.expected > 0 ? ` (hoped for ${formatMoney(sim, entry.expected)})` : '';
       return `${sale}: ${formatMoney(sim, entry.profit)} profit${hoped}.`;
@@ -213,6 +215,10 @@ export function describe(entry, sim) {
         ? `${person(entry.who)}, ${article(was)} ${was} ${why}, takes to the hills and gathers a band at ${hideout(entry.band)}.`
         : `${person(entry.who)}, ${article(was)} ${was} ${why}, goes off to join ${bandName(entry.band)}.`;
     }
+    case 'raid:drifter':
+      return entry.founded
+        ? `A stranger calling themselves ${person(entry.who)} turns up in ${hideout(entry.band)} and starts gathering a band.`
+        : `A stranger calling themselves ${person(entry.who)} turns up at ${hideout(entry.band)} and joins ${bandName(entry.band)}.`;
     case 'raid:moved':
       return `${cap(bandName(entry.band))} ${bandName(entry.band).startsWith('the') ? 'move' : 'moves'} their lookouts to the ${segRoad(entry.to)}.`;
     case 'raid:encounter':
@@ -226,7 +232,38 @@ export function describe(entry, sim) {
     case 'raid:captive-killed':
       return `No ransom came for ${trader(entry.who)}, and ${bandName(entry.band)} don't keep captives they can't sell. The house of ${house(entry.who)} is ended.`;
     case 'raid:disbanded':
-      return `${cap(bandName(entry.band))} ${entry.why === 'wiped out' ? 'is wiped out' : `breaks up: ${entry.why}`}.`;
+      if (entry.why === 'wiped out') return `${cap(bandName(entry.band))} is wiped out.`;
+      if (entry.why === 'too few') return `The last of ${bandName(entry.band)} give up the road${entry.home ? ' and drift back to the towns' : ''}.`;
+      return `Starving, ${bandName(entry.band)} breaks up.` +
+        (entry.home ? ` ${entry.home === 1 ? 'One of them drifts' : `${entry.home} of them drift`} back to the towns to look for work.` : '') +
+        (entry.buried ? ' What coin they had stays buried in the hills.' : '');
+    case 'raid:fenced': {
+      const g = good(entry.good);
+      return `Stolen ${lower(entry.good)} turns up cheap in ${place(entry.at)}: ${amount(entry.qty, entry.good)} sold through a fence for ${formatMoney(sim, entry.bits)}, no questions asked.`;
+    }
+    case 'raid:town':
+      return entry.success
+        ? `Starving, ${bandName(entry.band)} fall on ${place(entry.at)} in the night and carry off ${amount(entry.grain, 'grain')}${entry.bits ? ` and ${formatMoney(sim, entry.bits)} from the traders` : ''}.` +
+          (entry.dead ? ` ${person(entry.dead)} is killed trying to stop them.` : '')
+        : `Starving, ${bandName(entry.band)} try to raid ${place(entry.at)} and are beaten off${entry.outlaws ? `, leaving ${entry.outlaws === 1 ? 'one' : entry.outlaws} dead` : ''}.`;
+    case 'raid:unearthed': {
+      const where = sim.data.raiders?.hideouts.find((h) => h.id === entry.place)?.name ?? 'the hills';
+      return `${person(entry.who)} of ${place(entry.at)} turns up a buried pot near ${where}: ${formatMoney(sim, entry.bits)} of outlaws' coin.`;
+    }
+    case 'raid:relocated': {
+      const to = sim.data.raiders?.hideouts.find((h) => h.id === entry.to)?.name ?? 'new hills';
+      return `With nothing on their roads, ${bandName(entry.band)} move to ${to}.`;
+    }
+    case 'raid:patrol-clash': {
+      const r = sim.graph.routes.get(entry.route)?.name ?? entry.route;
+      return entry.guardsWin
+        ? `Lord Aldric's patrol runs down ${bandName(entry.band)} on the ${r}: ${entry.outlaws === 1 ? 'one outlaw' : `${entry.outlaws} outlaws`} will rob no more.`
+        : `${cap(bandName(entry.band))} ambush Lord Aldric's patrol on the ${r}${entry.guard ? `; ${person(entry.guard)}, a guard, is killed` : ''}.`;
+    }
+    case 'lord:patrol':
+      return `Lord Aldric sends ${entry.guards} guards to ride the ${sim.graph.routes.get(entry.route)?.name ?? entry.route} for ${entry.days} days.`;
+    case 'lord:patrol-home':
+      return `Lord Aldric's patrol comes home from the ${sim.graph.routes.get(entry.route)?.name ?? entry.route}.`;
     case 'raid:summoned':
       return `The experimenter sends outlaws into ${hideout(entry.band)}: ${bandName(entry.band)} now counts ${entry.members}.`;
     case 'merchant:forced-loan':

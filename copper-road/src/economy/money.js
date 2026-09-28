@@ -6,20 +6,21 @@
 //   treasury        Lord Aldric's treasury
 //   wayfarer:<id>   a traveller's purse
 //   merchant:<id>   a merchant house's purse
-// Seven flows enter or leave circulation and are tallied in sim.state.coin.flows:
+// Eight flows enter or leave circulation and are tallied in sim.state.coin.flows:
 //   in:  minted (the Mint strikes new coin), gifted (lab), exported (the ships at
-//        the Outside pay for the goods they carry away)
+//        the Outside pay for the goods they carry away), unearthed (a buried
+//        hoard dug up: only ever coin that was buried first)
 //   out: crown (the Crown's due leaves), worn (clipped, lost and worn away),
 //        hoarded (buried under floors; tallied per town in sim.state.coin.hoards
 //        so it can be dug up later), imported (paid to the ships for their goods)
 // Everything else is a transfer, so the money supply is always exactly
-//   opening supply + minted + gifted + exported − crown − worn − hoarded − imported.
+//   opening supply + minted + gifted + exported + unearthed − crown − worn − hoarded − imported.
 
-export const SOURCES = new Set(['mint', 'lab', 'ships']);
+export const SOURCES = new Set(['mint', 'lab', 'ships', 'hoard']);
 export const SINKS = new Set(['crown', 'wear', 'hoard', 'ships']);
-const SOURCE_FLOW = { mint: 'minted', lab: 'gifted', ships: 'exported' };
+const SOURCE_FLOW = { mint: 'minted', lab: 'gifted', ships: 'exported', hoard: 'unearthed' };
 const SINK_FLOW = { crown: 'crown', wear: 'worn', hoard: 'hoarded', ships: 'imported' };
-export const FLOWS_IN = ['minted', 'gifted', 'exported'];
+export const FLOWS_IN = ['minted', 'gifted', 'exported', 'unearthed'];
 export const FLOWS_OUT = ['crown', 'worn', 'hoarded', 'imported'];
 
 export const toBits = (sim, marks) => Math.round(marks * sim.data.coin.bitsPerMark);

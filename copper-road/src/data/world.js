@@ -153,30 +153,46 @@ export const WORLD = {
   // extort or steal from those who pass. x/y place the hideouts on the map.
   raiders: {
     hideouts: [
+      // forage: sacks of food a day each member finds for themselves (hunting, fishing, snaring), before winter's cut.
       {
-        id: 'blackpine-hollows', name: 'the Blackpine hollows', band: 'the Blackpine band', x: 101, y: 66,
+        id: 'blackpine-hollows', name: 'the Blackpine hollows', band: 'the Blackpine band', x: 101, y: 66, forage: 0.06,
         watches: ['blackpine-east', 'blackpine-west'], fence: 'kingscross', near: ['kingscross', 'copperford'],
       },
       {
-        id: 'saddle-caves', name: 'the caves under the Saddle', band: 'the Saddle band', x: 60, y: 88,
+        id: 'saddle-caves', name: 'the caves under the Saddle', band: 'the Saddle band', x: 60, y: 88, forage: 0.05,
         watches: ['high-pass-south', 'high-pass-north'], fence: 'greenhollow', near: ['greenhollow', 'copperford'],
       },
       {
-        id: 'fen-islands', name: 'the fen islands', band: 'the Fen band', x: 190, y: 122,
+        id: 'fen-islands', name: 'the fen islands', band: 'the Fen band', x: 190, y: 122, forage: 0.07,
         watches: ['estuary-west', 'estuary-east'], fence: 'saltmouth', near: ['kingscross', 'saltmouth'],
       },
       {
-        id: 'gorge-ledges', name: 'the ledges of the Grey Gorge', band: 'the Gorge band', x: 101, y: 24,
+        id: 'gorge-ledges', name: 'the ledges of the Grey Gorge', band: 'the Gorge band', x: 101, y: 24, forage: 0.04,
         watches: ['kings-road-north', 'kings-road-south'], fence: 'copperford', near: ['copperford', 'kingscross'],
       },
     ],
+    // Living off the land and the road.
+    // In autumn they lay in more (winterDays), knowing what's coming.
+    food: { perHead: 0.1, keepDays: 5, buyDays: 10, winterDays: 15, winterForage: 0.5, starving: 0.5, disbandAfter: 12 },
+    fence: { every: 3, share: 0.5 }, // stolen goods go to the fence town's traders at half the market price
+    // Surplus coin: spendShare goes on drink and dice in the fence town, then `share` of what's left is buried.
+    hoard: { keepPerHead: 15, keepBase: 40, spendShare: 0.5, share: 0.5, minBury: 20, hiddenDays: 30, findChance: 0.002 },
+    // A starving band may fall on a town's granary: guards count for 2.5, every townsman a little.
+    town: { raidChance: 0.3, minChance: 0.35, guardStrength: 2.5, folkStrength: 0.05, grainShare: 0.25, grainPerMember: 4, tillShare: 0.2 },
+    // Drifters: while fewer than minBands hold the hills, now and then a stranger turns up
+    // (a deserter, an outcast, someone off the ships) and joins the smallest band or starts one.
+    drifters: { chance: 0.03, minBands: 2 },
+    relocateIdleDays: 10, // days with nothing on its roads before a band looks for another hideout
+    // The lord's patrols: lookouts spot fewer travellers, fights go worse, and the band may be run down.
+    patrol: { spot: 0.4, strength: 1.5, fear: 0.25, clash: 0.15 },
     start: [{ hideout: 'blackpine-hollows', members: 5 }, { hideout: 'fen-islands', members: 4 }],
     maxBands: 4,
     maxMembers: 12,
     minToRaid: 2, // a band needs this many to take the road
+    fewDays: 20, // days a band can stay too small to raid before the last of them give up
     // Recruitment: each day, per town, chance × labourers × (1 + hunger × 3) × (1 + poverty × 2).
     // lure: share of those leaving a hungry town (not children or elders) who head for the hills instead.
-    recruit: { chance: 0.003, hungerWeight: 3, povertyWeight: 2, poorBelow: 8, newBandHunger: 0.35, lure: 0.4 },
+    recruit: { chance: 0.005, hungerWeight: 3, povertyWeight: 2, poorBelow: 8, newBandHunger: 0.35, lure: 0.4 },
     // Lookouts: chance a band spots a traveller on its road, by how visible they are.
     spot: 0.8,
     visibility: { merchant: 1, wayfarer: 0.5, peddler: 0.75, rider: 0.6 },
@@ -187,7 +203,7 @@ export const WORLD = {
     // Encounters: numbers × nerve, a bounded roll, and tempers on both sides.
     encounter: {
       minLoot: 12, // marks: less isn't worth the trouble (unless the band is desperate)
-      maxOdds: 0.6, // a band won't take on travellers with better than this chance of beating it
+      maxOdds: 0.45, // a band won't take on travellers with better than this chance of beating it
       desperateHunger: 0.4, // a band this hungry takes any chance
       nightShare: 0.45, // share of ambushes on a leg that runs past dusk that come at the night's camp
       nightEdge: 1.25, // surprise, in the dark
@@ -199,7 +215,7 @@ export const WORLD = {
       murderChance: 0.25, // a wayfarer who fights and loses may not live
       letterValue: 20, // marks a band reckons the post's letters are worth to a fence
     },
-    ransom: { share: 0.3, min: 60, days: 6, lordGenerosity: 600, townKeepsPerHead: 15, killAbove: 650 },
+    ransom: { share: 0.2, min: 50, days: 6, lordGenerosity: 600, townKeepsPerHead: 15, killAbove: 650 },
   },
 
   // Lord Aldric: temperament, and what he does with a treasury beyond its reserve.
@@ -225,6 +241,8 @@ export const WORLD = {
       { id: 'loom-house', name: 'a loom-house', days: 6, labour: 3, materials: { timber: 8, tools: 2 }, effect: { trade: 'weaver' } },
     ],
     steward: { tempted: 800, share: 0.01, noticeAbove: 10 }, // skims 1% a day of anything above 800 marks
+    // Patrols (step E): guards ride a road his seat believes dangerous (this much above its old reputation).
+    patrol: { minDanger: 0.15, guards: 4, pay: 1, days: 10 },
   },
 
   // Word of mouth: each retelling moves prices by up to ±6% and costs 15% of the trust.
