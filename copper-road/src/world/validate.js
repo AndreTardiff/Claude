@@ -213,6 +213,7 @@ export function validateWorld(data) {
     if (!(mc.keepPerWagon >= 0 && mc.spendShare >= 0 && mc.spendShare < 1 && mc.ruinBelow >= 0)) err('merchants: keepPerWagon and ruinBelow ≥ 0, spendShare within [0, 1)');
     if (!(Number.isInteger(mc.foundEvery) && mc.foundEvery >= 1 && mc.foundCapital > 0 && mc.foundPurseAbove >= 0)) err('merchants: founding needs foundEvery ≥ 1 day and capital > 0');
     if ((mc.houses?.length ?? 0) < mc.count) err('merchants: need at least as many house names as houses');
+    if (!(Number.isInteger(mc.peddlerHouses ?? 0) && (mc.peddlerHouses ?? 0) >= 0)) err('merchants.peddlerHouses must be a whole number ≥ 0');
   }
 
   // Wayfarers
@@ -220,7 +221,11 @@ export function validateWorld(data) {
   if (wf) {
     if (!Number.isInteger(wf.count) || wf.count < 0) err('wayfarers.count must be a whole number ≥ 0');
     if (!wf.trades?.length) err('wayfarers.trades must not be empty');
-    for (const t of wf.trades ?? []) if (!(t.speedKmh > 0)) err(`wayfarer trade ${t.id}: speed must be > 0`);
+    for (const t of wf.trades ?? []) {
+      if (!(t.speedKmh > 0)) err(`wayfarer trade ${t.id}: speed must be > 0`);
+      if (t.pack !== undefined && !(Number.isInteger(t.pack) && t.pack > 0 && t.goods?.length)) err(`wayfarer trade ${t.id}: a pack needs a whole size > 0 and goods`);
+      for (const gid of t.goods ?? []) if (!data.economy?.goods.some((g) => g.id === gid)) err(`wayfarer trade ${t.id}: unknown good ${gid}`);
+    }
     const [lo, hi] = wf.restDays ?? [];
     if (!(Number.isInteger(lo) && Number.isInteger(hi) && lo >= 0 && hi >= lo)) err('wayfarers.restDays must be [min, max] whole days');
   }

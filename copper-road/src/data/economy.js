@@ -171,6 +171,8 @@ export const COIN = {
   marketFee: 0.04, // the lord's cut of every market sale, paid by the buyer
   guardWage: 1, // marks a day per guard, from the treasury
   wayfarerEarnings: 0.5, // marks a day a resting wayfarer earns at odd jobs, paid by the town's households
+  wayfarerComfort: 30, // marks a wayfarer keeps; resting, they spend…
+  wayfarerSpend: 0.1, // …this share of anything above it a day on beds, meals and drink (to the town's households)
   hearthTax: 1, // marks per head, collected on the first day of spring (at most a tenth of a town's purse)
   crownShare: 0.25, // share of the treasury above the reserve sent to the Crown each season (leaves the region)
   crownReserve: 300, // marks the lord keeps back

@@ -161,7 +161,7 @@ function spare(sim, stock, desired) {
  * then: shortages and gluts ease as the town works, eats and trades (the ships
  * at the Outside close theirs faster). Hyperbolic, so it stays plain arithmetic.
  */
-function stockOnArrival(sim, dest, b, days) {
+export function stockOnArrival(sim, dest, b, days) {
   const ix = economyIndex(sim.data);
   const rate = ix.isOutside(dest) ? ix.eco.outside[dest].relax : sim.data.merchants.reversion;
   return b.desired + (b.stock - b.desired) / (1 + rate * days);
@@ -172,7 +172,7 @@ function stockOnArrival(sim, dest, b, days) {
  * the Outside: the till on each day the merchant would try (it refills as the
  * town buys), and the households' share of their savings each of those days.
  */
-function believedCash(sim, b) {
+export function believedCash(sim, b) {
   if (!b.coin) return Infinity;
   const cfg = sim.data.merchants;
   let purse = b.coin.purse;
@@ -438,7 +438,7 @@ function arrive(sim, m) {
 // ── Selling ─────────────────────────────────────────────────────────────────
 
 /** The most of `qty` that `money` bits will pay for in this market (prices fall as the goods go in). */
-function sellable(sim, sid, gid, qty, money) {
+export function sellable(sim, sid, gid, qty, money) {
   if (toBits(sim, saleValue(sim, sid, gid, qty)) <= money) return qty;
   let lo = 0;
   let hi = qty;
@@ -538,13 +538,41 @@ function ruin(sim, m) {
   sim.log('merchant:ruined', { who: m.id, at: m.at, trades: m.trades, profit: m.profit });
 }
 
-// When there are fewer houses than the region supports, the town with the most
-// savings per head backs a new one, if its households can spare the capital.
+// When there are fewer houses than the region supports, a new one is founded:
+// by a peddler who has saved enough to buy a wagon and leave the pack behind,
+// or else by the town with the most savings per head, if it can spare the capital.
 function foundHouse(sim) {
   const cfg = sim.data.merchants;
   const st = sim.state.merchants;
   const day = sim.cal.day(sim.now);
-  if (activeMerchants(sim).length >= cfg.count || day - st.lastFounded < cfg.foundEvery) return;
+  const active = activeMerchants(sim).length;
+  if (active >= cfg.count + (cfg.peddlerHouses ?? 0) || day - st.lastFounded < cfg.foundEvery) return;
+  const rng = sim.rng('merchants.found');
+  // A new name if one's left; failing that, a fallen house's name taken up again.
+  const ever = new Set(Object.values(st.byId).map((m) => m.house));
+  const taken = new Set(activeMerchants(sim).map((m) => m.house));
+  const fresh = cfg.houses.filter((h) => !ever.has(h));
+  const free = cfg.houses.filter((h) => !taken.has(h));
+  const newHouse = () => (fresh.length ? rng.pick(fresh) : free.length ? rng.pick(free) : rng.pick(SURNAMES.filter((h) => !taken.has(h))));
+
+  const peddler = richestPeddler(sim);
+  if (peddler) {
+    const w = peddler;
+    const m = newMerchant(sim, rng, { given: w.name, house: newHouse(), home: w.at, wagons: cfg.wagons[0] });
+    const capital = transfer(sim, `wayfarer:${w.id}`, account(m), balance(sim, `wayfarer:${w.id}`));
+    // The peddler leaves the road for good: out of the wayfarers' round, into the ledger of houses.
+    w.retired = sim.now;
+    w.becameMerchant = m.id;
+    m.wasWayfarer = w.id;
+    const ws = sim.state.wayfarers;
+    ws.order = ws.order.filter((id) => id !== w.id);
+    st.lastFounded = day;
+    sim.log('merchant:founded', { who: m.id, at: m.home, bits: capital, peddler: w.id });
+    sim.schedule(sim.cal.nextTravelMoment(sim.now) + 30, 'merchant:decide', { id: m.id, tripNo: 0 });
+    return;
+  }
+
+  if (active >= cfg.count) return; // the extra room is only for peddlers made good
   let best = null;
   for (const sid of economyIndex(sim.data).markets) {
     const heads = residentsAt(sim, sid).length;
@@ -553,16 +581,24 @@ function foundHouse(sim) {
     if (!best || purse / heads > best.perHead) best = { sid, perHead: purse / heads };
   }
   if (!best) return;
-  const rng = sim.rng('merchants.found');
-  // A new name if one's left; failing that, a fallen house's name taken up again.
-  const ever = new Set(Object.values(st.byId).map((m) => m.house));
-  const taken = new Set(activeMerchants(sim).map((m) => m.house));
-  const fresh = cfg.houses.filter((h) => !ever.has(h));
-  const free = cfg.houses.filter((h) => !taken.has(h));
-  const house = fresh.length ? rng.pick(fresh) : free.length ? rng.pick(free) : rng.pick(SURNAMES.filter((h) => !taken.has(h)));
-  const m = newMerchant(sim, rng, { given: rng.pick(GIVEN_NAMES), house, home: best.sid, wagons: cfg.wagons[0] });
+  const m = newMerchant(sim, rng, { given: rng.pick(GIVEN_NAMES), house: newHouse(), home: best.sid, wagons: cfg.wagons[0] });
   const capital = transfer(sim, `purse:${best.sid}`, account(m), toBits(sim, cfg.foundCapital));
   st.lastFounded = day;
   sim.log('merchant:founded', { who: m.id, at: best.sid, bits: capital });
   sim.schedule(sim.cal.nextTravelMoment(sim.now) + 30, 'merchant:decide', { id: m.id, tripNo: 0 });
+}
+
+// A resting peddler or tinker, pack sold, with a wagon's worth of savings.
+function richestPeddler(sim) {
+  const cfg = sim.data.merchants;
+  const need = toBits(sim, cfg.foundCapital + (sim.data.coin.wayfarerComfort ?? 0));
+  let best = null;
+  for (const id of sim.state.wayfarers?.order ?? []) {
+    const w = sim.state.wayfarers.byId[id];
+    const trade = sim.data.wayfarers.trades.find((t) => t.id === w.trade);
+    if (!trade?.pack || w.trip || !w.at || w.pack) continue;
+    const purse = balance(sim, `wayfarer:${id}`);
+    if (purse >= need && (!best || purse > best.purse)) best = { w, purse };
+  }
+  return best?.w ?? null;
 }

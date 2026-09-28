@@ -309,7 +309,7 @@ Travellers should live like everyone else: they carry a purse and goods, earn a 
 |---|---|
 | Eat where they stay; buy provisions before a trip | **B (built)** |
 | Purses; paying for food, lodging and tolls; wages for work done | **C (built)** |
-| Peddling: a wayfarer with a small pack is the smallest merchant (buy cheap, sell dear) | D (merchants) |
+| Peddling: a wayfarer with a small pack is the smallest merchant (buy cheap, sell dear) | **D (built)**: peddlers carry 4 units (salt, medicine, cloth, tools), tinkers 3 tools; judged like a merchant's trade, with no crew. A peddler who saves a wagon's worth founds a merchant house. |
 | Robbery and murder for what they carry; fenced goods and stolen letters | E (raiders) |
 | Homes and rent; the prosperous upgrade (cottage → townhouse), the ruined downsize or take to the road | I (town view) |
 | A traveller who can't pay for lodging sleeps rough, joins a camp or becomes a raider | E / §17.2 |

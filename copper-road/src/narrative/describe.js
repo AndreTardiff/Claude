@@ -58,7 +58,11 @@ export function describe(entry, sim) {
       return `${seasonName(entry.season)} comes to the Copper Road (Year ${entry.year}).` + (effects ? ` ${effects}` : '');
     }
     case 'wayfarer:departed':
-      return `${who(entry.who)} set out from ${place(entry.from)} for ${place(entry.dest)} by the ${road(entry.via)}.`;
+      return `${who(entry.who)} set out from ${place(entry.from)} for ${place(entry.dest)} by the ${road(entry.via)}` +
+        (entry.good ? `, with ${amount(entry.qty, entry.good)} in the pack.` : '.');
+    case 'wayfarer:peddled':
+      return `${who(entry.who)} sells ${amount(entry.qty, entry.good)} in ${place(entry.at)} for ${formatMoney(sim, entry.bits)}` +
+        (entry.profit >= 0 ? ` (${formatMoney(sim, entry.profit)} to the good).` : `, ${formatMoney(sim, -entry.profit)} less than it cost.`);
     case 'wayfarer:arrived':
       return `${who(entry.who)} reached ${place(entry.at)} by the ${road(entry.via)}, ${formatDuration(entry.minutes)} out of ${place(entry.from)}.`;
     case 'wayfarer:rerouted':
@@ -157,6 +161,7 @@ export function describe(entry, sim) {
     case 'merchant:ruined':
       return `The house of ${house(entry.who)} is ruined: ${trader(entry.who)} pays off the last of the crew and goes home to ${place(getMerchant(sim, entry.who)?.home)}.`;
     case 'merchant:founded':
+      if (entry.peddler) return `${who(entry.peddler)} has saved enough to trade the pack for a wagon: ${trader(entry.who)} founds the house of ${house(entry.who)} in ${place(entry.at)}.`;
       return `${place(entry.at)}'s households put ${formatMoney(sim, entry.bits)} behind a new trading house: ${trader(entry.who)} hitches a wagon.`;
     case 'merchant:expanded':
       return `Business is good for the house of ${house(entry.who)}: ${trader(entry.who)} buys a wagon from ${place(entry.at)}'s wheelwrights (${entry.wagons} now).`;

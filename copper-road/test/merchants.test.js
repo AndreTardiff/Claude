@@ -221,7 +221,8 @@ test('houses rise and fall: a ruined house is replaced by one a town backs', () 
   const fresh = getMerchant(sim, founded[0].who);
   assert.ok(fresh.active && fresh.home === founded[0].at);
   assert.notEqual(fresh.house, m.house, 'the new house has a new name');
-  assert.equal(activeMerchants(sim).length, WORLD.merchants.count);
+  const n = activeMerchants(sim).length;
+  assert.ok(n >= WORLD.merchants.count && n <= WORLD.merchants.count + WORLD.merchants.peddlerHouses, `${n} houses`);
   assert.equal(moneySupply(sim), booksBalance(sim));
   for (const e of [ruined, founded[0]]) assert.ok(!/undefined|NaN/.test(describe(e, sim)));
 });
@@ -238,4 +239,46 @@ test('rich houses spend at home, and the lord borrows from the richest', () => {
   const loan = sim.state.log.find((e) => e.type === 'merchant:forced-loan' && e.who === m.id);
   assert.ok(loan && m.loaned > 0, 'Lord Aldric should "borrow" from a house this rich');
   assert.equal(moneySupply(sim), booksBalance(sim));
+});
+
+// ── D3: peddlers and tinkers ────────────────────────────────────────────────
+
+test('peddlers carry a pack where word says it pays, and sell it on arrival', () => {
+  let sales = 0;
+  let profit = 0;
+  for (const seed of [1, 23]) {
+    const sim = new Simulation({ seed });
+    sim.advanceTo(at(150));
+    for (const e of sim.state.log.filter((x) => x.type === 'wayfarer:peddled')) {
+      const w = sim.state.wayfarers.byId[e.who];
+      const trade = WORLD.wayfarers.trades.find((t) => t.id === w.trade);
+      assert.ok(trade.pack && trade.goods.includes(e.good), `${w.trade} sold ${e.good}`);
+      assert.ok(e.qty > 0 && e.qty <= trade.pack);
+      assert.ok(!/undefined|NaN/.test(describe(e, sim)));
+      sales++;
+      profit += e.profit;
+    }
+    // Nobody else ever carries a pack.
+    for (const e of sim.state.log.filter((x) => x.type === 'wayfarer:departed' && x.good)) {
+      assert.ok(WORLD.wayfarers.trades.find((t) => t.id === sim.state.wayfarers.byId[e.who].trade).pack);
+    }
+    assert.equal(moneySupply(sim), booksBalance(sim));
+  }
+  assert.ok(sales >= 10, `only ${sales} packs sold`);
+  assert.ok(profit > 0, 'peddling should pay, on the whole');
+});
+
+test('a peddler who saves enough trades the pack for a wagon and founds a house', () => {
+  const sim = new Simulation({ seed: 1 });
+  sim.advanceTo(at(80));
+  const e = sim.state.log.find((x) => x.type === 'merchant:founded' && x.peddler);
+  assert.ok(e, 'someone should make good');
+  const w = sim.state.wayfarers.byId[e.peddler];
+  const m = getMerchant(sim, e.who);
+  assert.ok(w.retired && w.becameMerchant === m.id && m.wasWayfarer === w.id);
+  assert.ok(!sim.state.wayfarers.order.includes(w.id), 'off the road for good');
+  assert.ok(m.name.startsWith(w.name) && m.home === e.at);
+  assert.equal(balance(sim, `wayfarer:${w.id}`), 0);
+  assert.ok(e.bits >= WORLD.merchants.foundCapital * 12);
+  assert.ok(describe(e, sim).includes('pack for a wagon'));
 });

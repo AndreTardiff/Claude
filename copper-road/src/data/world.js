@@ -140,6 +140,7 @@ export const WORLD = {
     spendShare: 0.04, // …this share of the rest, each day
     ruinBelow: 40, // marks: a house with empty wagons and less than this is ruined
     foundEvery: 10, // days: at most one new house this often
+    peddlerHouses: 1, // extra houses the region makes room for when a peddler saves up for a wagon
     foundCapital: 200, // marks a new house starts with, raised from its town's households
     foundPurseAbove: 20, // marks per head a town must hold beyond that capital to back a new house
     forcedLoanAbove: 1000, // marks: the lord starts "borrowing" from a house this rich…
@@ -169,9 +170,16 @@ export const WORLD = {
     // How strongly a cautious wayfarer avoids danger when choosing a road.
     dangerWeight: 8,
     homeWeight: 40,
+    // Peddlers and tinkers are the smallest merchants: a pack of a few units,
+    // bought where it's cheap and carried where word says it's dear.
+    peddling: {
+      minProfit: 3, // marks a trip must be believed to clear to carry a pack
+      keepPurse: 5, // marks they never spend on stock
+    },
     trades: [
-      { id: 'peddler', name: 'peddler', speedKmh: 4 },
-      { id: 'tinker', name: 'tinker', speedKmh: 3.5 },
+      // earns: marks a day resting (hawking ribbons, mending pots) instead of the usual odd jobs.
+      { id: 'peddler', name: 'peddler', speedKmh: 4, pack: 4, goods: ['salt', 'medicine', 'cloth', 'tools'], earns: 1 },
+      { id: 'tinker', name: 'tinker', speedKmh: 3.5, pack: 3, goods: ['tools'], earns: 1.5 },
       { id: 'pilgrim', name: 'pilgrim', speedKmh: 4 },
       { id: 'drover', name: 'drover', speedKmh: 3 },
       { id: 'minstrel', name: 'minstrel', speedKmh: 4.5 },

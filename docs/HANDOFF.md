@@ -34,18 +34,26 @@ Each checkpoint ends with all tests green, `npm run reference` rerun, this file 
       ships directly: exports bring coin in (`exported`), imports send it out (`imported`); `traderAccount()`.
       Also: `comforts` (households with savings buy cloth, tools, luxuries), road books (`today.road.in/out`),
       price lists carry each town's coin, market-news quiet periods are per story.
-- [ ] **D3: peddlers.** Peddler and tinker wayfarers carry a small pack and trade with the merchant logic
-      (`tradeCandidates` works for anyone with an account, a place and a capacity).
+- [x] **D3: peddlers and tinkers.** *(done: packs in `src/systems/wayfarers.js`)* Peddlers (4 units: salt,
+      medicine, cloth, tools) and tinkers (3 tools) judge a small trade the way merchants do (aged price lists,
+      coin on hand, trust; no crew), buy before setting out, sell on arrival, keep what a town can't pay for.
+      They earn more resting (hawking, mending), and travellers with money spend it where they stay and after
+      a good trip. A peddler who saves a wagon's worth founds a merchant house (one extra house allowed for them).
 - [ ] **D4: lab, gate tests, docs.** Caravans on the map with tooltips; merchant inspector ("what they know",
       "why this trade"); knowledge/letters view; gate D test (merchants trade profitably on stale information and
       sometimes misjudge); AT-25 (winter pays); spec §5/§10 "as built"; site progress entry; README/CLAUDE.md.
 
 ## Next
 
-Start D3 (peddlers). Build on `src/systems/merchants.js`: `tradeCandidates(sim, m)` scores trades for anyone
-with an id (knowledge holder), a place (`at`), a `merchant:<id>`-style account and a capacity; peddlers would
-need their own account prefix (`wayfarer:<id>` already exists) and a small pack. Then D4 (lab views, gate D,
-AT-25 winter pays, site entry).
+Start D4 (lab, gate tests, docs): caravans and post riders on the map with tooltips (merchants have `trip`
+from `src/world/journey.js`, so `tripPosition(sim, m.trip, t)` gives their place); a merchant inspector
+("what they know": `belief`; "why this trade": `m.reason`; the ledger `m.ledger`); a knowledge/letters view;
+gate D test (largely covered by `test/merchants.test.js`); AT-25 (winter pays); spec §21 status; site
+progress entry and stage; README. Load the `dataviz` skill before any chart change.
+
+Findings from D3: peddling pays mostly on essentials in a shortage (4 sacks of salt into a salt-starved town
+fetch 60+ marks a sack). Most peddlers stay poor; one or two a world make good and found houses by day
+40–130. With peddlers, Copperford holds ~30–34 people and famine deaths fall to 4–10 per 200 days.
 
 Findings from D2 (200 days, seeds 1/7/23):
 - Merchants make ~50–60 ventures, ~10% at a loss; famine deaths and emigration fall a lot versus no merchants.

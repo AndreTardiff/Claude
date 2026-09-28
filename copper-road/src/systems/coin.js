@@ -196,11 +196,18 @@ function hoard(sim) {
   }
 }
 
+// Resting wayfarers earn a little at odd jobs, and those with money to spare
+// (a peddler after a good run) spend it on beds, meals and drink where they stay.
 function oddJobs(sim) {
-  const pay = toBits(sim, sim.data.coin.wayfarerEarnings);
+  const c = sim.data.coin;
+  const keep = toBits(sim, c.wayfarerComfort ?? Infinity);
+  const earns = Object.fromEntries(sim.data.wayfarers.trades.map((t) => [t.id, toBits(sim, t.earns ?? c.wayfarerEarnings)]));
   for (const id of sim.state.wayfarers?.order ?? []) {
     const w = sim.state.wayfarers.byId[id];
-    if (!w.trip && w.at) transfer(sim, `purse:${w.at}`, `wayfarer:${id}`, pay);
+    if (w.trip || !w.at) continue;
+    transfer(sim, `purse:${w.at}`, `wayfarer:${id}`, earns[w.trade]);
+    const spare = balance(sim, `wayfarer:${id}`) - keep;
+    if (spare > 0) transfer(sim, `wayfarer:${id}`, `purse:${w.at}`, spare * c.wayfarerSpend);
   }
 }
 
