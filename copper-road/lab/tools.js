@@ -19,10 +19,15 @@ export function createToolsPanel(root, { getSim, onChange }) {
       <label>Trade <select data-tool="trade"></select></label>
       <button type="button" data-act="death">Strike down a worker</button>
     </div>
+    <div class="tool-row">
+      <label>Hideout <select data-tool="hideout"></select></label>
+      <button type="button" data-act="band">Send 6 outlaws there</button>
+    </div>
     <p class="tool-result hint" aria-live="polite"></p>`;
   const town = root.querySelector('[data-tool="town"]');
   const good = root.querySelector('[data-tool="good"]');
   const trade = root.querySelector('[data-tool="trade"]');
+  const hideout = root.querySelector('[data-tool="hideout"]');
   const result = root.querySelector('.tool-result');
 
   function fillTrades() {
@@ -44,6 +49,7 @@ export function createToolsPanel(root, { getSim, onChange }) {
     const keepGood = good.value;
     town.innerHTML = ix.markets.map((sid) => `<option value="${sid}">${esc(placeName(sim, sid))}</option>`).join('');
     good.innerHTML = ix.goodIds.map((gid) => `<option value="${gid}">${esc(goodOf(sim, gid).name)}</option>`).join('');
+    hideout.innerHTML = (sim.data.raiders?.hideouts ?? []).map((h) => `<option value="${h.id}">${esc(h.name)}</option>`).join('');
     if (keepTown) town.value = keepTown;
     if (keepGood) good.value = keepGood;
     fillTrades();
@@ -58,6 +64,7 @@ export function createToolsPanel(root, { getSim, onChange }) {
     if (act === 'spoil') sim.command('lab:spoil', { at: town.value, good: good.value, fraction: 0.7 });
     if (act === 'deliver') sim.command('lab:deliver', { at: town.value, good: good.value, qty: 30 });
     if (act === 'coin') sim.command('lab:coin', { at: town.value, marks: 100 });
+    if (act === 'band') sim.command('lab:band', { hideout: hideout.value, members: 6 });
     if (act === 'death') {
       if (!trade.value) {
         result.textContent = 'Nobody in that trade lives there.';

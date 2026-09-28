@@ -10,6 +10,7 @@ import {
   formatDuration,
   balance,
   getResident,
+  getBand,
   getMerchant,
   getRider,
   getWayfarer,
@@ -42,6 +43,8 @@ const GAME_MINUTES_PER_SECOND = 1440 / 600;
 const SPEEDS = [0, 1, 5, 20, 100];
 const CHRONICLE_MAX = 200;
 const NIGHT_BOOST = 20;
+// Which chronicle filter each kind of entry belongs to.
+const FAMILY_KIND = { wayfarer: 'travel', post: 'travel', merchant: 'trade', raid: 'roads', camp: 'roads', weather: 'roads', lord: 'lord' };
 const MODES = [
   { id: 'wagon', label: 'Wagon (3.5 km/h)', kmh: 3.5 },
   { id: 'foot', label: 'On foot (4 km/h)', kmh: 4 },
@@ -200,7 +203,7 @@ function updateChronicle() {
     const li = document.createElement('li');
     const family = e.type.split(':')[0];
     li.className = `entry entry-${family}${e.lab ? ' entry-lab' : ''}`;
-    li.dataset.kind = family === 'wayfarer' ? 'travel' : 'town';
+    li.dataset.kind = FAMILY_KIND[family] ?? 'town';
     li.innerHTML = `<time>${esc(sim.cal.format(e.t).stamp)}${e.lab ? ' <span class="tag">lab</span>' : ''}</time> ${esc(describe(e, sim))}`;
     frag.appendChild(li);
   }
@@ -226,6 +229,7 @@ function renderInspector() {
     selected.kind === 'wayfarer' ? wayfarerHtml(selected.id)
       : selected.kind === 'merchant' ? merchantHtml(selected.id)
       : selected.kind === 'rider' ? riderHtml(selected.id)
+      : selected.kind === 'band' ? bandHtml(selected.id)
       : selected.kind === 'resident' ? residentHtml(selected.id)
         : nodeHtml(selected.id);
 }
@@ -368,6 +372,44 @@ function merchantHtml(id) {
       ${m.wasWayfarer ? '<dt>Began as</dt><dd>a peddler on the roads</dd>' : ''}
     </dl>
     ${why}${knows}${book}`;
+}
+
+const cruelWord = (c) => (c >= 650 ? 'merciless' : c >= 400 ? 'hard' : 'soft for an outlaw');
+const hungerWord = (h) => (h >= 0.5 ? 'starving' : h >= 0.25 ? 'hungry' : 'fed');
+
+function bandHtml(id) {
+  const b = getBand(sim, id);
+  if (!b) return '';
+  const cfg = sim.data.raiders;
+  const hideout = cfg.hideouts.find((h) => h.id === b.hideout);
+  const leader = sim.state.residents.byId[b.leader];
+  const members = b.members.map((rid) => {
+    const r = sim.state.residents.byId[rid];
+    const from = r.from ? `${professionName(sim, r.was ?? 'labourer')} from ${place(r.from)}` : 'a stranger';
+    return `<li>${esc(r.name)}${rid === b.leader ? ' <span class="tag">leader</span>' : ''} <span class="dim">${esc(from)}</span></li>`;
+  }).join('');
+  const loot = Object.entries(b.loot).filter(([, q]) => q > 0.05).map(([gid, q]) => `${qty(q)} ${esc(goodUnits(gid))} of ${esc(goodOf(sim, gid).name.toLowerCase())}`).join(', ');
+  const cache = (sim.state.raiders.hoards ?? []).filter((h) => h.band === b.id).reduce((a, h) => a + h.bits, 0);
+  const captives = b.captives.map((mid) => `<button class="linkish" data-merchant="${esc(mid)}">${esc(getMerchant(sim, mid).name)}</button>`).join(', ');
+  const why = b.reason ? b.reason.options.map((o) => `
+    <tr class="${o.seg === b.reason.choice ? 'chosen' : ''}"><td>${esc(road([sim.graph.segments.get(o.seg).route]))} <span class="dim">${esc(place(sim.graph.segments.get(o.seg).a))}–${esc(place(sim.graph.segments.get(o.seg).b))}</span>${o.seg === b.reason.choice ? ' <span class="tag">watching</span>' : ''}</td>
+    <td class="num">${money(o.take)}</td><td class="num">${o.fear.toFixed(2)}</td><td class="num">${o.score.toFixed(0)}</td></tr>`).join('') : '';
+  const lately = sim.state.log.filter((e) => e.type.startsWith('raid:') && e.band === b.id).slice(-5).reverse()
+    .map((e) => `<li><time>${esc(sim.cal.format(e.t).stamp)}</time> ${esc(describe(e, sim))}</li>`).join('');
+  return `
+    <h3>${esc(b.name)} <span class="sub">${b.active ? `at ${esc(hideout.name)}` : 'broken up'}</span></h3>
+    <p>${b.active ? `${b.members.length} outlaws${leader ? `, led by ${esc(leader.name)}` : ''}, ${cruelWord(b.cruelty)}, and ${hungerWord(b.hunger)}.` : `Gone since ${esc(sim.cal.format(b.ended).stamp)}.`}</p>
+    <dl class="facts">
+      <dt>Food</dt><dd>${qty(b.food + (b.loot.grain ?? 0))} sacks in the hideout, and what they hunt</dd>
+      <dt>Purse</dt><dd>${moneyBits(balance(sim, `band:${b.id}`))}${cache ? ` · <span class="dim">${moneyBits(cache)} buried (only the lab knows)</span>` : ''}</dd>
+      <dt>Loot</dt><dd>${loot || 'nothing waiting for the fence'} · fenced in ${esc(place(hideout.fence))}</dd>
+      ${captives ? `<dt>Holding</dt><dd>${captives}</dd>` : ''}
+      <dt>Record</dt><dd>${b.raids} raids · ${b.lost} of their own dead · ${b.killed} travellers killed</dd>
+    </dl>
+    ${members ? `<h4>Who they are</h4><ul class="plain">${members}</ul>` : ''}
+    ${why ? `<h4>Why this road? <span class="sub">what the lookouts have seen pass lately, and the blood it cost</span></h4>
+      <div class="table-wrap"><table><thead><tr><th>Road</th><th class="num">Seen passing</th><th class="num">Fear</th><th class="num">Score</th></tr></thead><tbody>${why}</tbody></table></div>` : ''}
+    ${lately ? `<h4>Lately</h4><ul class="plain">${lately}</ul>` : ''}`;
 }
 
 function riderHtml(id) {
@@ -632,10 +674,32 @@ function tipHtml(hit) {
       : c.note ? `<span class="warn">This ${esc(season.name.toLowerCase())}: ${esc(c.note)}.</span>` : 'Open.';
     const other = Object.entries(sg.seasonal ?? {}).filter(([sid]) => sid !== season.id)
       .map(([sid, m]) => `${sim.cal.seasons.find((x) => x.id === sid).name.toLowerCase()}: ${m.note ?? (m.closed ? 'closed' : 'slow')}`);
+    const surprise = sim.state.weather?.closures?.[hit.id];
+    const shut = surprise && surprise.until > sim.now ? `<p class="bad">Shut without warning: ${esc(surprise.note)}, until ${esc(sim.cal.format(surprise.until).stamp)}.</p>` : '';
+    const band = Object.values(sim.state.raiders?.bands ?? {}).find((b) => b.active && b.watching === hit.id && b.members.length >= sim.data.raiders.minToRaid);
+    const patrol = (sim.state.lord?.patrols ?? []).find((p) => p.until > sim.now && p.segs.includes(hit.id));
     return `<strong>${esc(sim.graph.routes.get(sg.route).name)}</strong>` +
-      `<p>${esc(place(sg.a))} – ${esc(place(sg.b))} · ${sg.km} km of ${esc(sg.terrainDef.name)} · ${dangerWord(sg.danger * sg.km / 100)} danger</p>` +
-      `<p>${state}${minutes ? ` About ${Math.round(minutes / 60)} hours on the move by wagon.` : ''}</p>` +
+      `<p>${esc(place(sg.a))} – ${esc(place(sg.b))} · ${sg.km} km of ${esc(sg.terrainDef.name)} · ${dangerWord(sg.danger * sg.km / 100)} danger by repute</p>` +
+      `<p>${state}${minutes ? ` About ${Math.round(minutes / 60)} hours on the move by wagon.` : ''}</p>` + shut +
+      (band ? `<p class="bad">${esc(band.name)} (${band.members.length}) ${band.name.startsWith('the') ? 'are' : 'is'} watching this road. Travellers don't know that unless they've heard.</p>` : '') +
+      (patrol ? `<p>Lord Aldric's patrol rides here (${patrol.guards} guards).</p>` : '') +
       (other.length ? `<p class="dim">Other seasons: ${esc(other.join('; '))}.</p>` : '');
+  }
+  if (hit.kind === 'band') {
+    const b = getBand(sim, hit.id);
+    const leader = sim.state.residents.byId[b.leader];
+    return `<strong>${esc(b.name)}</strong><p>${b.members.length} outlaws${leader ? `, led by ${esc(leader.name)}` : ''}, watching the ${esc(road([sim.graph.segments.get(b.watching).route]))}.</p><p class="dim">Click for who they are, what they've taken, and why this road.</p>`;
+  }
+  if (hit.kind === 'raid') {
+    const e = sim.state.log.findLast((x) => x.type === 'raid:encounter' && x.t === hit.t && x.seg === hit.seg);
+    return e ? `<strong>${esc(sim.cal.format(e.t).stamp)}</strong><p>${esc(describe(e, sim))}</p>` : null;
+  }
+  if (hit.kind === 'place') {
+    const p = sim.state.places[hit.id];
+    const what = p.kind === 'waystation' ? `A waystation at ${place(hit.id)}, born of a camp of stranded travellers. Its inn passes news between everyone who comes through.`
+      : p.kind === 'empty inn' ? `An empty inn at ${place(hit.id)}: once a waystation, until the travellers stopped coming.`
+        : `A cold hearth at ${place(hit.id)}, where stranded travellers once camped.`;
+    return `<strong>${esc(p.name)}</strong><p>${esc(what)}</p>`;
   }
   if (hit.kind === 'area') return `<strong>${esc(hit.name)}</strong><p>${esc(hit.about ?? '')}</p>`;
   return null;

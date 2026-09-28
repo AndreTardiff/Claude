@@ -285,7 +285,9 @@ export function createMapRenderer(canvas, world) {
     }
     for (const s of segs) {
       const style = TERRAIN_STYLE[s.terrain] ?? TERRAIN_STYLE.road;
-      const cond = segmentConditions(sim.graph, s.id, seasonId);
+      // Surprise weather (step E) shuts a road just like the seasons do.
+      const surprise = sim.state.weather?.closures?.[s.id];
+      const cond = surprise && surprise.until > sim.now ? { closed: true, note: surprise.note } : segmentConditions(sim.graph, s.id, seasonId);
       ctx.save();
       ctx.globalAlpha = cond.closed ? 0.35 : 1;
       ctx.strokeStyle = colors[style.color];
@@ -473,6 +475,108 @@ export function createMapRenderer(canvas, world) {
     };
   }
 
+  // Step E: the lab sees what travellers can't: which road each band is watching
+  // (red), where the lord's patrols ride (copper), and raids of the last three days.
+  function drawDanger(sim) {
+    const lineOn = (segId, color, width, alpha, dash = []) => {
+      const s = segs.find((x) => x.id === segId);
+      if (!s) return;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.lineCap = 'round';
+      ctx.setLineDash(dash);
+      path([[s.A.x, s.A.y], [s.B.x, s.B.y]], false);
+      ctx.stroke();
+      ctx.restore();
+    };
+    // Patrols dotted, so they never read as a band's red.
+    for (const p of sim.state.lord?.patrols ?? []) if (p.until > sim.now) for (const seg of p.segs) lineOn(seg, colors.accent, 6, 0.55, [1, 9]);
+    const min = sim.data.raiders?.minToRaid ?? 2;
+    for (const b of Object.values(sim.state.raiders?.bands ?? {})) {
+      if (!b.active || b.members.length < min) continue;
+      lineOn(b.watching, colors.danger, 7, 0.3);
+    }
+    // Raids lately: a small burst at the middle of the road where each happened.
+    const recent = (sim.state.raiders?.encounters ?? []).filter((e) => sim.now - e.t < 3 * 1440);
+    const seen = new Set();
+    for (let i = recent.length - 1; i >= 0; i--) {
+      const e = recent[i];
+      if (seen.has(e.seg)) continue;
+      seen.add(e.seg);
+      const s = segs.find((x) => x.id === e.seg);
+      if (!s) continue;
+      const x = ((s.A.x * 2 + s.B.x) / 3) * k;
+      const y = ((s.A.y * 2 + s.B.y) / 3) * k;
+      ctx.save();
+      ctx.strokeStyle = colors.danger;
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      for (let a = 0; a < 8; a++) {
+        const ang = (a * Math.PI) / 4;
+        ctx.moveTo(x + Math.cos(ang) * 2.5, y + Math.sin(ang) * 2.5);
+        ctx.lineTo(x + Math.cos(ang) * (a % 2 ? 5 : 7), y + Math.sin(ang) * (a % 2 ? 5 : 7));
+      }
+      ctx.stroke();
+      ctx.restore();
+      hits.push({ kind: 'raid', id: e.t + ':' + e.seg, t: e.t, seg: e.seg, x, y, r: 9 });
+    }
+  }
+
+  // Hideouts of active bands, and the places camps have left: hearths, waystations, empty inns.
+  function drawHideoutsAndPlaces(sim) {
+    const min = sim.data.raiders?.minToRaid ?? 2;
+    for (const b of Object.values(sim.state.raiders?.bands ?? {})) {
+      if (!b.active) continue;
+      const h = sim.data.raiders.hideouts.find((x) => x.id === b.hideout);
+      const x = h.x * k;
+      const y = h.y * k;
+      ctx.beginPath();
+      ctx.moveTo(x, y - 6);
+      ctx.lineTo(x + 5.5, y + 4);
+      ctx.lineTo(x - 5.5, y + 4);
+      ctx.closePath();
+      ctx.fillStyle = b.members.length >= min ? colors.danger : colors.paper;
+      ctx.fill();
+      ctx.strokeStyle = colors.danger;
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+      haloText(`${b.name} (${b.members.length})`, x, y + 16, `italic ${scaled(11.5)}px "EB Garamond", Georgia, serif`, colors.danger, 'center');
+      hits.push({ kind: 'band', id: b.id, x, y, r: 10 });
+    }
+    for (const [node, p] of Object.entries(sim.state.places ?? {})) {
+      const n = nodeById.get(node);
+      const x = n.x * k + 9;
+      const y = n.y * k + 9;
+      ctx.save();
+      if (p.kind === 'waystation' || p.kind === 'empty inn') {
+        // A little house.
+        ctx.beginPath();
+        ctx.moveTo(x - 4, y + 3);
+        ctx.lineTo(x - 4, y - 1);
+        ctx.lineTo(x, y - 5);
+        ctx.lineTo(x + 4, y - 1);
+        ctx.lineTo(x + 4, y + 3);
+        ctx.closePath();
+        ctx.fillStyle = p.kind === 'waystation' ? colors.accent : colors.paper;
+        ctx.fill();
+        ctx.strokeStyle = p.kind === 'waystation' ? colors.accent : colors.muted;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      } else {
+        ctx.beginPath();
+        ctx.arc(x, y, 3, 0, Math.PI * 2);
+        ctx.strokeStyle = colors.muted;
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+      }
+      ctx.restore();
+      haloText(p.name, x + 7, y + 3, `italic ${scaled(11)}px "EB Garamond", Georgia, serif`, p.kind === 'waystation' ? colors.accent : colors.muted, 'left');
+      hits.push({ kind: 'place', id: node, x, y, r: 8 });
+    }
+  }
+
   // Caravans (merchant houses) and the lord's post riders. In a town they sit on
   // an outer ring, away from the wayfarers; on the road, wherever the trip has got to.
   function moverSpots(sim, t) {
@@ -604,7 +708,9 @@ export function createMapRenderer(canvas, world) {
     drawBackground();
     drawGeography();
     drawRoads(sim, season.id, highlight);
+    drawDanger(sim);
     drawNodes();
+    drawHideoutsAndPlaces(sim);
     const spots = wayfarerSpots(sim, t);
     const drawAfterNight = drawWayfarers(spots, selected?.kind === 'wayfarer' ? selected.id : null);
     const moversAfterNight = drawMovers(moverSpots(sim, t), selected);
@@ -638,7 +744,7 @@ export function createMapRenderer(canvas, world) {
     let bestD = Infinity;
     for (const h of hits) {
       const d = Math.sqrt((h.x - x) * (h.x - x) + (h.y - y) * (h.y - y));
-      const score = d - (h.kind === 'wayfarer' || h.kind === 'merchant' || h.kind === 'rider' ? 4 : 0);
+      const score = d - (['wayfarer', 'merchant', 'rider', 'band', 'raid'].includes(h.kind) ? 4 : 0);
       if (d <= h.r && score < bestD) {
         best = h;
         bestD = score;

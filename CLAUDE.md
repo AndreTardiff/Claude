@@ -40,13 +40,16 @@ and the home of **Caravans of the Copper Road**, a living-world merchant simulat
 - Log entries store ids, not display names; text is rendered by `narrative/describe.js`.
 - Outside instructions (lab tools, later the player) go through `sim.command(kind, data)`, never direct state edits.
 - Money never appears or vanishes: whole bits in accounts, moved only by `transfer()` (economy/money.js);
-  new coin only from the Mint, the ships (paying for exports) or the lab, and it leaves only via the Crown,
-  wear, hoards or the ships (paid for imports). `booksBalance(sim)` must always equal `moneySupply(sim)`.
+  new coin only from the Mint, the ships (paying for exports), a dug-up hoard (only coin buried first) or the lab,
+  and it leaves only via the Crown, wear, hoards or the ships (paid for imports). `booksBalance(sim)` must always
+  equal `moneySupply(sim)`.
 - Goods never teleport: stock changes only via work, use, spoilage, storage limits, the Outside's ships, and
   the road: caravans' cargo and travellers' provisions go through `load`/`unload` (economy/market.js), which
   count them in the day's books (`today.road.in/out`).
 - Whoever trades in a market pays or is paid by `traderAccount(sim, town)`: the town's till, or at the
   Outside, the ships.
+- Travellers judge roads by what they believe (`road:<segment>` knowledge records), never by where the bands are;
+  only the lab sees the truth.
 
 ## Lab charts
 - Load the `dataviz` skill before changing chart code. Chart colours live in `copper-road/lab/lab.css`

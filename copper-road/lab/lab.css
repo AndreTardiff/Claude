@@ -282,8 +282,11 @@ kbd {
 .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; flex-wrap: wrap; }
 .panel-head h2 { margin-bottom: 0.3rem; }
 
-.chronicle[data-filter="town"] li[data-kind="travel"],
-.chronicle[data-filter="travel"] li[data-kind="town"] { display: none; }
+.chronicle[data-filter="town"] li:not([data-kind="town"]),
+.chronicle[data-filter="travel"] li:not([data-kind="travel"]),
+.chronicle[data-filter="trade"] li:not([data-kind="trade"]),
+.chronicle[data-filter="roads"] li:not([data-kind="roads"]),
+.chronicle[data-filter="lord"] li:not([data-kind="lord"]) { display: none; }
 .chronicle li.entry-market, .chronicle li.entry-town { color: var(--text); }
 .chronicle li.entry-resident { color: var(--text); font-style: italic; }
 .chronicle li.entry-lab { background: var(--accent-soft); padding-left: 0.4rem; padding-right: 0.4rem; }
@@ -437,3 +440,8 @@ kbd {
 /* Lists in the lord panel */
 ul.plain { margin: 0.3rem 0 0.6rem; padding-left: 1.1rem; }
 ul.plain li { margin: 0.15rem 0; }
+
+/* Step E legend marks */
+.lg.hideout { width: 0; height: 0; border: none; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 9px solid var(--map-danger); }
+.lg.watched { border-top: 5px solid var(--map-danger); opacity: 0.45; }
+.lg.patrolled { border-top: 5px dotted var(--accent); opacity: 0.7; }

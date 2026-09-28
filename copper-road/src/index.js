@@ -44,5 +44,8 @@ export { balance, booksBalance, formatMoney, moneySupply, toBits, toMarks } from
 export { belief, innOf, swapNews } from './systems/knowledge.js';
 export { getRider } from './systems/post.js';
 export { activeMerchants, getMerchant, tradeCandidates } from './systems/merchants.js';
+export { activeBands, getBand, threatOf } from './systems/raiders.js';
+export { believedDanger } from './systems/knowledge.js';
+export { surpriseClosure } from './world/closures.js';
 export { planJourney, tripPosition } from './world/journey.js';
 export { mintStatus } from './systems/coin.js';

@@ -1,7 +1,7 @@
 # Caravans of the Copper Road
-## Simulation Prototype Design Specification — v0.2.5
+## Simulation Prototype Design Specification — v0.2.6
 
-*v0.2.5 adds: Lord Aldric as an engaged character (§15.2.1), and the Crown's due as a share of his income (§8.6). v0.2.4 added: knowledge and the lord's post as built in step D1 (§5.4), merchants, caravans, the ships' coin and peddlers as built in steps D2–D3 (§10.1, §10.2). v0.2.3 added: coin and famine as built in step C (§8.6, §8.7) and map tooltips. v0.2.2 added step B's economy as built (§8.5), traveller livelihoods (§10.1), the living map from camps to towns (§17.2) and winter's rewards (§16). v0.2.1 added the player's starting situation, Lord Aldric and drifting names (§15.1, §15.2, §17.1). Supersedes v0.1 ([original document](copper-road-spec-v0.1.docx)). Status: prototype design authority. Target: a headless simulation core with a browser prototype (HTML5 canvas). Godot is a later option if we decide to go big.*
+*v0.2.6 adds: raiders as built in step E (§11.1), the camps experiment (§17.2), and nights (§17.3). v0.2.5 added: Lord Aldric as an engaged character (§15.2.1), and the Crown's due as a share of his income (§8.6). v0.2.4 added: knowledge and the lord's post as built in step D1 (§5.4), merchants, caravans, the ships' coin and peddlers as built in steps D2–D3 (§10.1, §10.2). v0.2.3 added: coin and famine as built in step C (§8.6, §8.7) and map tooltips. v0.2.2 added step B's economy as built (§8.5), traveller livelihoods (§10.1), the living map from camps to towns (§17.2) and winter's rewards (§16). v0.2.1 added the player's starting situation, Lord Aldric and drifting names (§15.1, §15.2, §17.1). Supersedes v0.1 ([original document](copper-road-spec-v0.1.docx)). Status: prototype design authority. Target: a headless simulation core with a browser prototype (HTML5 canvas). Godot is a later option if we decide to go big.*
 
 > **What changed in v0.2, in one breath.** The player is now a *person in one place* who learns about the world through letters that travel at road speed. There are two theses to prove, not one: the world must be worth watching, *and* the player's choices must be hard and meaningful. The closed three-town economy is opened with seasons, an Outside port, a copper mint, and money sinks that grow with a merchant's wealth. Every citizen does economic work, and the player's home town gets full Ultima VII-style daily schedules. Raiders fence, starve, recruit and bury treasure. Caravans leave with standing orders. Style modules (place names earned by history, ledger UI, songs, the Wending Fair) are scheduled in, each tied to a prototype question.
 
@@ -349,6 +349,25 @@ Travellers should live like everyone else: they carry a purse and goods, earn a 
 | **Bury hoards** | Coin leaves circulation. Hoard locations can be found through rumour, captured raiders or a lost map. |
 | **Fear** | Guard presence, patrols and losses push raiders to other roads |
 
+### 11.1 Raiders, as built in step E
+**Bands are people.** Each band is named outlaws in a hideout by the wild roads: the Blackpine hollows, the caves under the Saddle, the fen islands, the ledges of the Grey Gorge. Outlaws are residents who left their towns: idle labourers, more often when their town is hungry and its households broke, and able workers who give up on a starving town and take to the hills instead of the road out. While fewer than two bands hold the hills, the odd stranger turns up (a deserter, someone off the ships). One member leads, with a temper from soft to merciless.
+
+**Roads are news.** Travellers report every road they come along: quiet, signs of bandits (lookouts, a cold camp), or a raid. Reports spread through inns, the post and campfires like price lists, get retold, and fade (a raid ten days old weighs half as much; for a few days, "I saw nothing" doesn't undo a raid). Route planners and merchants judge danger by what they *believe* (§8.4), so a band lying in wait unnoticed catches travellers out, and a road keeps its bad name after the band has gone.
+
+**Lookouts and encounters.** Lookouts see everyone on the roads near the hideout and keep a fading tally of what passes; the band watches the road that pays best, unless it has cost them blood. A band may spot a traveller on its road and weigh what they carry against how many would fight:
+- *Demand* a toll (a quarter of the value); the timid or outnumbered pay.
+- *Attack*: the traveller fights (numbers × nerve × a bounded roll decide it), or runs and drops the load.
+- *Steal*, at night, from the camp, if the watch sleeps.
+- *Let pass*: not worth it, or too many.
+
+Hired hands who die are townspeople from where the caravan set out. Merchants who lose are often dragged off and **held for ransom**: their house pays, or a generous Lord Aldric, or their home town; past the deadline a merciless band kills them and a softer one lets them walk home penniless. Letters taken from the post never reach the next inn (AT-21). Every encounter is written up afterwards with its factors (§13).
+
+**Living off the land and the road.** Bands forage (fish in the fens, game in Blackpine, less in winter), eat stolen grain, and buy more through their fence, laying in stores each autumn. Every few days loot goes to a fence in a nearby town at half its price and into that town's market (grey-market pressure). Half of any surplus is drunk and gambled away in the fence town; half is buried in a cache at the hideout. A starving band digs up its own cache; strangers sometimes stumble on old ones (coin comes back: the flow *unearthed*). A starving band raids the weakest town nearby if it has a fair chance, moves to a hideout with open roads, or breaks up, its people drifting home as labourers (AT-24).
+
+**The lord's patrols.** When his seat hears a road is dangerous, Lord Aldric may send four guards to ride it for ten days (§15.2.1). Lookouts spot fewer travellers, fights go worse for the band, it comes to fear the road, and a patrol may run it down.
+
+**Result.** Over 300–400 days, one or two bands of 4–20 hold the hills most of the time; 12–23 encounters per 100 days, a few town raids, occasional ransoms and a handful of deaths. Merchants shift to safer roads when raids become known. Gate E: in a replayed world, a grain caravan robbed on the road leaves its destination measurably shorter of grain and dearer than the same world where it got through.
+
 ## 12. Mercenaries
 As in v0.1 (experience ledger; a few explicit traits such as Forestwise, Ambush Veteran, Night Fighter, Trusted Pair, Spear Wary), plus:
 - **Loyalty to the employer**, shaped by pay, survival and how the player's standing orders treated them ("You told us to die for the medicine").
@@ -476,9 +495,11 @@ Growth runs on the same economy as everything else: people, need, production, st
 
 **Scope.** Post-prototype, except one experiment after step E: stranded travellers form a camp that either disperses or becomes a waystation. It serves T1 (memorable, legible stories) and tests whether the map can evolve without scripts.
 
+**As built (step E4).** Surprise weather shuts roads without warning (a flood at Mill Ford, snow on the High Pass in autumn, a rockfall in the gorge, a storm that stops the Fenwatch ferry); travellers learn of it by reaching the road or hearing of it. Travellers stranded together at a waypoint make camp. When the road opens, a short or small camp leaves a named cold hearth ("Rook's Hearth"); one that held three days or more with three or more people becomes a waystation ("Rook's Rest") whose inn passes news between everyone who comes through. A waystation nobody visits for forty days closes, leaving an empty inn. The graph itself stays static for now: camps grow at existing waypoints.
+
 ### 17.3 Notes from Andre, September 2026 (to fold into later steps)
 - **Frontier folk.** Displaced people shouldn't only farm: they can hunt, forage and fish in the wilderness. Where enough of them gather, a camp forms (§17.2), creates demand for supplies, and draws new trade routes. This ties famine (§8.7) directly to the living map.
-- **Night needs a job.** At speed, the nightly stall is dull. Options: fast-forward nights automatically when nothing is happening; make night eventful (camps hunt or feast, raiders strike, rumours spread around the fire); or shorten it. The glowing camps are worth keeping. Decide in step E, alongside raiders.
+- **Night needs a job.** At speed, the nightly stall is dull. Options: fast-forward nights automatically when nothing is happening; make night eventful (camps hunt or feast, raiders strike, rumours spread around the fire); or shorten it. The glowing camps are worth keeping. Decide in step E, alongside raiders. *Decided (Andre, step E): both. Night is when bands steal from camps and when travellers camped together share a fire and their news; the lab has a "Skip quiet nights" toggle that runs the dark hours 20× faster.*
 - **Study Railroad Tycoon 2 and 3.** They're the classic model of moving goods between producers and consumers, with demand that responds to supply and simple, readable cargo flows. Worth borrowing: per-town demand and supply shown at a glance; cargo value that decays with travel time; and the satisfaction of watching a route you built change a town.
 
 ## 18. The Wending Fair (low-fantasy spitball)
@@ -530,7 +551,7 @@ Simulation state is separate from rendering. The simulation is data-driven: good
 
 The browser page on the site grows with the project: A–G show headless charts and logs; H onward is playable.
 
-**Status (September 2026):** A, B and C are complete. C added coin (§8.6), famine and recovery (§8.7), and hover tooltips on the lab's map for towns, roads (with seasonal closures), travellers and geography. D (merchants, caravans and the information system) is next. Before C: A and B were complete. The lab shows the clock, roads and travellers (A) and every town's market, its people, price history, an opportunity board and lab tools (B). Step C (coin) is next.
+**Status (September 2026):** A to E are complete. D added knowledge records and the lord's post (§5.4), merchant houses and caravans, the ships' coin and peddlers (§10). Between D and E, Lord Aldric became an engaged character who spends his treasury (§15.2.1). E added raider bands, road news, encounters and ransom, the raiders' economy, the lord's patrols, surprise weather, camps and waystations, and news round the night's fires (§11.1, §17.2). F (mercenaries, experience, encounters, standing orders) is next.
 
 ## 21. Acceptance tests
 **AT-01 to AT-15 are kept from v0.1** (autonomy, price response, merchant response, physical trade, disruption, competition, risk sensitivity, day cycle, persistent death, contextual experience, combat explanation, player parity, debug legibility, performance, interest test).
@@ -549,7 +570,7 @@ New tests:
 | AT-24 | Raider ecology | Unemployment raises raider recruitment; a starving winter shifts raids or disbands a group |
 | AT-25 | Winter pays | The best winter trips earn more per journey than the best summer trips, even though they take longer |
 
-Automated so far: the step A and B gates, AT-02 (price response to a forced shortage), AT-09 (a death leaves a vacancy that an apprentice fills), the seasonal half of AT-22, and a preview of AT-07 (bold and wary travellers choose different roads).
+Automated so far: gates A–E, AT-03, AT-04, AT-06, AT-07, AT-13, AT-21 (letters stolen from the post), AT-24 (both halves), AT-25; and before them the step A and B gates, AT-02 (price response to a forced shortage), AT-09 (a death leaves a vacancy that an apprentice fills), the seasonal half of AT-22, and a preview of AT-07 (bold and wary travellers choose different roads).
 
 ## 22. Continue / revise / kill
 The v0.1 table is kept, plus:

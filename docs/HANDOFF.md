@@ -13,6 +13,9 @@ Read this first when resuming in a fresh session. It's updated at every checkpoi
 | B: goods, prices, named workers, seasons | done |
 | C: coin, famine and recovery, map tooltips | done |
 | D: merchants, caravans, knowledge, couriers | done |
+| E0: Lord Aldric as an engaged character | done |
+| E: raiders, road news, weather, camps | done |
+| **F: mercenaries, experience, encounters, standing orders** | **next** |
 
 ## Step D plan (checkpoints)
 
@@ -72,8 +75,17 @@ killed outright; nights get eventful plus a lab toggle to fast-forward quiet nig
       people, a waystation whose inn (`inn:<waypoint>`) swaps news with everyone passing; unvisited ones close.
       At 22:00 travellers camped within 8 km share a fire and their news (`swapBetween`). Night raids are the
       bands' `steal`. Lab: "Skip quiet nights" (20× at night).
-- [ ] **E5**: lab (bands, hideouts, danger shading, band inspector, encounter reports, lab tool to summon a band:
-      `lab:band` command exists), spec §11 as built, spec §20 status line (stale), site entry.
+- [x] **E5** *(done)*: lab: hideouts (red triangles, band size), roads a band watches (red), the lord's patrols
+      (copper dots), raids of the last three days (red bursts), surprise closures, hearths and waystations; band
+      inspector (members and where they came from, food, purse, loot, captives, buried coin, why this road, lately);
+      "Send 6 outlaws" lab tool; chronicle filters (merchants, raids & roads, Lord Aldric). Spec v0.2.6 (§11.1,
+      §17.2 as built, §17.3 night decided, status); site entry; CLAUDE.md rules.
+
+**Next: step F (mercenaries, experience, encounters, standing orders)**, spec §12–§13. Raiders give them a job:
+merchants hire guards (who add to `def` in `resolve()` in `src/systems/raiders.js`), guards gain experience from
+real fights (traits like Forestwise, Night Fighter), and standing orders (fight / pay / flee, cargo priority, night
+travel) replace the temper rules in `resolve()`. Andre's parked ideas for F and later: bribes, corruption and
+thieves (the steward's skimming and band caches are hooks), bounty on a band, the lord's wants, age, death and heir.
 
 **Step E0: Lord Aldric as an engaged NPC** (Andre's direction, Sep 28). Built:
 `src/systems/lord.js` (traits, moods, decisions every 3 days with reasons; relief orders filled by merchants
