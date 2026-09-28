@@ -43,6 +43,7 @@ export const coin = {
       flows: { minted: 0, gifted: 0, exported: 0, crown: 0, worn: 0, hoarded: 0, imported: 0 },
       hoards: {},
       hoardedThisSeason: {},
+      treasuryIn: 0, // bits the treasury has taken in this season
       opening: 0,
       today: { wages: 0, unpaidWages: 0, struck: 0, fees: 0, tolls: 0 },
       mintState: undefined,
@@ -82,11 +83,13 @@ export const coin = {
       if (bits >= toBits(sim, 10)) sim.log('coin:hoarded', { at: sid, bits });
     }
     sim.state.coin.hoardedThisSeason = {};
-    // The Crown's due: a share of what the lord holds above his reserve leaves the region.
-    const above = balance(sim, 'treasury') - toBits(sim, c.crownReserve);
-    if (above > 0) {
-      const sent = transfer(sim, 'treasury', 'crown', above * c.crownShare);
-      if (sent) sim.log('coin:crown', { bits: sent });
+    // The Crown's due: a share of everything the lord took in last season leaves
+    // the region, whether or not he has spent it since (he pays what he can).
+    const due = Math.floor((sim.state.coin.treasuryIn ?? 0) * c.crownShare);
+    sim.state.coin.treasuryIn = 0;
+    if (due > 0) {
+      const sent = transfer(sim, 'treasury', 'crown', due);
+      if (sent) sim.log('coin:crown', { bits: sent, short: due - sent });
     }
     // Hearth tax, first day of spring.
     if (sim.cal.season(sim.now).id === 'spring') {

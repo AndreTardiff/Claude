@@ -30,6 +30,7 @@ import { residentsAt } from '../economy/people.js';
 import { finishLeg, newTrip, planJourney, reroute, startLeg } from '../world/journey.js';
 import { pathNodes } from '../world/routes.js';
 import { belief, swapNews } from './knowledge.js';
+import { fillOrder, knownOrder } from './lord.js';
 
 const DAY = 1440;
 const round2 = (x) => Math.round(x * 100) / 100;
@@ -223,7 +224,12 @@ export function tradeCandidates(sim, m) {
       // arrive, and no more than the town's buyers were said to have in coin.
       const age = b.ageDays + days;
       const expectedStock = stockOnArrival(sim, dest, b, age);
-      const believed = Math.min(estimateSale(sim, dest, gid, qty, expectedStock, b.desired), believedCash(sim, b));
+      // An order from the lord they've heard of: part of the load sold at his price, paid by the treasury
+      // (if rivals don't fill it first). The rest goes to the market as usual.
+      const order = knownOrder(sim, here, dest, gid);
+      const toOrder = order ? Math.min(qty, order.remaining) : 0;
+      const ordered = toOrder * order?.price * cfg.orderTrust || 0;
+      const believed = ordered + Math.min(estimateSale(sim, dest, gid, qty - toOrder, expectedStock, b.desired), believedCash(sim, b));
       // Old news is less sure, and so is word of mouth.
       const stale = Math.min(cfg.maxStale, cfg.stalePerDay * age);
       const revenue = believed * (1 - stale) * (0.5 + 0.5 * b.confidence);
@@ -462,6 +468,20 @@ function sellCargo(sim, m, { dump = false } = {}) {
   const buyer = traderAccount(sim, sid);
   const outside = buyer === 'ships';
   for (const gid of Object.keys(m.cargo).sort()) {
+    // First anything the lord has ordered here: the treasury pays his price.
+    const fill = fillOrder(sim, sid, gid, m.cargo[gid], account(m));
+    if (fill.qty > 0) {
+      const left = round3(m.cargo[gid] - fill.qty);
+      if (left > 0) m.cargo[gid] = left;
+      else delete m.cargo[gid];
+      if (m.venture) {
+        m.venture.sold += fill.bits;
+        m.venture.soldQty = round3(m.venture.soldQty + fill.qty);
+        m.venture.at = sid;
+      }
+      sim.log('merchant:order', { who: m.id, at: sid, good: gid, qty: fill.qty, bits: fill.bits });
+      if (!m.cargo[gid]) continue;
+    }
     const qty = m.cargo[gid];
     const till = outside ? Infinity : balance(sim, buyer);
     const money = outside ? Infinity : till + Math.floor(balance(sim, `purse:${sid}`) * cfg.householdShare);

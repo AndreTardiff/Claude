@@ -26,9 +26,17 @@ const DISASTERS = {
 };
 
 
+const COMMISSION = {
+  cloth: ['liveries for his household', 'weavers'],
+  tools: ['the garrison armoury', 'smiths'],
+  timber: ['repairs at the castle', 'woodcutters'],
+};
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+
 const article = (word) => (/^[aeiou]/i.test(word) ? 'an' : 'a');
 
 export function describe(entry, sim) {
+  const WORKS = (id) => sim.data.lord?.works.find((w) => w.id === id)?.name ?? id;
   const place = (id) => sim.graph.nodes.get(id)?.name ?? id;
   const road = (routeIds) => routesLabel(sim.graph, routeIds);
   const who = (id) => {
@@ -119,7 +127,8 @@ export function describe(entry, sim) {
     case 'resident:arrived':
       return entry.born ? `A child is born in ${place(entry.at)}: ${person(entry.who)}.` : `Newcomers settle in well-fed ${place(entry.at)}: ${person(entry.who)} and family.`;
     case 'coin:crown':
-      return `Lord Aldric sends the Crown its due: ${formatMoney(sim, entry.bits)} ride out of the region under guard.`;
+      return `Lord Aldric sends the Crown its due: ${formatMoney(sim, entry.bits)} ride out of the region under guard.` +
+        (entry.short > 0 ? ` He is ${formatMoney(sim, entry.short)} short, and the Crown will remember it.` : '');
     case 'coin:hearth-tax':
       return `The spring hearth tax is gathered: ${formatMoney(sim, entry.bits)} for Lord Aldric's treasury.`;
     case 'coin:unpaid':
@@ -165,6 +174,30 @@ export function describe(entry, sim) {
       return `${place(entry.at)}'s households put ${formatMoney(sim, entry.bits)} behind a new trading house: ${trader(entry.who)} hitches a wagon.`;
     case 'merchant:expanded':
       return `Business is good for the house of ${house(entry.who)}: ${trader(entry.who)} buys a wagon from ${place(entry.at)}'s wheelwrights (${entry.wagons} now).`;
+    case 'merchant:order':
+      return `${trader(entry.who)} delivers ${amount(entry.qty, entry.good)} to ${place(entry.at)} on Lord Aldric's order, and the treasury pays ${formatMoney(sim, entry.bits)}.`;
+    case 'lord:order':
+      return `Lord Aldric's criers proclaim it: the treasury will pay ${formatMoney(sim, toBits(sim, entry.price))} a ${good(entry.good).unit} for up to ${amount(entry.qty, entry.good)} brought to hungry ${place(entry.at)}.`;
+    case 'lord:order-closed':
+      return entry.delivered >= entry.qty - 0.05
+        ? `Lord Aldric's order is filled: ${amount(entry.delivered, entry.good)} reached ${place(entry.at)} for ${formatMoney(sim, entry.bits)}.`
+        : entry.delivered > 0
+          ? `Lord Aldric's order for ${place(entry.at)} lapses with ${amount(entry.delivered, entry.good)} of ${amount(entry.qty, entry.good)} delivered.`
+          : `Nobody answered Lord Aldric's call for ${lower(entry.good)} in ${place(entry.at)}; the order lapses.`;
+    case 'lord:commission':
+      return `Lord Aldric buys ${amount(entry.qty, entry.good)} from ${place(entry.at)} for ${COMMISSION[entry.good]?.[0] ?? 'his household'} (${formatMoney(sim, entry.bits)}), and its ${COMMISSION[entry.good]?.[1] ?? 'makers'} are glad of the work.`;
+    case 'lord:festival':
+      return `Lord Aldric throws a festival in ${place(entry.at)}: bread, ale and music at the treasury's cost (${formatMoney(sim, entry.bits)}). Nobody goes to bed hungry tonight.`;
+    case 'lord:works-begun':
+      return `Lord Aldric orders ${WORKS(entry.work)} built in ${place(entry.at)}. Labourers are hired and timber sent for.`;
+    case 'lord:saving':
+      return `Lord Aldric has set his heart on ${WORKS(entry.work)} for ${place(entry.at)}, and puts coin aside for it.`;
+    case 'lord:works-done':
+      return `${cap(WORKS(entry.work))} ${sim.data.lord.works.find((w) => w.id === entry.work)?.plural ? 'stand' : 'stands'} finished in ${place(entry.at)}, at a cost of ${formatMoney(sim, entry.bits)} to the treasury.`;
+    case 'lord:works-abandoned':
+      return `Work on ${WORKS(entry.work)} in ${place(entry.at)} is given up for want of materials.`;
+    case 'lord:skimmed':
+      return `The accounts at the castle don't add up: someone has had their fingers in Lord Aldric's treasury, ${formatMoney(sim, entry.bits)} this season.`;
     case 'merchant:forced-loan':
       return `Lord Aldric "borrows" ${formatMoney(sim, entry.bits)} from ${trader(entry.who)}. Nobody expects to see it again.`;
     default:

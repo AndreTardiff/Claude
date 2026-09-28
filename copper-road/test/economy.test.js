@@ -196,7 +196,7 @@ test('goods are conserved: every change in stock is accounted for, caravans and 
       flow[sid] ??= {};
       for (const gid of ix.goodIds) {
         flow[sid][gid] = (flow[sid][gid] ?? 0) + (t.produced[gid] ?? 0) - (t.used[gid] ?? 0) - (t.consumed[gid] ?? 0) - (t.lost[gid] ?? 0) +
-          (t.road.in[gid] ?? 0) - (t.road.out[gid] ?? 0);
+          (t.road.in[gid] ?? 0) - (t.road.out[gid] ?? 0) - (t.road.used?.[gid] ?? 0);
       }
     }
   }

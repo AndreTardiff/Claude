@@ -2,8 +2,10 @@
 // are kept to three decimals so saved states stay tidy.
 //
 // Goods that leave or arrive by road (a caravan's cargo, travellers' provisions)
-// go through load/unload, which also count them in the day's books
-// (sim.state.economy.road), so every change in a town's stock stays accounted for.
+// go through load/unload, and goods the lord's household uses up (feasts,
+// commissions, works) through useUp; all three are counted in the day's books
+// (sim.state.economy.road: in, out, used), so every change in a town's stock
+// stays accounted for.
 
 import { economyIndex } from './pricing.js';
 
@@ -50,9 +52,16 @@ export function unload(sim, sid, gid, qty) {
   return added;
 }
 
+/** Goods used up outside the day's settlement: the lord's feasts, commissions and works. */
+export function useUp(sim, sid, gid, qty) {
+  const got = withdraw(sim, sid, gid, qty);
+  tally(sim, sid, 'used', gid, got);
+  return got;
+}
+
 function tally(sim, sid, dir, gid, qty) {
   const st = sim.state.economy;
   if (!st || !(qty > 0)) return;
-  const road = (st.road[sid] ??= { in: {}, out: {} });
+  const road = (st.road[sid] ??= { in: {}, out: {}, used: {} });
   road[dir][gid] = round3((road[dir][gid] ?? 0) + qty);
 }

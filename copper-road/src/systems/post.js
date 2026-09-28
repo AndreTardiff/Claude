@@ -5,6 +5,7 @@
 import { GIVEN_NAMES } from '../data/names.js';
 import { finishLeg, newTrip, planJourney, reroute, startLeg } from '../world/journey.js';
 import { swapNews } from './knowledge.js';
+import { cryOrders } from './lord.js';
 
 export const post = {
   id: 'post',
@@ -88,6 +89,7 @@ function onNode(sim, { id, tripNo }) {
   r.idx = (r.idx + 1) % sim.data.post.circuit.length;
   r.deliveries += 1;
   const { told } = swapNews(sim, r.id, dest, { letters: true });
+  cryOrders(sim, dest); // the lord's orders are cried wherever his post arrives
   if (told) sim.log('post:arrived', { who: r.id, at: dest, from, letters: told });
   const rest = sim.now + sim.data.post.restHours * 60;
   sim.schedule(sim.cal.nextTravelMoment(rest), 'post:depart', { id: r.id, tripNo: r.tripNo });

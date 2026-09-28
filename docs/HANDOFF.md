@@ -46,10 +46,18 @@ Each checkpoint ends with all tests green, `npm run reference` rerun, this file 
 
 ## Next
 
-Step D is done. Step E per the spec's build sequence (§20): raiders as economic actors (§11), turning road
-`danger` into real events, robbery of caravans, peddlers and couriers (stolen letters), camps (§17.2).
-Before E, consider a short tuning pass on the D2 findings below (Kingscross poverty, the idle Mint).
-Also open: night at speed is dull (Andre's note, spec §17.3): decide in E.
+**Step E0: Lord Aldric as an engaged NPC** (Andre's direction, Sep 28). Built so far (checkpoint E0a):
+`src/systems/lord.js` (traits, moods, decisions every 3 days with reasons; relief orders filled by merchants
+and paid by the treasury, cried at inns and carried by the post; commissions for glutted crafts; festivals
+that make a town grow faster; works paid as they go: granary, fields, houses, smithy, loom-house, via
+`src/world/improvements.js`; saving up for works; the steward skims a fat treasury into a hoard).
+Also: the Crown's due is now a quarter of the lord's *income* each season (`coin.treasuryIn`), and the Mint's
+treasury target is 800 (the lord's reserve 250 sits well below it, so his spending keeps the Mint striking).
+Tests: `test/lord.test.js`.
+
+Still to do in E0: lab view of the lord (mood, budget, undertakings, reasons, orders, works) and the orders
+on the map; spec section; site entry. Ideas Andre listed for later: bribes, corruption and thieves
+(ties to mercenaries), the lord's death and heir (§15.2). Then step E (raiders) per the spec (§20).
 
 Findings from D3: peddling pays mostly on essentials in a shortage (4 sacks of salt into a salt-starved town
 fetch 60+ marks a sack). Most peddlers stay poor; one or two a world make good and found houses by day

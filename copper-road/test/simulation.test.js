@@ -223,6 +223,8 @@ test('scales to spec-sized populations (150 travellers, a full year)', () => {
   sim.runDays(40);
   const ms = performance.now() - t0;
   assert.ok(ms < 5000, `took ${ms.toFixed(0)} ms`);
-  assert.equal(sim.state.wayfarers.order.length, 150);
-  assert.equal(new Set(sim.state.wayfarers.order.map((id) => sim.state.wayfarers.byId[id].name)).size, 150);
+  // Some may have left the road to found merchant houses; they still count.
+  const all = Object.values(sim.state.wayfarers.byId);
+  assert.equal(all.length, 150);
+  assert.equal(new Set(all.map((w) => w.name)).size, 150);
 });

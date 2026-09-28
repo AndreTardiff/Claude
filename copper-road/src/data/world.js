@@ -128,6 +128,7 @@ export const WORLD = {
     minLoad: 5, // units: smaller loads aren't worth hitching a wagon for
     keepBack: 0.5, // a market's traders won't sell below this share of the stock the town wants
     reversion: 0.08, // merchants expect a town's shortage or glut to ease by this much a day (hyperbolically)
+    orderTrust: 0.85, // how much of a lord's order a merchant counts on filling before rivals do
     stalePerDay: 0.015, // …and discount each day of a price list's age (by arrival) for the uncertainty
     maxStale: 0.4, // …never more than this
     riskWeight: 1, // risk cost = exposure × revenue × riskWeight × caution
@@ -145,6 +146,31 @@ export const WORLD = {
     foundPurseAbove: 20, // marks per head a town must hold beyond that capital to back a new house
     forcedLoanAbove: 1000, // marks: the lord starts "borrowing" from a house this rich…
     forcedLoanShare: 0.2, // …this share of the excess, each season
+  },
+
+  // Lord Aldric: temperament, and what he does with a treasury beyond its reserve.
+  lord: {
+    name: 'Aldric',
+    seat: 'kingscross',
+    traits: { generosity: [350, 900], ambition: [300, 900], vanity: [250, 850] }, // permille, drawn at the start
+    reserve: 250, // marks he keeps back (more when aggrieved); well under the Mint's target, so his spending keeps it striking
+    emergencyFloor: 100, // for famine relief he'll go this low
+    worksAhead: 3, // days of wages and materials he needs in hand to begin works (they're paid as they go)
+    decideEvery: 3, // days between undertakings
+    minScore: 0.15,
+    abandonAfter: 15, // days a stalled work waits for materials before it's given up
+    worksEvery: 40, // days before the same work is built again in the same town
+    relief: { hunger: 0.25, premium: 1.6, days: 12, minQty: 8 }, // grain at 1.6× its worth, 12 days of bread
+    commission: { goods: ['cloth', 'tools', 'timber'], glutFactor: 0.55, minQty: 6, maxQty: 25, everyDays: 20 },
+    festival: { perHead: 1, grainPerHead: 0.3, glowDays: 20 }, // musicians, brewers, cooks; bread and ale
+    works: [
+      { id: 'granary', name: 'a granary', days: 8, labour: 4, materials: { timber: 16, tools: 2 }, effect: { storage: 100 } },
+      { id: 'fields', name: 'new fields', plural: true, days: 10, labour: 5, materials: { tools: 4, timber: 4 }, effect: { farmers: 2, yield: 0.05 } },
+      { id: 'houses', name: 'new houses', plural: true, days: 10, labour: 5, materials: { timber: 24, tools: 2 }, effect: { homes: 6 } },
+      { id: 'smithy', name: 'a smithy', days: 6, labour: 3, materials: { timber: 8, tools: 3 }, effect: { trade: 'smith' } },
+      { id: 'loom-house', name: 'a loom-house', days: 6, labour: 3, materials: { timber: 8, tools: 2 }, effect: { trade: 'weaver' } },
+    ],
+    steward: { tempted: 800, share: 0.01, noticeAbove: 10 }, // skims 1% a day of anything above 800 marks
   },
 
   // Word of mouth: each retelling moves prices by up to ±6% and costs 15% of the trust.

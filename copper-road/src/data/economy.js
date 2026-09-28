@@ -174,8 +174,7 @@ export const COIN = {
   wayfarerComfort: 30, // marks a wayfarer keeps; resting, they spend…
   wayfarerSpend: 0.1, // …this share of anything above it a day on beds, meals and drink (to the town's households)
   hearthTax: 1, // marks per head, collected on the first day of spring (at most a tenth of a town's purse)
-  crownShare: 0.25, // share of the treasury above the reserve sent to the Crown each season (leaves the region)
-  crownReserve: 300, // marks the lord keeps back
+  crownShare: 0.25, // share of the lord's income (fees, tolls, taxes, seigniorage, loans) sent to the Crown each season
   wearPerDay: 0.0005, // coin clipped, lost and worn away: 0.05% of every balance a day
   hoardAbove: 40, // marks per head a town's households keep to hand; beyond that…
   hoardRate: 0.02, // …this share of the excess goes under the floorboards each day
@@ -185,7 +184,7 @@ export const COIN = {
     loadsPerDay: 2, // ore a mint-master can strike per day
     yield: 16, // marks struck from one load of ore
     maxOrePrice: 0.8, // strikes only while ore costs less than this share of the yield
-    treasuryTarget: 600, // the lord strikes coin only to bring his treasury back up to this
+    treasuryTarget: 800, // the lord strikes coin only to bring his treasury back up to this
   },
   tillPayout: 0.5, // share of a till's takings above its opening float that traders pay out to households each day
 };

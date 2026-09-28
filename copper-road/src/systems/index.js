@@ -7,6 +7,7 @@ import { residents } from './residents.js';
 import { economy } from './economy.js';
 import { merchants } from './merchants.js';
 import { coin } from './coin.js';
+import { lord } from './lord.js';
 import { knowledge } from './knowledge.js';
 import { post } from './post.js';
 
@@ -16,4 +17,5 @@ import { post } from './post.js';
 // settle before the economy; merchants' households spend before coin (wages, the
 // Mint, wear) settles; knowledge (inn boards) comes after that, so the boards show
 // the day's closing prices. Seasonal: the lord's forced loans land before the Crown's due.
-export const SYSTEMS = [almanac, wayfarers, residents, economy, merchants, coin, knowledge, post];
+// The lord weighs his undertakings after coin has settled the day (and taken the Crown's due).
+export const SYSTEMS = [almanac, wayfarers, residents, economy, merchants, coin, lord, knowledge, post];

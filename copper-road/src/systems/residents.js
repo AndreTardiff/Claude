@@ -6,6 +6,7 @@
 // takes it up as an apprentice and learns on the job.
 // Step I will give these same people homes and daily schedules.
 
+import { improvementsOf, landOf } from '../world/improvements.js';
 import { GIVEN_NAMES, SURNAMES } from '../data/names.js';
 import { refreshNeeds } from './economy.js';
 import { residentsAt } from '../economy/people.js';
@@ -177,7 +178,7 @@ function demography(sim) {
   const towns = ix.markets.filter((sid) => !ix.isOutside(sid));
   const founding = (sid) => sim.graph.nodes.get(sid).residents;
   const floor = (sid) => Math.ceil(founding(sid) * d.floor);
-  const ceiling = (sid) => Math.floor(founding(sid) * d.ceiling);
+  const ceiling = (sid) => Math.floor(founding(sid) * d.ceiling) + improvementsOf(sim, sid).homes;
 
   for (const sid of towns) {
     const h = hunger[sid];
@@ -195,7 +196,7 @@ function demography(sim) {
 
     // Turning to the land: in a hungry town someone gives up their trade to farm,
     // while there are fields to spare.
-    const land = eco.land?.[sid];
+    const land = landOf(sim, sid);
     const farmers = people.filter((r) => r.profession === 'farmer').length;
     if (h >= d.migrateHunger && land && farmers < land.farmers && rng.chance(d.toLandChance)) {
       const candidates = people.filter((r) => weakness(sim, r) >= 1);
@@ -243,7 +244,8 @@ function demography(sim) {
     const plenty = grain.need > 0 && grain.stock / grain.need >= ix.goods.get('grain').reserveDays;
     const count = residentsAt(sim, sid).length;
     if (h < 0.1 && plenty && count < ceiling(sid)) {
-      const chance = count < founding(sid) ? d.growChance * 2 : d.growChance;
+      let chance = count < founding(sid) ? d.growChance * 2 : d.growChance;
+      if (improvementsOf(sim, sid).growUntil > sim.now) chance *= 2; // a festival's glow
       if (rng.chance(chance)) {
         const r = {
           id: sim.nextId('r'),

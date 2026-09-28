@@ -23,6 +23,7 @@ import { economyIndex, quote } from '../economy/pricing.js';
 import { residentsAt, visitorsAt, workforce } from '../economy/people.js';
 import { deposit, round3, withdraw } from '../economy/market.js';
 import { balance, toBits, transfer } from '../economy/money.js';
+import { landOf, storageOf } from '../world/improvements.js';
 
 const round1 = (x) => Math.round(x * 10) / 10;
 const round2 = (x) => Math.round(x * 100) / 100;
@@ -148,7 +149,7 @@ function settleDay(sim) {
     decay(sim, sid, today);
     today.hunger = round3(st.hunger[sid]);
     today.tools = round3(toolFactor(sim, sid));
-    today.road = st.road[sid] ?? { in: {}, out: {} }; // what caravans and travellers carried in and out
+    today.road = st.road[sid] ?? { in: {}, out: {}, used: {} }; // what caravans and travellers carried in and out
     st.today[sid] = today;
   }
   st.road = {};
@@ -169,7 +170,7 @@ function produce(sim, sid, seasonId, today) {
     const out = p.produces ?? p.makes;
     if (!out) continue;
     let capacity = p.rate * seasonMult(p.season, seasonId) * w.skill * common;
-    if (p.produces === 'grain') capacity *= eco.land?.[sid]?.yield ?? 1;
+    if (p.produces === 'grain') capacity *= landOf(sim, sid)?.yield ?? 1;
     if (p.toolWear) capacity *= tools;
     const effort = p.elastic ? clamp(quote(sim, sid, out).factor, eco.effort.min, eco.effort.max) : 1;
     capacity *= effort;
@@ -271,7 +272,7 @@ function consume(sim, sid, seasonId, today) {
 function decay(sim, sid, today) {
   const ix = economyIndex(sim.data);
   const markets = sim.state.economy.markets[sid];
-  const cap = ix.eco.storage[sid];
+  const cap = storageOf(sim, sid);
   for (const gid of ix.goodIds) {
     const m = markets[gid];
     const spoil = ix.goods.get(gid).spoilPerDay ?? 0;
