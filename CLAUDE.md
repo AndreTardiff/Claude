@@ -8,6 +8,10 @@ and the home of **Caravans of the Copper Road**, a living-world merchant simulat
 - Claude: implementation engineer and design partner. Also keeps the website current:
   update the progress log, stage tracker, and theme as the project moves through stages.
 
+## Resuming work
+- `docs/HANDOFF.md` says where the build is and what comes next. Update it and push at every checkpoint
+  (tests green, reference regenerated), so a wiped workspace can pick up from the branch.
+
 ## Design authority
 - `docs/copper-road-spec-v0.2.md` is the current spec (rendered at `spec.html`). Edit the Markdown, not the page.
 - Scope gate: every feature must name the thesis it tests (T1: world worth watching; T2: player choices hard and meaningful).
