@@ -166,6 +166,8 @@ button.linkish {
 .dot.moving { background: var(--accent); }
 .dot.resting { background: var(--muted); }
 .dot.fire { background: radial-gradient(circle, #ffbe5a 0 35%, rgba(240, 130, 40, 0.5) 60%, transparent 70%); width: 12px; height: 12px; }
+.lg.wagon { width: 10px; height: 8px; border: none; background: var(--text); }
+.lg.rider { width: 8px; height: 8px; border: none; background: var(--accent); transform: rotate(45deg); }
 
 /* Panels */
 .panel {

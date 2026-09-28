@@ -1,7 +1,7 @@
 // Parchment map renderer for the laboratory. Reads simulation state; never changes it.
 
 import { DECOR } from './decor.js';
-import { priceMultiplier, quote, segmentConditions, wayfarerPosition } from '../src/index.js';
+import { priceMultiplier, quote, segmentConditions, tripPosition, wayfarerPosition } from '../src/index.js';
 import { money, pressure } from './format.js';
 
 const TERRAIN_STYLE = {
@@ -473,6 +473,92 @@ export function createMapRenderer(canvas, world) {
     };
   }
 
+  // Caravans (merchant houses) and the lord's post riders. In a town they sit on
+  // an outer ring, away from the wayfarers; on the road, wherever the trip has got to.
+  function moverSpots(sim, t) {
+    const out = [];
+    const atNode = new Map();
+    const add = (kind, who, at, trip) => {
+      if (trip) {
+        const p = tripPosition(sim, trip, t);
+        if (!p.node) {
+          out.push({ kind, who, x: p.x * k, y: p.y * k, state: p.moving ? 'moving' : 'camped' });
+          return;
+        }
+        at = p.node;
+      }
+      if (!at) return;
+      if (!atNode.has(at)) atNode.set(at, []);
+      atNode.get(at).push({ kind, who, waiting: Boolean(trip?.waiting) });
+    };
+    for (const m of Object.values(sim.state.merchants?.byId ?? {})) if (m.active) add('merchant', m, m.at, m.trip);
+    for (const r of Object.values(sim.state.post?.byId ?? {})) add('rider', r, r.at, r.trip);
+    for (const [nodeId, list] of atNode) {
+      const n = nodeById.get(nodeId);
+      const ring = n.kind === 'waypoint' ? 15 : 22;
+      list.forEach((s, i) => {
+        const a = Math.PI / 2 + (i * 2 * Math.PI) / Math.max(list.length, 8);
+        out.push({ ...s, x: n.x * k + Math.cos(a) * ring, y: n.y * k + Math.sin(a) * ring, state: s.waiting ? 'waiting' : 'resting' });
+      });
+    }
+    return out;
+  }
+
+  function drawMovers(spots, selected) {
+    for (const s of spots) {
+      if (s.state === 'camped') continue;
+      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = colors.paper;
+      if (s.kind === 'merchant') {
+        // A wagon: a small block, solid when loaded, hollow when empty.
+        const loaded = Object.keys(s.who.cargo).length > 0;
+        const w = 8;
+        const h = 6;
+        ctx.beginPath();
+        ctx.rect(s.x - w / 2, s.y - h / 2, w, h);
+        ctx.fillStyle = s.state === 'waiting' ? colors.danger : loaded ? colors.ink : colors.paper;
+        ctx.fill();
+        ctx.strokeStyle = loaded ? colors.paper : colors.ink;
+        ctx.stroke();
+      } else {
+        // A rider: a small diamond.
+        ctx.beginPath();
+        ctx.moveTo(s.x, s.y - 4.5);
+        ctx.lineTo(s.x + 4, s.y);
+        ctx.lineTo(s.x, s.y + 4.5);
+        ctx.lineTo(s.x - 4, s.y);
+        ctx.closePath();
+        ctx.fillStyle = colors.accent;
+        ctx.fill();
+        ctx.stroke();
+      }
+      hits.push({ kind: s.kind, id: s.who.id, x: s.x, y: s.y, r: 9 });
+    }
+    return () => {
+      for (const s of spots) {
+        if (s.state !== 'camped') continue;
+        const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, 9);
+        g.addColorStop(0, 'rgba(255, 190, 90, 0.95)');
+        g.addColorStop(0.35, 'rgba(240, 130, 40, 0.55)');
+        g.addColorStop(1, 'rgba(240, 130, 40, 0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, 9, 0, Math.PI * 2);
+        ctx.fill();
+        hits.push({ kind: s.kind, id: s.who.id, x: s.x, y: s.y, r: 9 });
+      }
+      const sel = selected && spots.find((s) => s.kind === selected.kind && s.who.id === selected.id);
+      if (sel) {
+        ctx.beginPath();
+        ctx.arc(sel.x, sel.y, 8.5, 0, Math.PI * 2);
+        ctx.strokeStyle = colors.accent;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        haloText(sel.who.name, sel.x + 12, sel.y - 10, `600 ${scaled(13)}px "EB Garamond", Georgia, serif`, colors.accent, 'left');
+      }
+    };
+  }
+
   // Price of one good at each market: a chip with a pressure glyph and the price.
   // Glyph shape and text carry the meaning; colour only reinforces it.
   function drawPriceBadges(sim, gid) {
@@ -521,6 +607,7 @@ export function createMapRenderer(canvas, world) {
     drawNodes();
     const spots = wayfarerSpots(sim, t);
     const drawAfterNight = drawWayfarers(spots, selected?.kind === 'wayfarer' ? selected.id : null);
+    const moversAfterNight = drawMovers(moverSpots(sim, t), selected);
     // Night falls over everything except the campfires.
     const dark = (1 - sim.cal.light(t)) * colors.nightStrength;
     if (dark > 0.001) {
@@ -532,6 +619,7 @@ export function createMapRenderer(canvas, world) {
       ctx.restore();
     }
     drawAfterNight();
+    moversAfterNight();
     drawPriceBadges(sim, priceGood);
     if (selected?.kind === 'node') {
       const n = nodeById.get(selected.id);
@@ -550,7 +638,7 @@ export function createMapRenderer(canvas, world) {
     let bestD = Infinity;
     for (const h of hits) {
       const d = Math.sqrt((h.x - x) * (h.x - x) + (h.y - y) * (h.y - y));
-      const score = d - (h.kind === 'wayfarer' ? 4 : 0);
+      const score = d - (h.kind === 'wayfarer' || h.kind === 'merchant' || h.kind === 'rider' ? 4 : 0);
       if (d <= h.r && score < bestD) {
         best = h;
         bestD = score;

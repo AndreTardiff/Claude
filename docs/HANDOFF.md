@@ -12,7 +12,7 @@ Read this first when resuming in a fresh session. It's updated at every checkpoi
 | A: clock, roads, test harness | done |
 | B: goods, prices, named workers, seasons | done |
 | C: coin, famine and recovery, map tooltips | done |
-| **D: merchants, caravans, knowledge, couriers** | **in progress** (see checkpoints) |
+| D: merchants, caravans, knowledge, couriers | done |
 
 ## Step D plan (checkpoints)
 
@@ -39,17 +39,17 @@ Each checkpoint ends with all tests green, `npm run reference` rerun, this file 
       coin on hand, trust; no crew), buy before setting out, sell on arrival, keep what a town can't pay for.
       They earn more resting (hawking, mending), and travellers with money spend it where they stay and after
       a good trip. A peddler who saves a wagon's worth founds a merchant house (one extra house allowed for them).
-- [ ] **D4: lab, gate tests, docs.** Caravans on the map with tooltips; merchant inspector ("what they know",
-      "why this trade"); knowledge/letters view; gate D test (merchants trade profitably on stale information and
-      sometimes misjudge); AT-25 (winter pays); spec §5/§10 "as built"; site progress entry; README/CLAUDE.md.
+- [x] **D4: lab, gate tests, docs.** *(done)* Caravans (wagons: solid when loaded) and post riders (diamonds) on
+      the map with tooltips and campfires; merchant inspector (status, "why this trade" with every candidate's
+      parts, "what they know" beside the truth, ledger); rider inspector; Merchant houses panel; AT-25 (winter:
+      fewer ventures, more per venture); spec v0.2.4; site progress entry.
 
 ## Next
 
-Start D4 (lab, gate tests, docs): caravans and post riders on the map with tooltips (merchants have `trip`
-from `src/world/journey.js`, so `tripPosition(sim, m.trip, t)` gives their place); a merchant inspector
-("what they know": `belief`; "why this trade": `m.reason`; the ledger `m.ledger`); a knowledge/letters view;
-gate D test (largely covered by `test/merchants.test.js`); AT-25 (winter pays); spec §21 status; site
-progress entry and stage; README. Load the `dataviz` skill before any chart change.
+Step D is done. Step E per the spec's build sequence (§20): raiders as economic actors (§11), turning road
+`danger` into real events, robbery of caravans, peddlers and couriers (stolen letters), camps (§17.2).
+Before E, consider a short tuning pass on the D2 findings below (Kingscross poverty, the idle Mint).
+Also open: night at speed is dull (Andre's note, spec §17.3): decide in E.
 
 Findings from D3: peddling pays mostly on essentials in a shortage (4 sacks of salt into a salt-starved town
 fetch 60+ marks a sack). Most peddlers stay poor; one or two a world make good and found houses by day

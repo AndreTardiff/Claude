@@ -282,3 +282,24 @@ test('a peddler who saves enough trades the pack for a wagon and founds a house'
   assert.ok(e.bits >= WORLD.merchants.foundCapital * 12);
   assert.ok(describe(e, sim).includes('pack for a wagon'));
 });
+
+test('AT-25: winter is harsh but pays: fewer caravans go out, and each earns more', () => {
+  const bySeason = {};
+  for (const seed of [1, 2, 3, 4, 5, 7]) {
+    const sim = new Simulation({ seed });
+    sim.advanceTo(at(200));
+    const departures = sim.state.log.filter((e) => e.type === 'merchant:departed');
+    for (const e of sim.state.log.filter((x) => x.type === 'merchant:sold')) {
+      const dep = departures.filter((d) => d.who === e.who && d.t < e.t).at(-1);
+      if (!dep) continue;
+      const s = (bySeason[sim.cal.season(dep.t).id] ??= { n: 0, profit: 0 });
+      s.n += 1;
+      s.profit += e.profit;
+    }
+  }
+  const all = Object.values(bySeason).reduce((a, s) => ({ n: a.n + s.n, profit: a.profit + s.profit }), { n: 0, profit: 0 });
+  const winter = bySeason.winter;
+  const others = Object.entries(bySeason).filter(([id]) => id !== 'winter').map(([, s]) => s.n);
+  assert.ok(winter.n < Math.min(...others), `winter ventures ${winter.n}, other seasons ${others.join('/')}`);
+  assert.ok(winter.profit / winter.n > all.profit / all.n, 'a winter venture should earn more than the average one');
+});

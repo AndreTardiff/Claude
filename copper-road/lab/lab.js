@@ -10,8 +10,12 @@ import {
   formatDuration,
   balance,
   getResident,
+  getMerchant,
+  getRider,
   getWayfarer,
+  belief,
   legMinutes,
+  tripPosition,
   quote,
   professionName,
   residentsAt,
@@ -27,6 +31,7 @@ import { createMarketsPanel } from './markets.js';
 import { createOpportunityPanel } from './opportunities.js';
 import { createToolsPanel } from './tools.js';
 import { createMoneyPanel } from './money.js';
+import { createHousesPanel } from './houses.js';
 import { esc, goodOf, money, moneyBits, pct, placeName, qty } from './format.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -76,6 +81,7 @@ const opportunities = createOpportunityPanel($('#opps'), {
   },
 });
 const moneyPanel = createMoneyPanel($('#money'));
+const housesPanel = createHousesPanel($('#houses'), { onSelect: (id) => select({ kind: 'merchant', id }) });
 const tools = createToolsPanel($('#tools'), {
   getSim: () => sim,
   onChange() {
@@ -102,6 +108,7 @@ function newWorld(seed) {
   renderRoutes();
   renderMarkets(true);
   moneyPanel.render(sim, true);
+  housesPanel.render(sim);
 }
 
 // ── Time ─────────────────────────────────────────────────────────────────────
@@ -144,6 +151,7 @@ function frame(now) {
     }
     renderMarkets(false);
     moneyPanel.render(sim, false);
+    housesPanel.render(sim);
   }
   requestAnimationFrame(frame);
 }
@@ -208,6 +216,8 @@ function renderInspector() {
   if (body.matches(':hover') && body.querySelector('details[open]')) return; // don't yank a list someone is reading
   body.innerHTML =
     selected.kind === 'wayfarer' ? wayfarerHtml(selected.id)
+      : selected.kind === 'merchant' ? merchantHtml(selected.id)
+      : selected.kind === 'rider' ? riderHtml(selected.id)
       : selected.kind === 'resident' ? residentHtml(selected.id)
         : nodeHtml(selected.id);
 }
@@ -260,6 +270,112 @@ function wayfarerHtml(id) {
     ${why}`;
 }
 
+const temperWord = (b) => (b > 700 ? 'bold' : b < 300 ? 'wary' : 'steady');
+const sourceWord = { seen: 'seen', board: 'posted board', post: 'letter', rumour: 'rumour' };
+const ageWord = (d) => (d < 0.5 ? 'today' : d < 1.5 ? 'a day old' : `${Math.round(d)} days old`);
+const goodUnits = (gid) => goodOf(sim, gid).units;
+
+function tripStatus(trip, whoMoves) {
+  if (trip.waiting) return `Stuck at <strong>${esc(place(trip.at))}</strong>, bound for ${esc(place(trip.dest))}, waiting for the road to open.`;
+  const p = tripPosition(sim, trip, renderT);
+  const where = p.node ? `at ${esc(place(p.node))}` : p.moving ? `on the ${esc(road(trip.routes))}` : 'camped by the road';
+  return `${whoMoves} <strong>${esc(place(trip.from))} → ${esc(place(trip.dest))}</strong>, ${where}` +
+    (trip.legSeg ? `; next stop ${esc(place(trip.legTo))}, due ${esc(sim.cal.format(trip.legEnd).stamp)}.` : '.');
+}
+
+function merchantHtml(id) {
+  const m = getMerchant(sim, id);
+  if (!m) return '';
+  const cargo = Object.entries(m.cargo)[0];
+  const load = cargo ? `${qty(cargo[1])} ${esc(goodUnits(cargo[0]))} of ${esc(goodOf(sim, cargo[0]).name.toLowerCase())}` : 'empty wagons';
+  let status;
+  if (!m.active) status = `Ruined ${esc(sim.cal.format(m.ruinedAt).stamp)}. The house is closed.`;
+  else if (m.trip) status = tripStatus(m.trip, `Carrying ${load}:`);
+  else status = cargo ? `In <strong>${esc(place(m.at))}</strong>, trying to sell ${load}.` : `In <strong>${esc(place(m.at))}</strong>, looking for a trade.`;
+
+  // Why this trade: the candidates as last weighed, with their parts.
+  let why = '';
+  const r = m.reason;
+  if (r) {
+    const rows = r.candidates.map((c, i) => `
+      <tr class="${i === r.choice ? 'chosen' : ''}">
+        <td>${qty(c.qty)} ${esc(goodUnits(c.good))} of ${esc(goodOf(sim, c.good).name.toLowerCase())} to ${esc(place(c.to))}${i === r.choice ? ' <span class="tag">chosen</span>' : ''}
+          <br><span class="dim">${esc(sourceWord[c.source] ?? c.source)}, ${ageWord(c.ageDays)} · ${c.days.toFixed(1)} days on the road</span></td>
+        <td class="num">${money(c.revenue)}</td>
+        <td class="num">${money(c.cost)}</td>
+        <td class="num">${money(c.costs)}</td>
+        <td class="num">${money(c.risk)}</td>
+        <td class="num">${money(c.perDay)}</td>
+      </tr>`).join('');
+    why = `
+      <h4>Why this trade? <span class="sub">weighed in ${esc(place(r.at))}, ${esc(sim.cal.format(r.t).stamp)}</span></h4>
+      ${rows ? `<div class="table-wrap"><table>
+        <thead><tr><th>Trade</th><th class="num">Takings</th><th class="num">Buying</th><th class="num">Carrying</th><th class="num">Risk</th><th class="num">A day</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>` : ''}
+      <p class="formula">Takings: what the load should fetch by their price list, with the market expected to recover by arrival, no more than the town was said to have in coin, less a share for old news and hearsay. Worth the road at ${m.threshold} marks a day for each loaded wagon.</p>
+      ${r.note ? `<p>${esc(r.note)}.</p>` : ''}`;
+  }
+
+  // What they know: their price list for every market, next to the truth.
+  const gid = cargo?.[0] ?? r?.candidates[0]?.good ?? 'grain';
+  const g = goodOf(sim, gid);
+  const known = economyIndex(sim.data).markets.map((sid) => {
+    const b = belief(sim, m.id, sid, gid);
+    const truth = quote(sim, sid, gid).price;
+    if (!b) return `<tr><td>${esc(place(sid))}</td><td colspan="3" class="dim">no word</td></tr>`;
+    const off = Math.abs(b.price - truth) > truth * 0.15;
+    return `<tr><td>${esc(place(sid))}</td><td>${esc(sourceWord[b.source] ?? b.source)}, ${ageWord(b.ageDays)}</td>
+      <td class="num">${money(b.price)}</td><td class="num${off ? ' warn' : ''}">${money(truth)}</td></tr>`;
+  }).join('');
+  const knows = `
+    <h4>What they know <span class="sub">${esc(g.name.toLowerCase())}, a ${esc(g.unit)}</span></h4>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Market</th><th>Word</th><th class="num">They think</th><th class="num">Truly</th></tr></thead>
+      <tbody>${known}</tbody>
+    </table></div>`;
+
+  const ledger = m.ledger.slice(-6).reverse().map((v) => `
+    <tr><td>${qty(v.qty)} ${esc(goodUnits(v.good))}, ${esc(place(v.from))} → ${esc(place(v.to))}${v.dumped ? ' <span class="dim">(let go)</span>' : ''}</td>
+      <td class="num">${moneyBits(v.sold)}</td>
+      <td class="num${v.profit < 0 ? ' bad' : ''}">${moneyBits(v.profit)}</td>
+      <td class="num dim">${moneyBits(v.expected)}</td></tr>`).join('');
+  const book = ledger ? `
+    <h4>Ledger</h4>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Venture</th><th class="num">Sold for</th><th class="num">Profit</th><th class="num">Hoped</th></tr></thead>
+      <tbody>${ledger}</tbody>
+    </table></div>` : '';
+
+  return `
+    <h3>${esc(m.name)} <span class="sub">house of ${esc(m.house)}, ${esc(place(m.home))}</span></h3>
+    <p>${status}</p>
+    <dl class="facts">
+      <dt>Wagons</dt><dd>${m.wagons} (${m.capacity} units)</dd>
+      <dt>Temper</dt><dd>${temperWord(m.boldness)} (${m.boldness}/1000 bold)</dd>
+      <dt>Purse</dt><dd>${moneyBits(balance(sim, `merchant:${m.id}`))}</dd>
+      <dt>Ventures</dt><dd>${m.trades}, ${m.losses} at a loss · ${moneyBits(m.profit)} profit</dd>
+      <dt>Spent at home</dt><dd>${moneyBits(m.spent)}${m.loaned ? ` · "lent" the lord ${moneyBits(m.loaned)}` : ''}</dd>
+      ${m.wasWayfarer ? '<dt>Began as</dt><dd>a peddler on the roads</dd>' : ''}
+    </dl>
+    ${why}${knows}${book}`;
+}
+
+function riderHtml(id) {
+  const r = getRider(sim, id);
+  if (!r) return '';
+  const circuit = sim.data.post.circuit.map((sid) => place(sid)).join(' → ');
+  const status = r.trip ? tripStatus(r.trip, 'Riding') : `Resting in <strong>${esc(place(r.at))}</strong>.`;
+  return `
+    <h3>${esc(r.name)} <span class="sub">rider of the lord's post</span></h3>
+    <p>${status}</p>
+    <dl class="facts">
+      <dt>Circuit</dt><dd>${esc(circuit)}</dd>
+      <dt>Deliveries</dt><dd>${r.deliveries}</dd>
+    </dl>
+    <p class="hint">Riders carry every town's posted prices to the next inn as letters: exact, but as old as the ride.</p>`;
+}
+
 const skillWord = (r) => (r.learning ? 'apprentice, learning' : r.skill >= 1000 ? 'master' : r.skill >= 850 ? 'able' : 'middling');
 
 function residentHtml(id) {
@@ -289,6 +405,9 @@ function nodeHtml(id) {
     .map((wid) => sim.state.wayfarers.byId[wid])
     .filter((w) => w.at === id || (w.trip && !w.trip.legSeg && w.trip.at === id))
     .map((w) => `<button class="linkish" data-wayfarer="${esc(w.id)}">${esc(w.name)}</button>`)
+    .concat(Object.values(sim.state.merchants?.byId ?? {})
+      .filter((m) => m.active && (m.at === id || (m.trip && !m.trip.legSeg && m.trip.at === id)))
+      .map((m) => `<button class="linkish" data-merchant="${esc(m.id)}">${esc(m.name)}</button> <span class="dim">(merchant)</span>`))
     .join(', ');
   const kind = { town: 'Town', village: 'Village', port: 'Port (the Outside)', waypoint: 'Waypoint' }[n.kind];
   const toll = n.toll ? `<dt>Toll</dt><dd>${n.toll.wagon} per wagon, ${n.toll.foot} on foot</dd>` : '';
@@ -470,6 +589,18 @@ function tipHtml(hit) {
         : wayfarerPosition(sim, w, renderT).moving ? `on the ${road(t.routes)} to ${place(t.dest)}` : `camped on the way to ${place(t.dest)}`;
     return `<strong>${esc(w.name)}</strong><p>The ${esc(tradeName(sim, w))}, ${esc(doing)}.</p><p class="dim">Click for why they chose this road.</p>`;
   }
+  if (hit.kind === 'merchant') {
+    const m = getMerchant(sim, hit.id);
+    const cargo = Object.entries(m.cargo)[0];
+    const load = cargo ? `${qty(cargo[1])} ${goodUnits(cargo[0])} of ${goodOf(sim, cargo[0]).name.toLowerCase()}` : 'empty wagons';
+    const doing = m.trip ? `${load}, bound for ${place(m.trip.dest)}` : cargo ? `selling ${load} in ${place(m.at)}` : `in ${place(m.at)}, looking for a trade`;
+    return `<strong>${esc(m.name)}</strong><p>Merchant, ${m.wagons} wagon${m.wagons > 1 ? 's' : ''}: ${esc(doing)}.</p><p class="dim">Click for what they know and why this trade.</p>`;
+  }
+  if (hit.kind === 'rider') {
+    const r = getRider(sim, hit.id);
+    const doing = r.trip ? `riding for ${place(r.trip.dest)} with letters` : `resting in ${place(r.at)}`;
+    return `<strong>${esc(r.name)}</strong><p>The lord's post, ${esc(doing)}.</p>`;
+  }
   if (hit.kind === 'node') {
     const n = sim.graph.nodes.get(hit.id);
     const lines = [];
@@ -501,9 +632,10 @@ function tipHtml(hit) {
   return null;
 }
 $('#inspector-body').addEventListener('click', (ev) => {
-  const t = ev.target.closest('[data-wayfarer], [data-resident], [data-node], [data-market]');
+  const t = ev.target.closest('[data-wayfarer], [data-merchant], [data-resident], [data-node], [data-market]');
   if (!t) return;
   if (t.dataset.wayfarer) select({ kind: 'wayfarer', id: t.dataset.wayfarer });
+  else if (t.dataset.merchant) select({ kind: 'merchant', id: t.dataset.merchant });
   else if (t.dataset.resident) select({ kind: 'resident', id: t.dataset.resident });
   else if (t.dataset.node) select({ kind: 'node', id: t.dataset.node });
   else if (t.dataset.market) {
