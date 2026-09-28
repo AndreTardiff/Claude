@@ -432,6 +432,11 @@ Growth runs on the same economy as everything else: people, need, production, st
 
 **Scope.** Post-prototype, except one experiment after step E: stranded travellers form a camp that either disperses or becomes a waystation. It serves T1 (memorable, legible stories) and tests whether the map can evolve without scripts.
 
+### 17.3 Notes from Andre, September 2026 (to fold into later steps)
+- **Frontier folk.** Displaced people shouldn't only farm: they can hunt, forage and fish in the wilderness. Where enough of them gather, a camp forms (§17.2), creates demand for supplies, and draws new trade routes. This ties famine (§8.7) directly to the living map.
+- **Night needs a job.** At speed, the nightly stall is dull. Options: fast-forward nights automatically when nothing is happening; make night eventful (camps hunt or feast, raiders strike, rumours spread around the fire); or shorten it. The glowing camps are worth keeping. Decide in step E, alongside raiders.
+- **Study Railroad Tycoon 2 and 3.** They're the classic model of moving goods between producers and consumers, with demand that responds to supply and simple, readable cargo flows. Worth borrowing: per-town demand and supply shown at a glance; cargo value that decays with travel time; and the satisfaction of watching a route you built change a town.
+
 ## 18. The Wending Fair (low-fantasy spitball)
 
 **The rule:** a low-fantasy world where *one* impossible thing is treated as ordinary.
