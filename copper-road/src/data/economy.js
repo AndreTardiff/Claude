@@ -42,6 +42,12 @@ export const ECONOMY = {
     medicine: { perPerson: 0.005, season: { spring: 1.2, summer: 0.6, autumn: 1, winter: 2.5 } },
   },
 
+  // Households with savings to spare buy comforts: better cloth, new tools, a
+  // little luxury. Demand grows with savings per head, from nothing at `from`
+  // marks to the full amount (per resident per day) at `full`. It keeps coin
+  // moving out of towns that grow rich, instead of all of it going under the floor.
+  comforts: { from: 20, full: 60, perPerson: { cloth: 0.01, tools: 0.004, luxuries: 0.002 } },
+
   // Trades. produces: raw output; makes + inputs: a recipe (inputs per unit made).
   // elastic trades work harder when their output is dear and slack off in a glut.
   // toolWear: tools used up per worker per day.

@@ -111,6 +111,41 @@ export const WORLD = {
   economy: ECONOMY,
   coin: COIN,
 
+  // Merchants: the region's trading houses, each with a wagon or two, a purse and a temper.
+  merchants: {
+    count: 5, // houses the region supports; a ruined house is replaced when a town can back one
+    houses: ['Vell', 'Harrow', 'Quennell', 'Ashdown', 'Corbin', 'Lisle', 'Marrow', 'Tallis'],
+    homes: ['kingscross', 'greenhollow', 'copperford', 'kingscross', 'saltmouth', 'greenhollow'],
+    wagonCapacity: 30, // units per wagon
+    wagons: [1, 2], // a house starts with this many
+    maxWagons: 3,
+    wagonCost: 200, // marks to the home town's wheelwrights for another wagon
+    speedKmh: 3.5,
+    crewPerWagon: 3,
+    crewWage: 0.5, // marks a day per hand, paid where the trip ends
+    purse: [150, 400], // opening marks
+    threshold: [4, 12], // least profit a day (marks) per loaded wagon worth setting out for
+    minLoad: 5, // units: smaller loads aren't worth hitching a wagon for
+    keepBack: 0.5, // a market's traders won't sell below this share of the stock the town wants
+    reversion: 0.08, // merchants expect a town's shortage or glut to ease by this much a day (hyperbolically)
+    stalePerDay: 0.015, // …and discount each day of a price list's age (by arrival) for the uncertainty
+    maxStale: 0.4, // …never more than this
+    riskWeight: 1, // risk cost = exposure × revenue × riskWeight × caution
+    idleDays: 3, // days without a good trade before moving on empty
+    restHours: 6, // unloading, haggling and sleep after arriving
+    householdShare: 0.25, // a town's households put at most this share of their savings into one load
+    sellDays: 2, // days a merchant waits for a town's tills to refill before taking the rest elsewhere
+    livingCost: 1, // marks a day a house's household spends at home…
+    keepPerWagon: 150, // …plus, beyond this working capital per wagon…
+    spendShare: 0.04, // …this share of the rest, each day
+    ruinBelow: 40, // marks: a house with empty wagons and less than this is ruined
+    foundEvery: 10, // days: at most one new house this often
+    foundCapital: 200, // marks a new house starts with, raised from its town's households
+    foundPurseAbove: 20, // marks per head a town must hold beyond that capital to back a new house
+    forcedLoanAbove: 1000, // marks: the lord starts "borrowing" from a house this rich…
+    forcedLoanShare: 0.2, // …this share of the excess, each season
+  },
+
   // Word of mouth: each retelling moves prices by up to ±6% and costs 15% of the trust.
   knowledge: { rumourNoise: 0.06, rumourTrust: 0.85 },
 

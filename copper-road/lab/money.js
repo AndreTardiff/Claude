@@ -49,11 +49,13 @@ export function createMoneyPanel(root) {
         <td class="num">${moneyBits(c.hoards[sid] ?? 0)}</td>
       </tr>`;
     }).join('');
-    const travellers = Object.entries(c.accounts).filter(([k]) => k.startsWith('wayfarer:')).reduce((a, [, v]) => a + v, 0);
+    const held = (prefix) => Object.entries(c.accounts).filter(([k]) => k.startsWith(prefix)).reduce((a, [, v]) => a + v, 0);
     const f = c.flows;
     root.querySelector('.ledger-line').innerHTML =
-      `Wayfarers carry ${moneyBits(travellers)}. <strong>The books balance:</strong> ${moneyBits(c.opening)} at the start + ${moneyBits(f.minted)} minted` +
+      `Wayfarers carry ${moneyBits(held('wayfarer:'))}; merchant houses hold ${moneyBits(held('merchant:'))}. ` +
+      `<strong>The books balance:</strong> ${moneyBits(c.opening)} at the start + ${moneyBits(f.minted)} minted` +
       (f.gifted ? ` + ${moneyBits(f.gifted)} from the lab` : '') +
+      ` + ${moneyBits(f.exported)} paid by the ships − ${moneyBits(f.imported)} paid to the ships` +
       ` − ${moneyBits(f.crown)} to the Crown − ${moneyBits(f.worn)} worn away − ${moneyBits(f.hoarded)} buried = <strong>${moneyBits(supply)}</strong>.`;
 
     const day = c.history.days.at(-1);

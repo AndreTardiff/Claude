@@ -73,6 +73,37 @@ export function quote(sim, sid, gid, stock) {
 
 export const priceOf = (sim, sid, gid) => quote(sim, sid, gid).price;
 
+/**
+ * The price a market would show at a given stock and desired stock, by the
+ * same curve. Merchants use it to estimate a sale from what they *believe*
+ * about a distant market, which may be days out of date.
+ */
+export function priceAt(sim, sid, gid, stock, desired) {
+  const ix = economyIndex(sim.data);
+  const g = ix.goods.get(gid);
+  return g.base * ix.localFactor(sid, gid) * stockFactor(ix.eco.priceCurves[g.curve], scarcityOf(desired, stock));
+}
+
+/** Estimated takings for selling `qty` into a market believed to hold `stock` and want `desired`. */
+export function estimateSale(sim, sid, gid, qty, stock, desired, steps = 8) {
+  if (!(qty > 0)) return 0;
+  const h = qty / steps;
+  let sum = 0;
+  let prev = priceAt(sim, sid, gid, stock, desired);
+  for (let i = 1; i <= steps; i++) {
+    const cur = priceAt(sim, sid, gid, stock + h * i, desired);
+    sum += (prev + cur) / 2;
+    prev = cur;
+  }
+  return sum * h;
+}
+
+/** Estimated cost of buying `qty` from a market believed to hold `stock` and want `desired`. */
+export function estimatePurchase(sim, sid, gid, qty, stock, desired, steps = 8) {
+  const q = Math.min(qty, stock);
+  return q > 0 ? estimateSale(sim, sid, gid, q, stock - q, desired, steps) : 0;
+}
+
 // Integrate price over a change in stock (trapezoid rule). Buying or selling a
 // load moves the price as you go, so a big sale into a small market fetches
 // less than the posted price suggests.

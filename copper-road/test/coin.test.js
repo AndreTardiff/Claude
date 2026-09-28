@@ -1,14 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Simulation, WORLD, describe, economyIndex, residentsAt } from '../src/index.js';
-import { balance, formatMoney, moneySupply, toBits } from '../src/economy/money.js';
+import { balance, booksBalance, formatMoney, moneySupply, toBits } from '../src/economy/money.js';
 import { mintStatus } from '../src/systems/coin.js';
 
 const DAY = 1440;
 const at = (day) => 330 + day * DAY;
 const accounted = (sim) => {
   const f = sim.state.coin.flows;
-  return sim.state.coin.opening + f.minted + f.gifted - f.crown - f.worn - f.hoarded;
+  return sim.state.coin.opening + f.minted + f.gifted + f.exported - f.crown - f.worn - f.hoarded - f.imported;
 };
 
 test('money is counted in whole bits: 12 bits to the mark', () => {
@@ -20,12 +20,13 @@ test('money is counted in whole bits: 12 bits to the mark', () => {
   for (const v of Object.values(sim.state.coin.accounts)) assert.ok(Number.isInteger(v));
 });
 
-test('GATE C: every bit is accounted for: supply = opening + minted + gifted − crown − worn − hoarded', () => {
+test('GATE C: every bit is accounted for: supply = opening + minted + gifted + exported − crown − worn − hoarded − imported', () => {
   const sim = new Simulation({ seed: 4 });
   sim.command('lab:coin', { at: 'greenhollow', marks: 50 });
   for (const d of [1, 10, 37, 80, 150]) {
     sim.advanceTo(at(d));
     assert.equal(moneySupply(sim), accounted(sim), `day ${d}`);
+    assert.equal(booksBalance(sim), accounted(sim));
     for (const [k, v] of Object.entries(sim.state.coin.accounts)) {
       assert.ok(Number.isInteger(v) && v >= 0, `${k} = ${v}`);
     }

@@ -78,7 +78,11 @@ if (args.includes('--json')) {
   const f = sim.state.coin.flows;
   const m = (b) => formatMoney(sim, b, { short: true });
   console.log('');
-  console.log(`Money: ${m(moneySupply(sim))} in circulation = ${m(sim.state.coin.opening)} opening + ${m(f.minted)} minted + ${m(f.gifted)} gifted − ${m(f.crown)} Crown − ${m(f.worn)} worn − ${m(f.hoarded)} buried. Treasury ${m(balance(sim, 'treasury'))}.`);
+  console.log(
+    `Money: ${m(moneySupply(sim))} in circulation = ${m(sim.state.coin.opening)} opening + ${m(f.minted)} minted + ${m(f.gifted)} gifted` +
+      ` + ${m(f.exported)} from the ships − ${m(f.crown)} Crown − ${m(f.worn)} worn − ${m(f.hoarded)} buried − ${m(f.imported)} to the ships.` +
+      ` Treasury ${m(balance(sim, 'treasury'))}.`,
+  );
   const opps = tradeOpportunities(sim, { limit: 5 });
   if (opps.length) {
     console.log('');

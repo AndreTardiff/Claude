@@ -16,6 +16,7 @@
 // at road speed, and a town's picture of the others is always somewhat out of date.
 
 import { economyIndex, quote } from '../economy/pricing.js';
+import { balance } from '../economy/money.js';
 
 const round1 = (x) => Math.round(x * 10) / 10;
 const round2 = (x) => Math.round(x * 100) / 100;
@@ -47,7 +48,11 @@ export const knowledge = {
 
 export const innOf = (sid) => `inn:${sid}`;
 
-/** A dated price list of one market as it truly is right now. */
+/**
+ * A dated price list of one market as it truly is right now, with word of how
+ * much coin its traders and households have (marks; none recorded at the
+ * Outside, whose ships always pay).
+ */
 export function snapshot(sim, sid, source = 'seen', confidence = 1000) {
   const ix = economyIndex(sim.data);
   const goods = {};
@@ -55,7 +60,12 @@ export function snapshot(sim, sid, source = 'seen', confidence = 1000) {
     const q = quote(sim, sid, gid);
     goods[gid] = { price: round2(q.price), stock: round1(q.stock), desired: round1(q.desired) };
   }
-  return { at: sid, t: sim.now, source, confidence, goods };
+  const rec = { at: sid, t: sim.now, source, confidence, goods };
+  if (sim.state.coin && !ix.isOutside(sid)) {
+    const marks = (account) => Math.round(balance(sim, account) / sim.data.coin.bitsPerMark);
+    rec.coin = { till: marks(`till:${sid}`), purse: marks(`purse:${sid}`) };
+  }
+  return rec;
 }
 
 export function holderOf(sim, holder) {
@@ -91,7 +101,12 @@ function retell(sim, rec) {
     goods[gid] = { price: round2(g.price * wobble), stock: round1(g.stock * wobble), desired: g.desired };
   }
   const confidence = Math.round(rec.confidence * sim.data.knowledge.rumourTrust);
-  return { at: rec.at, t: rec.t, source: 'rumour', confidence, goods };
+  const told = { at: rec.at, t: rec.t, source: 'rumour', confidence, goods };
+  if (rec.coin) {
+    const wobble = 1 + (rng.float() * 2 - 1) * noise;
+    told.coin = { till: Math.round(rec.coin.till * wobble), purse: Math.round(rec.coin.purse * wobble) };
+  }
+  return told;
 }
 
 /**
@@ -123,10 +138,13 @@ export function swapNews(sim, traveller, sid, { letters = false } = {}) {
   return { told, heard };
 }
 
-/** What a holder believes about one good in one market, with its age in days. */
+/**
+ * What a holder believes about one good in one market, with its age in days and
+ * the coin its buyers were said to have (null: the Outside, or not known).
+ */
 export function belief(sim, holder, sid, gid) {
   const rec = sim.state.knowledge?.holders[holder]?.[sid];
   if (!rec) return null;
   const g = rec.goods[gid];
-  return { ...g, ageDays: (sim.now - rec.t) / 1440, source: rec.source, confidence: rec.confidence / 1000, t: rec.t };
+  return { ...g, ageDays: (sim.now - rec.t) / 1440, source: rec.source, confidence: rec.confidence / 1000, t: rec.t, coin: rec.coin ?? null };
 }

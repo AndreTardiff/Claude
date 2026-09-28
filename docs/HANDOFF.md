@@ -22,34 +22,39 @@ Each checkpoint ends with all tests green, `npm run reference` rerun, this file 
       market, from where (seen, rumour, letter), how old. Inns hold the freshest word each town has heard; travellers
       carry and trade price lists when they arrive; rumours are a little wrong. The lord's post riders ride a circuit
       carrying every town's price board. Tests: knowledge ages, spreads at road speed, rumours are noisy.
-- [ ] **D2: merchants and caravans.** 3–6 named merchants with purses and personalities (`src/systems/merchants.js`).
-      Idle in a town: observe prices, absorb rumours, score trades from their own knowledge (spec §8.4: believed
-      price, staleness, travel cost, risk, uncertainty), buy real goods, hire crew, set out as a caravan along the
-      route graph, pay tolls, sell on arrival (to the till, then households), record profit, repeat. Reasons stored
-      for the inspector. Tests: AT-03 (response to a shortage), AT-04 (physical trade), AT-06 (competition
-      compresses margins), AT-07 (risk sensitivity), AT-13 (legible reasons), money books still balance.
-- [ ] **D3: the Outside and peddlers.** Saltmouth's ships trade for coin: restocking imports sends coin out of the
-      region, taking exports brings coin in (new flows `imported` / `exported`; update the money identity).
-      Peddler and tinker wayfarers carry a small pack and trade with the same logic.
+- [x] **D2: merchants, caravans and the ships' coin.** *(done: `src/systems/merchants.js`, `test/merchants.test.js`)*
+      Five named trading houses with purses, wagons and tempers. Idle in a town: see the market, swap news at the
+      inn, score every trade from their own (aged) price lists: believed sale with the stock expected on arrival,
+      capped by the coin the town was said to have, discounted for age and trust, less purchase + fee, provisions,
+      crew wages, tolls and a risk premium set by their temper. Buy real goods (`load`), hire crew per loaded wagon,
+      travel the route graph, pay tolls, sell on arrival (till, then up to a share of household savings; a town
+      that can't pay gets a few days, then the load goes elsewhere once, then for whatever it fetches). Houses
+      spend beyond their working capital at home, buy wagons, get "borrowed" from by the lord, are ruined when
+      broke, and towns with savings back new ones. **Pulled forward from D3:** merchants trade with Saltmouth's
+      ships directly: exports bring coin in (`exported`), imports send it out (`imported`); `traderAccount()`.
+      Also: `comforts` (households with savings buy cloth, tools, luxuries), road books (`today.road.in/out`),
+      price lists carry each town's coin, market-news quiet periods are per story.
+- [ ] **D3: peddlers.** Peddler and tinker wayfarers carry a small pack and trade with the merchant logic
+      (`tradeCandidates` works for anyone with an account, a place and a capacity).
 - [ ] **D4: lab, gate tests, docs.** Caravans on the map with tooltips; merchant inspector ("what they know",
       "why this trade"); knowledge/letters view; gate D test (merchants trade profitably on stale information and
       sometimes misjudge); AT-25 (winter pays); spec §5/§10 "as built"; site progress entry; README/CLAUDE.md.
 
 ## Next
 
-Start D2 (merchants and caravans). Build on:
-- `src/world/journey.js`: `planJourney`, `newTrip`, `startLeg` (returns a blocked note or null), `finishLeg`,
-  `reroute`, `tripPosition`. `post.js` is a small, complete example of a traveller using it.
-- `src/systems/knowledge.js`: `observe`, `swapNews(sim, holderId, town, { letters })`, `belief(sim, holder, town, good)`,
-  `snapshot`. Merchants should hold knowledge under their own id and swap news at every town they reach.
-- Pricing: `quote`, `purchaseCost`, `saleValue` (`src/economy/pricing.js`); the price curve `stockFactor` lets a
-  merchant estimate the impact of selling into a market from its *believed* stock and desired stock.
-- Tolls: nodes have `toll.wagon` (marks). Pay with `transfer(sim, account, 'treasury', toBits(...))`.
-- Systems order is in `src/systems/index.js`: merchants must create their coin accounts before `coin.init`
-  computes the opening supply (or add them in `coin.init` like wayfarers).
+Start D3 (peddlers). Build on `src/systems/merchants.js`: `tradeCandidates(sim, m)` scores trades for anyone
+with an id (knowledge holder), a place (`at`), a `merchant:<id>`-style account and a capacity; peddlers would
+need their own account prefix (`wayfarer:<id>` already exists) and a small pack. Then D4 (lab views, gate D,
+AT-25 winter pays, site entry).
 
-Findings from D1: news of a Copperford disaster reaches Kingscross in ~4.5 days (post rider), Greenhollow ~6,
-Saltmouth 8+. 100 days now run in ~140 ms (knowledge snapshots).
+Findings from D2 (200 days, seeds 1/7/23):
+- Merchants make ~50–60 ventures, ~10% at a loss; famine deaths and emigration fall a lot versus no merchants.
+- Coin settles ~7,000–8,600 marks (the ships' export payments are now the biggest source); houses hold 30–40%.
+- Kingscross (must buy its bread) stays poorest and still goes hungry at times. Copperford lives on the Mint,
+  which idles while merchants' fees and tolls keep the treasury full. Candidate fixes for later: the lord
+  spends a full treasury (relief, works), or the Mint buys ore on its own account.
+- Merchants are still ~2× too pessimistic on average (expected vs actual profit); fine for now.
+- 200 days run in ~300 ms.
 
 ## Notes for whoever picks this up
 

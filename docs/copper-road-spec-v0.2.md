@@ -94,6 +94,13 @@ The UI always shows age and source: *"Grain @ Copperford: 14 — 3 days old — 
 - Trust a rumour, or send a scout.
 - Buy a rival's lost ledger from a fence.
 
+### 5.4 Knowledge, as built in step D1
+- **Price lists** are the records: a dated snapshot of one market (price, stock and desired stock of every good, and how much coin its traders and households hold), with a source and a confidence. Every inn and every traveller (wayfarers, post riders, merchants) holds them, and keeps only the freshest list per market.
+- **Sources:** *seen* (own eyes), *board* (the town's posted prices, kept at its inn and refreshed at midnight), *post* (letters: exact, but as old as the ride), *rumour* (word of mouth: each retelling nudges prices, stocks and coin by up to ±6% and costs 15% of the trust).
+- **Swapping news:** a traveller arriving in a town sees its market, then swaps with the inn; each side takes whatever the other knows that's fresher.
+- **The lord's post:** two riders on a fixed circuit through Kingscross (Copperford, Greenhollow and Saltmouth in turn) at 7 km/h, resting 8 hours at each stop.
+- **Result:** news of a disaster in Copperford reaches Kingscross in about 4½ days, Greenhollow in about 6, Saltmouth in 8 or more. Every town's picture of the others is always somewhat out of date, and that is what merchants trade on.
+
 ## 6. Prototype scope
 
 ### 6.1 Required ("prove now")
@@ -301,11 +308,36 @@ Travellers should live like everyone else: they carry a purse and goods, earn a 
 | Piece | Step |
 |---|---|
 | Eat where they stay; buy provisions before a trip | **B (built)** |
-| Purses; paying for food, lodging and tolls; wages for work done | C (coin) |
+| Purses; paying for food, lodging and tolls; wages for work done | **C (built)** |
 | Peddling: a wayfarer with a small pack is the smallest merchant (buy cheap, sell dear) | D (merchants) |
 | Robbery and murder for what they carry; fenced goods and stolen letters | E (raiders) |
 | Homes and rent; the prosperous upgrade (cottage → townhouse), the ruined downsize or take to the road | I (town view) |
 | A traveller who can't pay for lodging sleeps rough, joins a camp or becomes a raider | E / §17.2 |
+
+### 10.2 Merchants, as built in step D2
+**Houses.** Five trading houses, each a named merchant (*Piers Harrow*, *Alys Vell*…) with a home town, one or two wagons of 30 units, a purse of 150–400 marks, a temper (boldness) and a threshold: the least profit a day each loaded wagon must earn to be worth the road (4–12 marks).
+
+**Choosing a trade.** Idle in a town, a merchant sees the market and swaps news at the inn, then scores every good they could buy here against every market they hold a price list for (§8.4, as built):
+- *Believed takings:* the sale into that market as the price list describes it, with its shortage or glut expected to ease by arrival (8% a day; the ships close Saltmouth's gaps faster), and never more than the coin its traders and households were said to have over the days they'd try to sell.
+- …discounted 1.5% for each day the news will be old on arrival (at most 40%) and for trust (rumours count less than letters).
+- *Less:* the purchase (the price climbs as they buy), the lord's 4% fee, provisions and crew wages (three hands per loaded wagon, half a mark a day each), tolls, and a risk premium (the road's danger × the takings × their caution). The timid also pick safer, slower roads.
+- They take the most profit a day among the trades where every loaded wagon clears their threshold. After three idle days, they move on empty to wherever the buying looks best.
+
+**Physical trade.** Goods leave the market when loaded and arrive only with the caravan (AT-04). Tolls are paid at Aldric's Bridge and Fenwatch Ferry, and the crew are paid off where the trip ends. **Selling:** to the town's traders, with households chipping in up to a quarter of their savings for one load. A town that can't pay for it all gets two days while its tills refill; then the rest goes elsewhere, once; then it's let go for whatever it fetches.
+
+**The ships' coin.** At the Outside, merchants trade with the ships directly: the ships pay coin for exports (coin enters the region) and take coin for imports (coin leaves it). The money identity gains two flows: *money in circulation = opening + minted + gifted + exported − Crown − worn − buried − imported.*
+
+**Houses rise and fall** (the rubber band, §8.3):
+- A house's household spends a mark a day at home, plus 4% a day of whatever the house holds beyond its working capital (150 marks a wagon).
+- A thriving house buys another wagon from its home town's wheelwrights (200 marks, up to three).
+- Lord Aldric "borrows" a fifth of anything a house holds above 1,000 marks, each season.
+- A house with empty wagons and less than 40 marks is ruined. While the region has fewer than five houses, the town with the most savings per head backs a new one with 200 marks.
+
+**Comforts.** Households with savings to spare (from 20 marks a head, fully at 60) buy cloth, tools and a little luxury. It keeps coin moving out of towns that grow rich, instead of all of it going under the floor.
+
+**Every decision keeps its reasons:** the top candidates with their parts (believed takings, purchase, carrying costs, risk, profit a day), the choice, or why they stayed put (AT-13).
+
+**Result.** Over 200 days, merchants make 50–60 ventures and lose money on about one in ten, mostly on old news or when rivals got there first. Compared with the same world without them, fewer people die of famine or take ship, and Kingscross and Copperford hold more people. Exports make the ships the region's biggest source of coin, which settles between 7,000 and 8,600 marks, a third of it in the houses' purses. Kingscross, which must buy its bread, stays the poorest town and still goes hungry at times: the next thing to tune.
 
 ## 11. Raiders as economic actors
 | Behaviour | Economic effect |

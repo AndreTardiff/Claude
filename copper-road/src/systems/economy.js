@@ -12,11 +12,12 @@
 //   4. Tools wear out and are replaced from stock; grain spoils a little;
 //      anything beyond storage is lost.
 // The Outside (Saltmouth) doesn't produce or consume: ships pull its stocks back
-// toward fixed anchors, at world prices.
+// toward fixed anchors, at world prices. Merchants trade with the ships for coin.
 // Then prices and stocks go into the history, and notable changes into the chronicle.
 //
 // Goods never teleport: stock changes only through work, use, spoilage,
-// storage limits, ships at the Outside, travellers' provisions and (later) trade.
+// storage limits, ships at the Outside, and goods carried by road (caravans'
+// cargo, travellers' provisions), which the day's books count as road.in/out.
 
 import { economyIndex, quote } from '../economy/pricing.js';
 import { residentsAt, visitorsAt, workforce } from '../economy/people.js';
@@ -34,7 +35,7 @@ export const economy = {
   init(sim) {
     const ix = economyIndex(sim.data);
     const eco = ix.eco;
-    const st = (sim.state.economy = { markets: {}, hunger: {}, today: {}, news: {}, history: { days: [], price: {}, stock: {} } });
+    const st = (sim.state.economy = { markets: {}, hunger: {}, today: {}, road: {}, news: {}, history: { days: [], price: {}, stock: {} } });
     for (const sid of ix.markets) {
       st.markets[sid] = {};
       for (const gid of ix.goodIds) st.markets[sid][gid] = { stock: 0, need: 0, desired: 0 };
@@ -55,7 +56,7 @@ export const economy = {
       }
       st.news[sid] = { hunger: 'fed' };
       for (const gid of ix.goodIds) {
-        st.news[sid][gid] = { band: marketBand(sim, sid, gid), logged: null, day: -99, stock: st.markets[sid][gid].stock };
+        st.news[sid][gid] = { band: marketBand(sim, sid, gid), last: {}, stock: st.markets[sid][gid].stock };
       }
     }
   },
@@ -69,6 +70,16 @@ export const economy = {
     'lab:deliver': onLabDeliver,
   },
 };
+
+/** How far a town's households are into buying comforts: 0 (none) to 1 (the full amount). */
+export function comfortLevel(sim, sid) {
+  const c = sim.data.economy.comforts;
+  if (!c || !sim.state.coin) return 0;
+  const heads = residentsAt(sim, sid).length;
+  if (!heads) return 0;
+  const perHead = balance(sim, `purse:${sid}`) / sim.data.coin.bitsPerMark / heads;
+  return round3(clamp((perHead - c.from) / (c.full - c.from), 0, 1));
+}
 
 /** Recompute a settlement's daily needs and desired stocks for a season. */
 export function refreshNeeds(sim, sid, seasonId = sim.cal.season(sim.now).id) {
@@ -86,6 +97,11 @@ export function refreshNeeds(sim, sid, seasonId = sim.cal.season(sim.now).id) {
   const need = Object.fromEntries(ix.goodIds.map((g) => [g, 0]));
   const heads = residentsAt(sim, sid).length + visitorsAt(sim, sid).length;
   for (const [gid, n] of Object.entries(eco.needs)) need[gid] += n.perPerson * seasonMult(n.season, seasonId) * heads;
+  const comfort = comfortLevel(sim, sid);
+  if (comfort > 0) {
+    const residents = residentsAt(sim, sid).length;
+    for (const [gid, per] of Object.entries(eco.comforts.perPerson)) need[gid] += per * comfort * residents;
+  }
   for (const w of workforce(sim, sid)) {
     const p = eco.professions[w.profession];
     for (const [gid, per] of Object.entries(p.uses ?? {})) need[gid] += per * w.count;
@@ -132,8 +148,10 @@ function settleDay(sim) {
     decay(sim, sid, today);
     today.hunger = round3(st.hunger[sid]);
     today.tools = round3(toolFactor(sim, sid));
+    today.road = st.road[sid] ?? { in: {}, out: {} }; // what caravans and travellers carried in and out
     st.today[sid] = today;
   }
+  st.road = {};
 
   // Prices during the new day reflect the new day's season (winter wants firewood).
   for (const sid of ix.markets) refreshNeeds(sim, sid);
@@ -214,8 +232,15 @@ function consume(sim, sid, seasonId, today) {
     if (p.toolWear) tools += p.toolWear * w.count;
   }
   if (tools) want.push({ gid: 'tools', amount: tools, payer: `purse:${sid}` });
+  // Comforts last, and only what's left to buy: going without them is no hardship.
+  const comfort = comfortLevel(sim, sid);
+  if (comfort > 0) {
+    const residents = residentsAt(sim, sid).length;
+    for (const [gid, per] of Object.entries(eco.comforts.perPerson)) want.push({ gid, amount: per * comfort * residents, payer: `purse:${sid}`, comfort: true });
+  }
+  today.comfort = comfort;
   const fee = sim.data.coin?.marketFee ?? 0;
-  for (const { gid, amount, payer } of want) {
+  for (const { gid, amount, payer, comfort: extra } of want) {
     // Grain the town grew itself today is already the households' own.
     const own = gid === 'grain' && payer === `purse:${sid}` ? Math.min(amount, today.kept ?? 0) : 0;
     let affordable = amount;
@@ -231,8 +256,9 @@ function consume(sim, sid, seasonId, today) {
       const tax = transfer(sim, payer, 'treasury', cost * fee);
       sim.state.coin.today.fees += tax;
     }
-    if (affordable < amount && got === affordable && sim.state.economy.markets[sid][gid].stock > 1e-6) today.poor += 1;
     today.consumed[gid] = round3((today.consumed[gid] ?? 0) + got);
+    if (extra) continue;
+    if (affordable < amount && got === affordable && sim.state.economy.markets[sid][gid].stock > 1e-6) today.poor += 1;
     if (amount - got > 1e-9) today.unmet[gid] = round3((today.unmet[gid] ?? 0) + amount - got);
     if (gid === 'grain') {
       const fed = amount > 0 ? got / amount : 1;
@@ -258,6 +284,9 @@ function decay(sim, sid, today) {
   }
 }
 
+// Ships close part of the gap between each stock and its anchor every day: the
+// wider world soaks up a glut and makes good a shortage. (Coin changes hands
+// when merchants trade with the ships; see traderAccount in economy/market.js.)
 function relaxOutside(sim, sid) {
   const o = sim.data.economy.outside[sid];
   const markets = sim.state.economy.markets[sid];
@@ -328,8 +357,9 @@ function reportNews(sim, day) {
       else if (band === 'glut' && prev.band !== 'glut' && madeHere.has(gid) && gid !== 'grain') kind = 'glut';
       if (gid === 'grain' && harvestDay && trades.some((p) => p.produces === 'grain')) kind = 'harvest';
 
-      // The same story about the same market is news at most once every 10 days (gluts: 20).
-      const quiet = kind && prev.logged === kind && day - prev.day < (kind === 'glut' ? 20 : 10);
+      // The same story about the same market is news at most once every 10 days (gluts: 20),
+      // even when caravans make a market swing between short and stocked.
+      const quiet = kind && day - (prev.last[kind] ?? -99) < (kind === 'glut' ? 20 : 10);
       if (kind && !quiet) {
         sim.log('market:news', {
           at: sid,
@@ -338,8 +368,7 @@ function reportNews(sim, day) {
           price: round2(q.price),
           daysLeft: q.daysLeft === null ? null : round1(q.daysLeft),
         });
-        prev.logged = kind;
-        prev.day = day;
+        prev.last[kind] = day;
         prev.stock = q.stock;
       } else if (BAND_RANK[band] < BAND_RANK[prev.band]) {
         prev.stock = q.stock;

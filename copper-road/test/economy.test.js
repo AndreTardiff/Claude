@@ -184,9 +184,8 @@ test('elastic trades slack off in a glut: Copperford\'s woodcutters idle when ti
 
 // ── Physical goods, stability, the Outside ──────────────────────────────────
 
-test('goods are conserved: every change in stock is accounted for', () => {
-  const data = { ...WORLD, wayfarers: { ...WORLD.wayfarers, count: 0 } };
-  const sim = new Simulation({ data, seed: 3 });
+test('goods are conserved: every change in stock is accounted for, caravans and provisions included', () => {
+  const sim = new Simulation({ seed: 3 });
   const ix = economyIndex(sim.data);
   const start = {};
   for (const sid of ix.markets) start[sid] = Object.fromEntries(ix.goodIds.map((g) => [g, sim.state.economy.markets[sid][g].stock]));
@@ -196,7 +195,8 @@ test('goods are conserved: every change in stock is accounted for', () => {
     for (const [sid, t] of Object.entries(sim.state.economy.today)) {
       flow[sid] ??= {};
       for (const gid of ix.goodIds) {
-        flow[sid][gid] = (flow[sid][gid] ?? 0) + (t.produced[gid] ?? 0) - (t.used[gid] ?? 0) - (t.consumed[gid] ?? 0) - (t.lost[gid] ?? 0);
+        flow[sid][gid] = (flow[sid][gid] ?? 0) + (t.produced[gid] ?? 0) - (t.used[gid] ?? 0) - (t.consumed[gid] ?? 0) - (t.lost[gid] ?? 0) +
+          (t.road.in[gid] ?? 0) - (t.road.out[gid] ?? 0);
       }
     }
   }
@@ -209,7 +209,7 @@ test('goods are conserved: every change in stock is accounted for', () => {
   }
 });
 
-test('five years without trade: no negative stocks, nothing overflows, prices stay on the curve', () => {
+test('five years on: no negative stocks, nothing overflows, prices stay on the curve', () => {
   const sim = run(200, null, 11);
   const ix = economyIndex(sim.data);
   for (const sid of ix.markets) {
@@ -272,7 +272,9 @@ test('market news is news: no repeats of the same story within ten days', () => 
 });
 
 test('the opportunity board finds the trades a merchant would want', () => {
-  const sim = run(60);
+  // In a world without merchants, so the gaps they'd close are still open.
+  const sim = new Simulation({ seed: 1, data: { ...WORLD, merchants: { ...WORLD.merchants, count: 0 } } });
+  sim.advanceTo(at(60));
   const opps = tradeOpportunities(sim, { limit: 50 });
   assert.ok(opps.length > 5);
   for (let i = 1; i < opps.length; i++) assert.ok(opps[i - 1].perDay >= opps[i].perDay);

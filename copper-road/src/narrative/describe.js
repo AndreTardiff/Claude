@@ -10,6 +10,7 @@ import { getWayfarer, tradeName } from '../systems/wayfarers.js';
 import { getResident, professionName } from '../systems/residents.js';
 import { formatMoney, toBits } from '../economy/money.js';
 import { getRider } from '../systems/post.js';
+import { getMerchant } from '../systems/merchants.js';
 
 // What a lab "spoil" looks like in the world.
 const DISASTERS = {
@@ -38,6 +39,16 @@ export function describe(entry, sim) {
   const good = (gid) => sim.data.economy?.goods.find((g) => g.id === gid) ?? { name: gid, unit: 'unit', units: 'units' };
   const lower = (gid) => good(gid).name.toLowerCase();
   const person = (id) => getResident(sim, id)?.name ?? id;
+  const trader = (id) => getMerchant(sim, id)?.name ?? id;
+  // "12 sacks of grain", "1 sack of grain", "15 tools".
+  const amount = (qty, gid) => {
+    const g = good(gid);
+    const n = Math.max(1, Math.round(qty));
+    const units = n === 1 ? g.unit : g.units;
+    return g.units.toLowerCase() === g.name.toLowerCase() ? `${n} ${units}` : `${n} ${units} of ${lower(gid)}`;
+  };
+  const house = (id) => getMerchant(sim, id)?.house ?? id;
+  const days = (d) => (d < 1.5 ? 'a day' : `${Math.round(d)} days`);
 
   switch (entry.type) {
     case 'world:begin':
@@ -122,6 +133,35 @@ export function describe(entry, sim) {
         ? `${rider} of the lord's post rides into ${place(entry.at)} from ${place(entry.from)} with fresh prices from ${entry.letters} market${entry.letters === 1 ? '' : 's'}.`
         : `${rider} of the lord's post rides into ${place(entry.at)} from ${place(entry.from)}; no news the inn hasn't already heard.`;
     }
+    case 'merchant:departed': {
+      const hope = entry.expected > 0 ? `counting on ${formatMoney(sim, entry.expected)} profit` : 'hoping to break even';
+      const news = entry.ageDays < 0.5 ? 'fresh news' : `news ${days(entry.ageDays)} old`;
+      return `${trader(entry.who)} leaves ${place(entry.from)} for ${place(entry.to)} by the ${road(entry.via)} with ${amount(entry.qty, entry.good)}, ${hope} on ${news}.`;
+    }
+    case 'merchant:sold': {
+      if (entry.dumped) {
+        return `${trader(entry.who)} lets the last of the ${lower(entry.good)} go in ${place(entry.at)} for whatever it fetches: ` +
+          (entry.profit < 0 ? `a loss of ${formatMoney(sim, -entry.profit)} on the venture.` : `still ${formatMoney(sim, entry.profit)} up on the venture.`);
+      }
+      const sale = `${trader(entry.who)} sells ${amount(entry.qty, entry.good)} in ${place(entry.at)} for ${formatMoney(sim, entry.sold)}`;
+      if (entry.profit < 0) return `${sale}: a loss of ${formatMoney(sim, -entry.profit)} on news ${days(entry.ageDays)} old.`;
+      const hoped = entry.expected > 0 ? ` (hoped for ${formatMoney(sim, entry.expected)})` : '';
+      return `${sale}: ${formatMoney(sim, entry.profit)} profit${hoped}.`;
+    }
+    case 'merchant:unsold':
+      return `${place(entry.at)}'s traders can't pay for all of ${trader(entry.who)}'s ${lower(entry.good)}: ${amount(entry.qty, entry.good)} stay unsold.`;
+    case 'merchant:moving':
+      return entry.good
+        ? `${trader(entry.who)} takes the unsold ${lower(entry.good)} on to ${place(entry.to)}.`
+        : `Finding no trade worth the road in ${place(entry.from)}, ${trader(entry.who)} moves on to ${place(entry.to)} with empty wagons.`;
+    case 'merchant:ruined':
+      return `The house of ${house(entry.who)} is ruined: ${trader(entry.who)} pays off the last of the crew and goes home to ${place(getMerchant(sim, entry.who)?.home)}.`;
+    case 'merchant:founded':
+      return `${place(entry.at)}'s households put ${formatMoney(sim, entry.bits)} behind a new trading house: ${trader(entry.who)} hitches a wagon.`;
+    case 'merchant:expanded':
+      return `Business is good for the house of ${house(entry.who)}: ${trader(entry.who)} buys a wagon from ${place(entry.at)}'s wheelwrights (${entry.wagons} now).`;
+    case 'merchant:forced-loan':
+      return `Lord Aldric "borrows" ${formatMoney(sim, entry.bits)} from ${trader(entry.who)}. Nobody expects to see it again.`;
     default:
       return `${entry.type}`;
   }

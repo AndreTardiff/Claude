@@ -165,6 +165,13 @@ export function validateWorld(data) {
       if (total !== n.residents) err(`population ${n.id} totals ${total} but the node says ${n.residents} residents`);
       if (!(eco.storage[n.id] > 0)) err(`settlement ${n.id} has no storage capacity`);
     }
+    if (eco.comforts) {
+      if (!(eco.comforts.from >= 0 && eco.comforts.full > eco.comforts.from)) err('comforts: need 0 ≤ from < full');
+      for (const [gid, per] of Object.entries(eco.comforts.perPerson ?? {})) {
+        if (!goodIds.has(gid)) err(`comforts: unknown good ${gid}`);
+        if (!(per >= 0)) err(`comforts.${gid}: amount must be ≥ 0`);
+      }
+    }
     for (const [sid, o] of Object.entries(eco.outside ?? {})) {
       if (!nodeById.get(sid)?.outside) err(`outside market ${sid} is not an outside node`);
       if (!(o.relax > 0 && o.relax <= 1)) err(`outside market ${sid}: relax must be within (0, 1]`);
@@ -184,6 +191,28 @@ export function validateWorld(data) {
     for (const sid of data.post.circuit ?? []) if (!nodeById.get(sid) || nodeById.get(sid).kind === 'waypoint') err(`post circuit: ${sid} is not a settlement`);
     const c = data.post.circuit ?? [];
     for (let i = 0; i < c.length; i++) if (c[i] === c[(i + 1) % c.length]) err('post circuit: a stop repeats back to back');
+  }
+
+  // Merchants
+  const mc = data.merchants;
+  if (mc) {
+    const range = (r) => Array.isArray(r) && r.length === 2 && r[0] >= 0 && r[1] >= r[0];
+    if (!Number.isInteger(mc.count) || mc.count < 0) err('merchants.count must be a whole number ≥ 0');
+    if (!mc.houses?.length || !mc.homes?.length) err('merchants need houses and homes');
+    for (const sid of mc.homes ?? []) if (!nodeById.get(sid) || nodeById.get(sid).kind === 'waypoint') err(`merchant home ${sid} is not a settlement`);
+    if (!(mc.wagonCapacity > 0 && mc.speedKmh > 0)) err('merchants: wagon capacity and speed must be > 0');
+    if (!range(mc.wagons) || !Number.isInteger(mc.wagons[0]) || !Number.isInteger(mc.wagons[1]) || mc.wagons[0] < 1) err('merchants.wagons must be [min, max] whole wagons, at least 1');
+    for (const key of ['purse', 'threshold']) if (!range(mc[key]) || !Number.isInteger(mc[key][0]) || !Number.isInteger(mc[key][1])) err(`merchants.${key} must be [min, max] whole marks`);
+    if (!(mc.stalePerDay >= 0 && mc.maxStale >= 0 && mc.maxStale < 1 && mc.reversion >= 0)) err('merchants: reversion and staleness must be ≥ 0, maxStale below 1');
+    if (!(mc.riskWeight >= 0 && mc.crewWage >= 0 && mc.livingCost >= 0 && mc.restHours >= 0)) err('merchants: risk, wages, living cost and rest must be ≥ 0');
+    if (!(Number.isInteger(mc.idleDays) && mc.idleDays >= 1)) err('merchants.idleDays must be a whole number ≥ 1');
+    if (!(mc.forcedLoanShare > 0 && mc.forcedLoanShare <= 1 && mc.forcedLoanAbove > 0)) err('merchants: forced loans need a threshold > 0 and a share within (0, 1]');
+    if (!(Number.isInteger(mc.maxWagons) && mc.maxWagons >= (mc.wagons?.[1] ?? 1) && mc.wagonCost >= 0)) err('merchants: maxWagons must cover the starting wagons, and wagons must cost ≥ 0');
+    if (!(mc.minLoad >= 1 && mc.keepBack >= 0 && mc.householdShare > 0 && mc.householdShare <= 1)) err('merchants: minLoad ≥ 1, keepBack ≥ 0, householdShare within (0, 1]');
+    if (!(Number.isInteger(mc.sellDays) && mc.sellDays >= 1)) err('merchants.sellDays must be a whole number ≥ 1');
+    if (!(mc.keepPerWagon >= 0 && mc.spendShare >= 0 && mc.spendShare < 1 && mc.ruinBelow >= 0)) err('merchants: keepPerWagon and ruinBelow ≥ 0, spendShare within [0, 1)');
+    if (!(Number.isInteger(mc.foundEvery) && mc.foundEvery >= 1 && mc.foundCapital > 0 && mc.foundPurseAbove >= 0)) err('merchants: founding needs foundEvery ≥ 1 day and capital > 0');
+    if ((mc.houses?.length ?? 0) < mc.count) err('merchants: need at least as many house names as houses');
   }
 
   // Wayfarers

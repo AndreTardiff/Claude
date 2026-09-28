@@ -24,10 +24,25 @@ export { validateWorld } from './world/validate.js';
 export { describe, seasonalRoadNotes } from './narrative/describe.js';
 export { getWayfarer, tradeName } from './systems/wayfarers.js';
 export { wayfarerPosition } from './view/positions.js';
-export { economyIndex, priceMultiplier, priceOf, purchaseCost, quote, saleValue, stockFactor } from './economy/pricing.js';
+export {
+  economyIndex,
+  estimatePurchase,
+  estimateSale,
+  priceAt,
+  priceMultiplier,
+  priceOf,
+  purchaseCost,
+  quote,
+  saleValue,
+  stockFactor,
+} from './economy/pricing.js';
 export { tradeOpportunities } from './economy/opportunities.js';
 export { residentsAt, visitorsAt, workforce } from './economy/people.js';
 export { hungerFactor, marketBand, refreshNeeds, toolFactor } from './systems/economy.js';
 export { getResident, killResident, professionName } from './systems/residents.js';
-export { balance, formatMoney, moneySupply, toBits, toMarks } from './economy/money.js';
+export { balance, booksBalance, formatMoney, moneySupply, toBits, toMarks } from './economy/money.js';
+export { belief, innOf, swapNews } from './systems/knowledge.js';
+export { getRider } from './systems/post.js';
+export { activeMerchants, getMerchant, tradeCandidates } from './systems/merchants.js';
+export { planJourney, tripPosition } from './world/journey.js';
 export { mintStatus } from './systems/coin.js';

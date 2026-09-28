@@ -9,7 +9,7 @@
 // Events carry the wayfarer's tripNo; a handler ignores events from a trip that is over.
 
 import { GIVEN_NAMES } from '../data/names.js';
-import { withdraw } from '../economy/market.js';
+import { load, traderAccount } from '../economy/market.js';
 import { quote } from '../economy/pricing.js';
 import { balance, toBits, transfer } from '../economy/money.js';
 import { swapNews } from './knowledge.js';
@@ -155,8 +155,8 @@ function onDepart(sim, { id, tripNo }) {
     const perUnit = toBits(sim, price);
     if (perUnit > 0) wanted = Math.min(wanted, balance(sim, `wayfarer:${w.id}`) / perUnit);
   }
-  const provisions = withdraw(sim, from, 'grain', wanted);
-  if (provisions > 0) transfer(sim, `wayfarer:${w.id}`, `till:${from}`, toBits(sim, price * provisions));
+  const provisions = load(sim, from, 'grain', wanted);
+  if (provisions > 0) transfer(sim, `wayfarer:${w.id}`, traderAccount(sim, from), toBits(sim, price * provisions));
   w.tripNo += 1;
   w.at = null;
   w.restingUntil = null;
