@@ -45,7 +45,7 @@ export function transfer(sim, from, to, bits) {
   else st.accounts[from] -= amount;
   if (SINKS.has(to)) st.flows[SINK_FLOW[to]] += amount;
   else st.accounts[to] = (st.accounts[to] ?? 0) + amount;
-  if (to === 'treasury') st.treasuryIn = (st.treasuryIn ?? 0) + amount; // the lord's income, which the Crown taxes
+  if (to === 'treasury' && from !== 'mint') st.treasuryIn = (st.treasuryIn ?? 0) + amount; // the lord's income the Crown taxes (not the Mint's: that's his licence)
   return amount;
 }
 

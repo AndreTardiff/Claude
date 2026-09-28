@@ -174,7 +174,7 @@ export const COIN = {
   wayfarerComfort: 30, // marks a wayfarer keeps; resting, they spend…
   wayfarerSpend: 0.1, // …this share of anything above it a day on beds, meals and drink (to the town's households)
   hearthTax: 1, // marks per head, collected on the first day of spring (at most a tenth of a town's purse)
-  crownShare: 0.25, // share of the lord's income (fees, tolls, taxes, seigniorage, loans) sent to the Crown each season
+  crownShare: 0.2, // share of the lord's income (fees, tolls, taxes, loans; not the Mint's) sent to the Crown each season
   wearPerDay: 0.0005, // coin clipped, lost and worn away: 0.05% of every balance a day
   hoardAbove: 40, // marks per head a town's households keep to hand; beyond that…
   hoardRate: 0.02, // …this share of the excess goes under the floorboards each day

@@ -46,7 +46,7 @@ Each checkpoint ends with all tests green, `npm run reference` rerun, this file 
 
 ## Next
 
-**Step E0: Lord Aldric as an engaged NPC** (Andre's direction, Sep 28). Built so far (checkpoint E0a):
+**Step E0: Lord Aldric as an engaged NPC** (Andre's direction, Sep 28). Built:
 `src/systems/lord.js` (traits, moods, decisions every 3 days with reasons; relief orders filled by merchants
 and paid by the treasury, cried at inns and carried by the post; commissions for glutted crafts; festivals
 that make a town grow faster; works paid as they go: granary, fields, houses, smithy, loom-house, via
@@ -55,8 +55,8 @@ Also: the Crown's due is now a quarter of the lord's *income* each season (`coin
 treasury target is 800 (the lord's reserve 250 sits well below it, so his spending keeps the Mint striking).
 Tests: `test/lord.test.js`.
 
-Still to do in E0: lab view of the lord (mood, budget, undertakings, reasons, orders, works) and the orders
-on the map; spec section; site entry. Ideas Andre listed for later: bribes, corruption and thieves
+E0 is done (checkpoint E0b): lab "Lord Aldric" panel (`lab/lord.js`), spec §15.2.1, site entry. Tuning:
+the Crown takes a fifth of the lord's non-Mint income each season; he keeps 250 back (100 for relief). Ideas Andre listed for later: bribes, corruption and thieves
 (ties to mercenaries), the lord's death and heir (§15.2). Then step E (raiders) per the spec (§20).
 
 Findings from D3: peddling pays mostly on essentials in a shortage (4 sacks of salt into a salt-starved town

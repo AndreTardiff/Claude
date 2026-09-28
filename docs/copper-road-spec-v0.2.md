@@ -1,7 +1,7 @@
 # Caravans of the Copper Road
-## Simulation Prototype Design Specification — v0.2.4
+## Simulation Prototype Design Specification — v0.2.5
 
-*v0.2.4 adds: knowledge and the lord's post as built in step D1 (§5.4), merchants, caravans, the ships' coin and peddlers as built in steps D2–D3 (§10.1, §10.2). v0.2.3 added: coin and famine as built in step C (§8.6, §8.7) and map tooltips. v0.2.2 added step B's economy as built (§8.5), traveller livelihoods (§10.1), the living map from camps to towns (§17.2) and winter's rewards (§16). v0.2.1 added the player's starting situation, Lord Aldric and drifting names (§15.1, §15.2, §17.1). Supersedes v0.1 ([original document](copper-road-spec-v0.1.docx)). Status: prototype design authority. Target: a headless simulation core with a browser prototype (HTML5 canvas). Godot is a later option if we decide to go big.*
+*v0.2.5 adds: Lord Aldric as an engaged character (§15.2.1), and the Crown's due as a share of his income (§8.6). v0.2.4 added: knowledge and the lord's post as built in step D1 (§5.4), merchants, caravans, the ships' coin and peddlers as built in steps D2–D3 (§10.1, §10.2). v0.2.3 added: coin and famine as built in step C (§8.6, §8.7) and map tooltips. v0.2.2 added step B's economy as built (§8.5), traveller livelihoods (§10.1), the living map from camps to towns (§17.2) and winter's rewards (§16). v0.2.1 added the player's starting situation, Lord Aldric and drifting names (§15.1, §15.2, §17.1). Supersedes v0.1 ([original document](copper-road-spec-v0.1.docx)). Status: prototype design authority. Target: a headless simulation core with a browser prototype (HTML5 canvas). Godot is a later option if we decide to go big.*
 
 > **What changed in v0.2, in one breath.** The player is now a *person in one place* who learns about the world through letters that travel at road speed. There are two theses to prove, not one: the world must be worth watching, *and* the player's choices must be hard and meaningful. The closed three-town economy is opened with seasons, an Outside port, a copper mint, and money sinks that grow with a merchant's wealth. Every citizen does economic work, and the player's home town gets full Ultima VII-style daily schedules. Raiders fence, starve, recruit and bury treasure. Caravans leave with standing orders. Style modules (place names earned by history, ledger UI, songs, the Wending Fair) are scheduled in, each tied to a prototype question.
 
@@ -244,8 +244,8 @@ Money is counted in whole bits, so every sum is exact on every engine.
 **Flows:**
 - Traders buy what's made at the day's price and sell what's used, taking a 4% market fee for the lord. They pay out takings above their float to households.
 - Households buy food first, then the rest, and only what they can afford. **Poverty is now a cause of hunger alongside empty granaries.** Farming households eat what they grow without coin changing hands.
-- The treasury pays the guards (a mark a day each), buys luxuries for the lord's household, gathers a spring hearth tax (a mark a head, never more than a tenth of a town's purse), takes tolls at Aldric's Bridge, and sends the Crown a quarter of whatever it holds above 300 marks each season.
-- **The Mint strikes coin only to top up the lord's treasury** (to 600 marks), and only while ore costs less than 80% of the 16 marks a load yields. The ore's price goes to Copperford's market; the difference (seigniorage) goes to the lord. Early on, the lord's appetite for luxuries is what sets the Mint working. Nobody wrote that as a story, but it's one.
+- The treasury pays the guards (a mark a day each), buys luxuries for the lord's household, gathers a spring hearth tax (a mark a head, never more than a tenth of a town's purse), takes tolls at Aldric's Bridge, and sends the Crown a share of its income each season (*changed in E0:* a fifth of what came in, not counting the Mint's profit, so a lord can't dodge the due by spending first).
+- **The Mint strikes coin only to top up the lord's treasury** (to 600 marks; 800 from E0, so his spending keeps it working), and only while ore costs less than 80% of the 16 marks a load yields. The ore's price goes to Copperford's market; the difference (seigniorage) goes to the lord. Early on, the lord's appetite for luxuries is what sets the Mint working. Nobody wrote that as a story, but it's one.
 - **Coin with nothing to buy goes under the floorboards:** households holding more than 40 marks a head bury 2% of the excess each day.
 
 **Result (the step C gate):** without a player or merchants, money in circulation rises from about 2,850 marks, levels off between 4,000 and 5,500 within two years, and stays there. In step D, imports from the Outside become the big outflow and exports the big inflow.
@@ -395,6 +395,18 @@ The player inherits **the family stall in Kingscross and the family's debt**, bo
 | **Succession** | An heir (with different traits and wants) takes over, or, if there is no clear heir, a rival claimant, a Crown steward or a creditor house replaces him. Each successor rewrites the tax and toll rules a little. |
 
 The prototype needs the wants, the moods, the treasury and a simple succession. Politics beyond Kingscross stays out of scope.
+
+#### 15.2.1 Lord Aldric, as built in step E0 (Andre's direction)
+A full treasury shouldn't sit still. Aldric spends it, and how he spends it depends on who he is.
+- **Temperament:** generosity, ambition and vanity, drawn once. **Moods** drift daily with what he sees: *worry* (the hungriest town), *pride* (fed towns, a full treasury), *grievance* (the Crown's due; a sore lord keeps more back).
+- **Every three days** he weighs what he could do with whatever he holds beyond his reserve (250 marks), scores each option by temper × need, and keeps the options, scores and reasons for the inspector:
+  - **Relief:** a grain order for a hungry town, at 1.6× grain's worth, paid by the treasury. It is cried at his seat and in the town, and the post carries it to other inns, so merchants hear of it at road speed and carry the grain. For relief he'll dig down to 100 marks.
+  - **Commissions:** he buys a glutted craft's goods (liveries from the weavers, tools for the armoury, timber for the castle), which pays its workers.
+  - **Festivals:** bread, ale and music for a fed town; its musicians, brewers and cooks are paid, and it grows faster for 20 days.
+  - **Works,** paid day by day in wages and materials bought from the town's market, leaving something lasting: a **granary** (more storage), **new fields** (more farmland, a little more yield), **new houses** (room to grow), a **smithy** or **loom-house** (a labourer takes up the trade). An ambitious lord **saves up** for works, forgoing festivals and trinkets. Works stall without materials and are abandoned after 15 days.
+- **The steward's fingers:** when the treasury holds more than 800 marks, 1% a day of the excess goes missing and is buried. The skimming is noticed at the season's end. It's the first thread for thieves, bribes and corruption.
+- **Why it matters:** his spending pulls the treasury under the Mint's target, so the Mint keeps striking and buying Copperford's ore; relief feeds hungry towns through the merchants; works change what towns can hold and grow. Over 200 days he typically spends ~1,000–1,500 marks on relief and finishes two or three works, and famine deaths fall further.
+- **Next, from Andre's list:** bribes, corruption and thieves (with the mercenaries), wants that change with events, his age, death and heir.
 
 **Deferred:** the player turning fence or raider (§23). Revisit when raider ecology (step E) and the player (step G) both exist.
 

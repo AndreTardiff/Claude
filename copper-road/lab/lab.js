@@ -32,6 +32,7 @@ import { createOpportunityPanel } from './opportunities.js';
 import { createToolsPanel } from './tools.js';
 import { createMoneyPanel } from './money.js';
 import { createHousesPanel } from './houses.js';
+import { createLordPanel } from './lord.js';
 import { esc, goodOf, money, moneyBits, pct, placeName, qty } from './format.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -82,6 +83,7 @@ const opportunities = createOpportunityPanel($('#opps'), {
 });
 const moneyPanel = createMoneyPanel($('#money'));
 const housesPanel = createHousesPanel($('#houses'), { onSelect: (id) => select({ kind: 'merchant', id }) });
+const lordPanel = createLordPanel($('#lord'), { onSelectTown: (id) => select({ kind: 'node', id }) });
 const tools = createToolsPanel($('#tools'), {
   getSim: () => sim,
   onChange() {
@@ -109,6 +111,7 @@ function newWorld(seed) {
   renderMarkets(true);
   moneyPanel.render(sim, true);
   housesPanel.render(sim);
+  lordPanel.render(sim);
 }
 
 // ── Time ─────────────────────────────────────────────────────────────────────
@@ -152,6 +155,7 @@ function frame(now) {
     renderMarkets(false);
     moneyPanel.render(sim, false);
     housesPanel.render(sim);
+    lordPanel.render(sim);
   }
   requestAnimationFrame(frame);
 }
