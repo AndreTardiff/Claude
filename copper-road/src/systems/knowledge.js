@@ -87,7 +87,9 @@ export function learn(sim, holder, rec) {
   const h = holderOf(sim, holder);
   if (!h) return false;
   const have = h[rec.at];
-  if (have && (have.t > rec.t || (have.t === rec.t && have.confidence >= rec.confidence))) return false;
+  // A road seen shut now outranks anything said of it at the same moment.
+  const shutNow = rec.road && rec.what === 'closed' && have && have.t === rec.t && have.what !== 'closed';
+  if (have && !shutNow && (have.t > rec.t || (have.t === rec.t && have.confidence >= rec.confidence))) return false;
   // Bad news outlives good for a while: "the road was quiet when I came" doesn't
   // undo a raid reported a day or two before.
   if (have && rec.road && rec.what === 'quiet' && have.what !== 'quiet' && rec.t - have.t < sim.data.knowledge.badNewsDays * DAY) return false;
@@ -98,9 +100,11 @@ export function learn(sim, holder, rec) {
 export const roadKey = (segId) => `road:${segId}`;
 
 /** A traveller's report on a road they have just come along. */
-export function reportRoad(sim, holder, segId, { danger, what, band = null, source = 'seen', confidence = 1000 }) {
+export function reportRoad(sim, holder, segId, { danger, what, band = null, until = null, note = null, source = 'seen', confidence = 1000 }) {
   if (!sim.state.knowledge) return false;
-  return learn(sim, holder, { at: roadKey(segId), road: segId, t: sim.now, source, confidence, danger: round2(danger), what, band });
+  const rec = { at: roadKey(segId), road: segId, t: sim.now, source, confidence, danger: round2(danger), what, band };
+  if (until !== null) Object.assign(rec, { until, note });
+  return learn(sim, holder, rec);
 }
 
 /**
@@ -115,6 +119,12 @@ export function believedDanger(sim, holder, segId) {
   const age = (sim.now - rec.t) / DAY;
   const fade = 1 / (1 + age / sim.data.knowledge.roadMemoryDays);
   return base + (rec.danger - base) * fade * (0.5 + 0.5 * rec.confidence / 1000);
+}
+
+/** Has the holder heard that a road is shut (a flood, a rockfall), and not yet that it's open? */
+export function believedClosed(sim, holder, segId) {
+  const rec = holder ? sim.state.knowledge?.holders[holder]?.[roadKey(segId)] : null;
+  return Boolean(rec && rec.what === 'closed' && rec.until > sim.now);
 }
 
 /** Believed exposure of a path: danger per 100 km, summed (compare pathExposure in world/routes.js). */
@@ -158,10 +168,10 @@ function retell(sim, rec) {
  * A traveller arrives at a town: they see its market, then swap news with the
  * inn. Word passed by mouth is retold (noisy); `letters` (the post) pass exactly.
  */
-export function swapNews(sim, traveller, sid, { letters = false } = {}) {
+export function swapNews(sim, traveller, sid, { letters = false, look = true } = {}) {
   if (!sim.state.knowledge) return { told: 0, heard: 0 };
   const inn = innOf(sid);
-  observe(sim, traveller, sid);
+  if (look) observe(sim, traveller, sid); // a waystation has no market to look at
   const mine = holderOf(sim, traveller);
   const theirs = holderOf(sim, inn);
   let told = 0;
@@ -192,4 +202,26 @@ export function belief(sim, holder, sid, gid) {
   if (!rec) return null;
   const g = rec.goods[gid];
   return { ...g, ageDays: (sim.now - rec.t) / 1440, source: rec.source, confidence: rec.confidence / 1000, t: rec.t, coin: rec.coin ?? null };
+}
+
+/**
+ * Two travellers sharing a fire swap what they know: each takes the other's
+ * fresher news, retold. Returns the raid reports that changed hands.
+ */
+export function swapBetween(sim, a, b) {
+  if (!sim.state.knowledge) return [];
+  const raids = [];
+  const give = (from, to) => {
+    const mine = holderOf(sim, from);
+    const theirs = holderOf(sim, to);
+    for (const key of Object.keys(mine).sort()) {
+      const rec = mine[key];
+      const have = theirs[key];
+      if (have && have.t >= rec.t) continue;
+      if (learn(sim, to, rec.road || rec.source !== 'board' ? retell(sim, rec) : rec) && rec.what === 'raided') raids.push({ from, to, road: rec.road, band: rec.band });
+    }
+  };
+  give(a, b);
+  give(b, a);
+  return raids;
 }

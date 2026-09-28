@@ -17,7 +17,8 @@ import {
   segmentConditions,
 } from './routes.js';
 
-import { believedExposure } from '../systems/knowledge.js';
+import { believedClosed, believedExposure, reportRoad } from '../systems/knowledge.js';
+import { surpriseClosure } from './closures.js';
 
 const round1 = (x) => Math.round(x * 10) / 10;
 const round2 = (x) => Math.round(x * 100) / 100;
@@ -30,6 +31,7 @@ const round2 = (x) => Math.round(x * 100) / 100;
 export function planJourney(sim, from, dest, { speedKmh, caution = 0.5, dangerWeight = 8, maxSegments = 8, holder = null }) {
   const options = [];
   for (const path of findPaths(sim.graph, from, dest, maxSegments)) {
+    if (holder && path.some((seg) => believedClosed(sim, holder, seg))) continue; // heard it's shut
     const est = estimateJourney(sim.graph, sim.cal, from, path, sim.now, speedKmh);
     if (est.blocked) continue;
     const routes = pathRoutes(sim.graph, path);
@@ -82,6 +84,13 @@ export function newTrip(sim, { tripNo, from, dest, plan, speedKmh }) {
 export function startLeg(sim, trip, kind, id) {
   const segId = trip.path[trip.leg];
   const season = sim.cal.season(sim.cal.nextTravelMoment(sim.now));
+  const surprise = surpriseClosure(sim, segId);
+  if (surprise) {
+    // They see it for themselves now, and will tell others.
+    const base = sim.graph.segments.get(segId).danger;
+    reportRoad(sim, id, segId, { danger: base, what: 'closed', until: surprise.until, note: surprise.note });
+    return { seg: segId, note: surprise.note, surprise: true };
+  }
   const minutes = legMinutes(sim.graph, segId, season.id, trip.speedKmh);
   if (minutes === null) return { seg: segId, note: segmentConditions(sim.graph, segId, season.id).note };
   trip.waiting = false;

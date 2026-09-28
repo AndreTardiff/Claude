@@ -41,6 +41,7 @@ const $ = (sel) => document.querySelector(sel);
 const GAME_MINUTES_PER_SECOND = 1440 / 600;
 const SPEEDS = [0, 1, 5, 20, 100];
 const CHRONICLE_MAX = 200;
+const NIGHT_BOOST = 20;
 const MODES = [
   { id: 'wagon', label: 'Wagon (3.5 km/h)', kmh: 3.5 },
   { id: 'foot', label: 'On foot (4 km/h)', kmh: 4 },
@@ -138,7 +139,10 @@ function frame(now) {
   const dt = Math.min(0.25, (now - lastFrame) / 1000);
   lastFrame = now;
   if (speed > 0) {
-    renderT += dt * speed * GAME_MINUTES_PER_SECOND;
+    // At night the roads are still; "skip quiet nights" runs the dark hours 20× faster
+    // (raids, fireside news and anything else still happen, and show in the chronicle).
+    const night = $('#fast-nights').checked && sim.cal.light(renderT) < 0.05 ? NIGHT_BOOST : 1;
+    renderT += dt * speed * night * GAME_MINUTES_PER_SECOND;
     sim.advanceTo(Math.floor(renderT));
   }
   renderer.draw({ sim, t: renderT, selected, highlight, priceGood: $('#price-good').value || null });

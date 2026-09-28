@@ -7,6 +7,7 @@ import { finishLeg, newTrip, planJourney, reroute, startLeg } from '../world/jou
 import { swapNews } from './knowledge.js';
 import { cryOrders } from './lord.js';
 import { afterLeg, onLegStart } from './raiders.js';
+import { visitWaystation } from './roads.js';
 
 export const post = {
   id: 'post',
@@ -80,6 +81,7 @@ function onNode(sim, { id, tripNo }) {
   if (!r?.trip || r.trip.tripNo !== tripNo || !r.trip.legSeg) return;
   const seg = finishLeg(sim, r.trip);
   afterLeg(sim, r.id, seg.id, r.trip);
+  visitWaystation(sim, r.id, r.trip.at);
   if (r.trip.at !== r.trip.dest) {
     go(sim, r);
     return;

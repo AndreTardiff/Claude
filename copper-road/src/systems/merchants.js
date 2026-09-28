@@ -32,6 +32,7 @@ import { pathNodes } from '../world/routes.js';
 import { belief, swapNews } from './knowledge.js';
 import { fillOrder, knownOrder } from './lord.js';
 import { afterLeg, onLegStart } from './raiders.js';
+import { visitWaystation } from './roads.js';
 
 const DAY = 1440;
 const round2 = (x) => Math.round(x * 100) / 100;
@@ -409,6 +410,7 @@ function onNode(sim, { id, tripNo }) {
   if (!m?.trip || m.trip.tripNo !== tripNo || !m.trip.legSeg) return;
   const seg = finishLeg(sim, m.trip);
   afterLeg(sim, m.id, seg.id, m.trip);
+  visitWaystation(sim, m.id, m.trip.at);
   const toll = (sim.graph.nodes.get(m.trip.at).toll?.wagon ?? 0) * m.wagons;
   if (toll) {
     const paid = transfer(sim, account(m), 'treasury', toBits(sim, toll));

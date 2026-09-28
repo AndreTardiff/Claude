@@ -218,6 +218,22 @@ export const WORLD = {
     ransom: { share: 0.2, min: 50, days: 6, lordGenerosity: 600, townKeepsPerHead: 15, killAbove: 650 },
   },
 
+  // Surprise weather (step E4): chance a day, by season, that a stretch of road shuts
+  // without warning, for a few days. `at` is the waypoint travellers get stranded at.
+  weather: {
+    events: [
+      { id: 'flood', at: 'mill-ford', segments: ['meadow-east', 'meadow-west'], seasons: { spring: 0.03, autumn: 0.03 }, days: [2, 4], note: 'the Copperwash is over the ford' },
+      { id: 'snow', at: 'the-saddle', segments: ['high-pass-south', 'high-pass-north'], seasons: { autumn: 0.04, spring: 0.02 }, days: [3, 6], note: 'snow has closed the pass' },
+      { id: 'rockfall', at: 'blackpine', segments: ['blackpine-east', 'blackpine-west'], seasons: { spring: 0.012, summer: 0.008, autumn: 0.012, winter: 0.015 }, days: [2, 5], note: 'a rockfall blocks the gorge' },
+      { id: 'storm', at: 'fenwatch', segments: ['estuary-west', 'estuary-east'], seasons: { autumn: 0.03, winter: 0.04 }, days: [1, 3], note: 'the ferry cannot cross in the storm' },
+    ],
+    // A camp that held this many days, with this many through it, leaves a waystation behind;
+    // a waystation with no guest for this many days closes.
+    camps: { waystationDays: 3, waystationPeople: 3, waystationFades: 40 },
+    fireKm: 8, // travellers camped within this distance share a fire (and their news)
+    fireNewsDays: 8, // the chronicle mentions word of bandits passed round a fire at most this often per road
+  },
+
   // Lord Aldric: temperament, and what he does with a treasury beyond its reserve.
   lord: {
     name: 'Aldric',

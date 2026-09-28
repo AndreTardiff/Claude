@@ -179,7 +179,8 @@ test('a merchant taken on the road is held for ransom, and the house pays to get
       sim.advanceTo(sim.now + (WORLD.raiders.ransom.days + 2) * DAY);
       const fate = sim.state.log.find((x) => ['raid:ransomed', 'raid:released', 'raid:captive-killed'].includes(x.type) && x.who === m.id && x.t > e.t);
       assert.ok(fate, 'a captive is ransomed, released or killed');
-      if (fate.type !== 'raid:captive-killed') assert.ok(!m.captive && m.active);
+      if (fate.type === 'raid:ransomed') assert.ok(fate.bits > 0 && ['house', 'lord', 'town'].includes(fate.payer));
+      // (After that, the house may be ruined by the ransom, or taken again: this band is merciless.)
       assert.equal(moneySupply(sim), booksBalance(sim));
       return;
     }
@@ -281,4 +282,70 @@ test('a band that breaks up sends its people home as labourers', () => {
   }
   const e = sim.state.log.find((x) => x.type === 'raid:disbanded' && x.band === band.id);
   assert.ok(e && !/undefined|NaN/.test(describe(e, sim)));
+});
+
+// ── E4: night and camps ─────────────────────────────────────────────────────
+
+test('surprise closures: nobody knows until they reach the road or hear of it, then they go round or wait', () => {
+  const sim = new Simulation({ seed: 1 });
+  sim.advanceTo(at(3));
+  // Flood the ford by hand.
+  const until = sim.now + 3 * DAY;
+  for (const seg of ['meadow-east', 'meadow-west']) sim.state.weather.closures[seg] = { event: 'flood', at: 'mill-ford', until, note: 'the Copperwash is over the ford' };
+  const before = planJourney(sim, 'kingscross', 'greenhollow', { speedKmh: 3.5, caution: 0.5, holder: 'someone' });
+  assert.ok(before.routes.includes('meadow-road'), 'the flood is not known yet');
+  sim.advanceTo(at(5));
+  // Whoever set out for the ford since has seen it shut, and says so.
+  const told = Object.entries(sim.state.knowledge.holders).filter(([, h]) => h['road:meadow-east']?.what === 'closed' || h['road:meadow-west']?.what === 'closed');
+  assert.ok(told.length > 0, 'somebody found the ford flooded');
+  const [holder] = told[0];
+  const after = planJourney(sim, 'kingscross', 'greenhollow', { speedKmh: 3.5, caution: 0.5, holder });
+  assert.ok(!after || !after.routes.includes('meadow-road'), 'who knows goes round, or waits');
+});
+
+test('the camps experiment: stranded travellers make camp, then leave a hearth or a waystation', () => {
+  let camps = 0;
+  let ends = 0;
+  for (const seed of [1, 2, 3, 4, 5, 6]) {
+    const sim = new Simulation({ seed });
+    sim.advanceTo(at(300));
+    for (const e of sim.state.log.filter((x) => x.type.startsWith('camp:') && x.type !== 'camp:fireside')) {
+      assert.ok(!/undefined|NaN|null/.test(describe(e, sim)), describe(e, sim));
+      if (e.type === 'camp:formed') {
+        camps++;
+        assert.ok(e.people.length >= 2 && sim.graph.nodes.get(e.at).kind === 'waypoint');
+      }
+      if (e.type === 'camp:dispersed' || e.type === 'camp:waystation') {
+        ends++;
+        const place = sim.state.places[e.at];
+        assert.ok(place && ['hearth', 'waystation', 'empty inn'].includes(place.kind));
+      }
+    }
+  }
+  assert.ok(camps >= 2, `${camps} camps in six worlds`);
+  assert.ok(ends >= 1, 'no camp ever ended');
+});
+
+test('a waystation passes news between travellers who never meet', () => {
+  const sim = new Simulation({ seed: 1 });
+  sim.advanceTo(at(2));
+  sim.state.places['mill-ford'] = { kind: 'waystation', name: "Test's Rest", since: sim.now, lastGuest: sim.now };
+  sim.advanceTo(at(40));
+  const inn = sim.state.knowledge.holders['inn:mill-ford'];
+  assert.ok(inn && Object.keys(inn).length > 0, 'the waystation inn has heard things');
+  assert.ok(sim.state.places['mill-ford'].guests > 0);
+});
+
+test('night fires: travellers camped together swap news', () => {
+  let told = 0;
+  for (const seed of [1, 7]) {
+    const sim = new Simulation({ seed });
+    sim.advanceTo(at(150));
+    for (const e of sim.state.log.filter((x) => x.type === 'camp:fireside')) {
+      told++;
+      assert.ok(!/undefined|NaN|null/.test(describe(e, sim)), describe(e, sim));
+      assert.equal(sim.cal.minuteOfDay(e.t), 22 * 60);
+    }
+  }
+  assert.ok(told > 0, 'nobody ever heard of bandits round a fire');
 });

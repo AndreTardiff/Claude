@@ -12,10 +12,12 @@ import { GIVEN_NAMES } from '../data/names.js';
 import { load, round3, traderAccount, unload } from '../economy/market.js';
 import { economyIndex, estimateSale, purchaseCost, quote, saleValue } from '../economy/pricing.js';
 import { believedCash, sellable, stockOnArrival } from './merchants.js';
-import { belief, believedExposure } from './knowledge.js';
+import { belief, believedClosed, believedExposure, reportRoad } from './knowledge.js';
+import { surpriseClosure } from '../world/closures.js';
 import { balance, toBits, transfer } from '../economy/money.js';
 import { swapNews } from './knowledge.js';
 import { afterLeg, onLegStart } from './raiders.js';
+import { visitWaystation } from './roads.js';
 import {
   estimateJourney,
   findPaths,
@@ -113,6 +115,7 @@ export function planRoute(sim, w, from, dest) {
   const caution = (1000 - w.boldness) / 1000;
   const options = [];
   for (const path of findPaths(sim.graph, from, dest, cfg.maxSegments)) {
+    if (path.some((seg) => believedClosed(sim, w.id, seg))) continue; // heard it's shut
     const est = estimateJourney(sim.graph, sim.cal, from, path, sim.now, w.speedKmh);
     if (est.blocked) continue;
     const routes = pathRoutes(sim.graph, path);
@@ -195,10 +198,12 @@ function startLeg(sim, w, depth = 0) {
   const trip = w.trip;
   const segId = trip.path[trip.leg];
   const season = sim.cal.season(sim.cal.nextTravelMoment(sim.now));
-  const minutes = legMinutes(sim.graph, segId, season.id, w.speedKmh);
+  const surprise = surpriseClosure(sim, segId);
+  if (surprise) reportRoad(sim, w.id, segId, { danger: sim.graph.segments.get(segId).danger, what: 'closed', until: surprise.until, note: surprise.note });
+  const minutes = surprise ? null : legMinutes(sim.graph, segId, season.id, w.speedKmh);
   if (minutes === null) {
-    if (depth > 3) throw new Error(`wayfarer ${w.id}: replanning loop at ${trip.at}`);
-    blocked(sim, w, segId, season.id, depth);
+    if (depth > 12) throw new Error(`wayfarer ${w.id}: replanning loop at ${trip.at}`); // each try learns of one more shut road, so this ends
+    blocked(sim, w, segId, season.id, depth, surprise?.note);
     return;
   }
   trip.waiting = false;
@@ -212,9 +217,9 @@ function startLeg(sim, w, depth = 0) {
 }
 
 // The next road is closed. Find another way from here, or wait for it to open.
-function blocked(sim, w, segId, seasonId, depth) {
+function blocked(sim, w, segId, seasonId, depth, surpriseNote = null) {
   const trip = w.trip;
-  const note = segmentConditions(sim.graph, segId, seasonId).note;
+  const note = surpriseNote ?? segmentConditions(sim.graph, segId, seasonId).note;
   const plan = planRoute(sim, w, trip.at, trip.dest);
   if (plan) {
     sim.log('wayfarer:rerouted', { who: w.id, at: trip.at, blocked: segId, note, via: plan.routes });
@@ -254,6 +259,7 @@ function onNode(sim, { id, tripNo }) {
   const travelled = trip.legSeg;
   trip.legSeg = null;
   afterLeg(sim, w.id, travelled, trip);
+  visitWaystation(sim, w.id, trip.at);
   if (trip.at !== trip.dest) {
     startLeg(sim, w);
     return;

@@ -260,6 +260,31 @@ export function describe(entry, sim) {
         ? `Lord Aldric's patrol runs down ${bandName(entry.band)} on the ${r}: ${entry.outlaws === 1 ? 'one outlaw' : `${entry.outlaws} outlaws`} will rob no more.`
         : `${cap(bandName(entry.band))} ambush Lord Aldric's patrol on the ${r}${entry.guard ? `; ${person(entry.guard)}, a guard, is killed` : ''}.`;
     }
+    case 'weather:closed': {
+      const ev = sim.data.weather?.events.find((x) => x.id === entry.event);
+      const road = sim.graph.routes.get(sim.graph.segments.get(ev?.segments[0])?.route)?.name ?? 'road';
+      return `Without warning, ${ev?.note ?? 'the road is shut'} at ${place(entry.at)}: the ${road} is closed for now.`;
+    }
+    case 'weather:opened': {
+      const ev = sim.data.weather?.events.find((x) => x.id === entry.event);
+      const road = sim.graph.routes.get(sim.graph.segments.get(ev?.segments[0])?.route)?.name ?? 'road';
+      return `The ${road} is open again at ${place(entry.at)}.`;
+    }
+    case 'camp:formed': {
+      const names = entry.people.map((p) => campName(sim, p));
+      return `Stranded at ${place(entry.at)}, ${listOf(names)} make camp together and wait for the road.`;
+    }
+    case 'camp:dispersed':
+      return `The camp at ${place(entry.at)} breaks up as the road opens. A cold hearth is left behind; travellers will call it ${entry.name}.`;
+    case 'camp:waystation':
+      return `After ${entry.days} days stranded at ${place(entry.at)}, not everyone moves on: someone stays to sell beds and bread to travellers. ${entry.name} is open.`;
+    case 'camp:waystation-closed':
+      return `Nobody stops at ${entry.name} any more; the waystation at ${place(entry.at)} stands empty.`;
+    case 'camp:fireside': {
+      const where = entry.at ? `at ${place(entry.at)}` : `on the ${sim.graph.routes.get(sim.graph.segments.get(entry.seg)?.route)?.name ?? 'road'}`;
+      const band = entry.band;
+      return `Around a campfire ${where}, ${campName(sim, { id: entry.hearer })} hears from ${campName(sim, { id: entry.teller })} of ${band ? bandName(band) : 'bandits'} on the ${sim.graph.routes.get(sim.graph.segments.get(entry.road)?.route)?.name ?? 'road'}.`;
+    }
     case 'lord:patrol':
       return `Lord Aldric sends ${entry.guards} guards to ride the ${sim.graph.routes.get(entry.route)?.name ?? entry.route} for ${entry.days} days.`;
     case 'lord:patrol-home':
@@ -325,3 +350,16 @@ function encounterText(e, { place, person, bandName, segRoad, amount, sim }) {
       return `${Band} trouble ${name} on ${road}.`;
   }
 }
+
+// A traveller's name for the chronicle, whoever they are.
+function campName(sim, { id }) {
+  const m = getMerchant(sim, id);
+  if (m) return m.name;
+  const w = getWayfarer(sim, id);
+  if (w) return `${w.name} the ${tradeName(sim, w)}`;
+  const r = getRider(sim, id);
+  if (r) return `${r.name} of the post`;
+  return 'a traveller';
+}
+
+const listOf = (items) => (items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`);

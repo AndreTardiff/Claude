@@ -65,8 +65,13 @@ killed outright; nights get eventful plus a lab toggle to fast-forward quiet nig
       The lord's patrols (`lord.patrol`): guards ride a road his seat believes dangerous; lookouts spot less, fights
       go worse for bands, bands fear the road and may be run down. Balance (5 worlds × 400 days): 1–2 bands of 4–16,
       12–23 encounters per 100 days, a few town raids, rare breakups.
-- [ ] **E4**: night and camps: fireside news, night raids (already: `steal`), lab fast-nights toggle; surprise
-      closures and the camps experiment (§17.2).
+- [x] **E4** *(done: `src/systems/roads.js`, `src/world/closures.js`)*: surprise weather (flood at Mill Ford, snow on
+      the High Pass, rockfall in Blackpine, storm at the Fenwatch ferry) shuts roads without warning; travellers learn
+      by reaching them (`road:` record `what: 'closed'`) or hearing of it, and planners skip roads believed shut.
+      Stranded travellers at a waypoint make camp; a camp ends as a named cold hearth or, if it held ≥3 days with ≥3
+      people, a waystation whose inn (`inn:<waypoint>`) swaps news with everyone passing; unvisited ones close.
+      At 22:00 travellers camped within 8 km share a fire and their news (`swapBetween`). Night raids are the
+      bands' `steal`. Lab: "Skip quiet nights" (20× at night).
 - [ ] **E5**: lab (bands, hideouts, danger shading, band inspector, encounter reports, lab tool to summon a band:
       `lab:band` command exists), spec §11 as built, spec §20 status line (stale), site entry.
 
