@@ -286,7 +286,9 @@ kbd {
 .chronicle[data-filter="travel"] li:not([data-kind="travel"]),
 .chronicle[data-filter="trade"] li:not([data-kind="trade"]),
 .chronicle[data-filter="roads"] li:not([data-kind="roads"]),
-.chronicle[data-filter="lord"] li:not([data-kind="lord"]) { display: none; }
+.chronicle[data-filter="lord"] li:not([data-kind="lord"]),
+.chronicle[data-filter="blades"] li:not([data-kind="blades"]),
+.chronicle[data-filter="you"] li:not([data-kind="you"]) { display: none; }
 .chronicle li.entry-market, .chronicle li.entry-town { color: var(--text); }
 .chronicle li.entry-resident { color: var(--text); font-style: italic; }
 .chronicle li.entry-lab { background: var(--accent-soft); padding-left: 0.4rem; padding-right: 0.4rem; }

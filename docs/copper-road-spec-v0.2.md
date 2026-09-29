@@ -1,7 +1,7 @@
 # Caravans of the Copper Road
-## Simulation Prototype Design Specification — v0.2.8
+## Simulation Prototype Design Specification — v0.2.9
 
-*v0.2.8 adds: standing orders, fame and infamy as news, and Lord Aldric's travels, as built in step F (§12.3, §13.1, §15.2.2). v0.2.7 added: sellswords, gear that remembers, and deed-earned ranks, as built in step F (§12.1–§12.3). v0.2.6 added: raiders as built in step E (§11.1), the camps experiment (§17.2), and nights (§17.3). v0.2.5 added: Lord Aldric as an engaged character (§15.2.1), and the Crown's due as a share of his income (§8.6). v0.2.4 added: knowledge and the lord's post as built in step D1 (§5.4), merchants, caravans, the ships' coin and peddlers as built in steps D2–D3 (§10.1, §10.2). v0.2.3 added: coin and famine as built in step C (§8.6, §8.7) and map tooltips. v0.2.2 added step B's economy as built (§8.5), traveller livelihoods (§10.1), the living map from camps to towns (§17.2) and winter's rewards (§16). v0.2.1 added the player's starting situation, Lord Aldric and drifting names (§15.1, §15.2, §17.1). Supersedes v0.1 ([original document](copper-road-spec-v0.1.docx)). Status: prototype design authority. Target: a headless simulation core with a browser prototype (HTML5 canvas). Godot is a later option if we decide to go big.*
+*v0.2.9 adds: the player as built in step G (§4.3), with the first T2 findings (§21). v0.2.8 added: standing orders, fame and infamy as news, and Lord Aldric's travels, as built in step F (§12.3, §13.1, §15.2.2). v0.2.7 added: sellswords, gear that remembers, and deed-earned ranks, as built in step F (§12.1–§12.3). v0.2.6 added: raiders as built in step E (§11.1), the camps experiment (§17.2), and nights (§17.3). v0.2.5 added: Lord Aldric as an engaged character (§15.2.1), and the Crown's due as a share of his income (§8.6). v0.2.4 added: knowledge and the lord's post as built in step D1 (§5.4), merchants, caravans, the ships' coin and peddlers as built in steps D2–D3 (§10.1, §10.2). v0.2.3 added: coin and famine as built in step C (§8.6, §8.7) and map tooltips. v0.2.2 added step B's economy as built (§8.5), traveller livelihoods (§10.1), the living map from camps to towns (§17.2) and winter's rewards (§16). v0.2.1 added the player's starting situation, Lord Aldric and drifting names (§15.1, §15.2, §17.1). Supersedes v0.1 ([original document](copper-road-spec-v0.1.docx)). Status: prototype design authority. Target: a headless simulation core with a browser prototype (HTML5 canvas). Godot is a later option if we decide to go big.*
 
 > **What changed in v0.2, in one breath.** The player is now a *person in one place* who learns about the world through letters that travel at road speed. There are two theses to prove, not one: the world must be worth watching, *and* the player's choices must be hard and meaningful. The closed three-town economy is opened with seasons, an Outside port, a copper mint, and money sinks that grow with a merchant's wealth. Every citizen does economic work, and the player's home town gets full Ultima VII-style daily schedules. Raiders fence, starve, recruit and bury treasure. Caravans leave with standing orders. Style modules (place names earned by history, ledger UI, songs, the Wending Fair) are scheduled in, each tied to a prototype question.
 
@@ -59,6 +59,28 @@ The player is a **physical person** with a location. This was chosen over an all
 4. **House (post-prototype).** A network of factors, warehouses and routes, managed through correspondence.
 
 The move from "I know my town" to "I manage people who know their towns" *is* the progression system.
+
+### 4.3 The player, as built in step G
+- **Start (§15.1):** the heir to the family stall in Kingscross (8 bolts of cloth, 4 tools, 3 sacks of salt), the family wagon, 40 marks, an old porter, and a 300-mark note owed to Ansel Crabbe the money-changer. Two letters from the parent's old contacts are still on the road.
+- **Knowledge:** you see your own town's market and hear its inn. Everything else reaches you by letter (couriers, factors), rumour, your caravans' crews when they come in, or your own eyes when you go.
+- **Commands** (everything is `sim.command`, so it replays exactly):
+  - buy and sell where you stand; your goods live in stores in each town, with what they cost;
+  - send a caravan from your stores: a good, a road (fastest, balanced, safest), guards (as the danger warrants, or 0–4), standing orders (§13.1), and what to do on arrival (sell or not; then wait, come home, or store it there). You can ride with it;
+  - give orders to a caravan standing where you are;
+  - ride somewhere alone;
+  - send a courier with orders for a far caravan (it waits a few days for one on its way) who brings that town's board back. Couriers can be robbed and the orders lost;
+  - borrow and repay (only in Kingscross, only against what you're worth);
+  - buy or sell a wagon; hire or dismiss a factor.
+- **Same rules:** your caravans are merchant records run by your commands instead of the AI. They travel, sell, pay crews and tolls, hire sellswords and meet bands by the very same code. The lord's "borrowing" from the rich applies to you too.
+- **Stakes:**
+  - The changer's due each season is interest (2%) plus 4% of the principal. Two missed payments and his man seizes your coin and sells off the stall (a named collector).
+  - Nothing left and still owing: you are bonded to a rival house for 30 days, and half the debt is written off.
+  - Ride with a caravan that loses a fight and you may be killed (15%). Your heir, the next of the family, takes up the ledger, the stores and the debt. Or you are taken for ransom.
+- **Factors** (§4.2 stage 3): hired in person in another town for a mark a day (unpaid wages pile up; they quit after 12 days).
+  - They write home every three days by courier, and the letter can be robbed.
+  - They sell your goods stored there when the price is 10% over its worth.
+  - Each has a hidden honesty, and some skim.
+- **Player bots** (`src/bots/trader.js`) play by commands only. *smart* rides with its caravan and trades from wherever it stands, using the houses' own scoring on its own price lists; it sells only above cost (or carries on) and never stakes more than two thirds of its purse. *fixed* carries one good down one road.
 
 ## 5. Information system (new core system)
 
@@ -594,7 +616,7 @@ Simulation state is separate from rendering. The simulation is data-driven: good
 
 The browser page on the site grows with the project: A–G show headless charts and logs; H onward is playable.
 
-**Status (September 2026):** A to F are complete. D added knowledge records and the lord's post (§5.4), merchant houses and caravans, the ships' coin and peddlers (§10). Between D and E, Lord Aldric became an engaged character who spends his treasury (§15.2.1). E added raider bands, road news, encounters and ransom, the raiders' economy, the lord's patrols, surprise weather, camps and waystations, and news round the night's fires (§11.1, §17.2). F added sellswords, gear that remembers, and deed-earned ranks and traits (§12.1–§12.2), fame and infamy as news (§12.3), standing orders (§13.1), and Lord Aldric judging by what he hears and riding out into his lands (§15.2.2). G (the player) is next.
+**Status (September 2026):** A to G are complete. D added knowledge records and the lord's post (§5.4), merchant houses and caravans, the ships' coin and peddlers (§10). Between D and E, Lord Aldric became an engaged character who spends his treasury (§15.2.1). E added raider bands, road news, encounters and ransom, the raiders' economy, the lord's patrols, surprise weather, camps and waystations, and news round the night's fires (§11.1, §17.2). F added sellswords, gear that remembers, and deed-earned ranks and traits (§12.1–§12.2), fame and infamy as news (§12.3), standing orders (§13.1), and Lord Aldric judging by what he hears and riding out into his lands (§15.2.2). G added the player: a stall, a debt, caravans, couriers, factors, death and heirs (§4.3); the lab has a panel to play it. H (the canvas client) is next.
 
 ## 21. Acceptance tests
 **AT-01 to AT-15 are kept from v0.1** (autonomy, price response, merchant response, physical trade, disruption, competition, risk sensitivity, day cycle, persistent death, contextual experience, combat explanation, player parity, debug legibility, performance, interest test).
@@ -613,7 +635,9 @@ New tests:
 | AT-24 | Raider ecology | Unemployment raises raider recruitment; a starving winter shifts raids or disbands a group |
 | AT-25 | Winter pays | The best winter trips earn more per journey than the best summer trips, even though they take longer |
 
-Automated so far: gates A–E, AT-03, AT-04, AT-06, AT-07, AT-13, AT-21 (letters stolen from the post), AT-24 (both halves), AT-25; and before them the step A and B gates, AT-02 (price response to a forced shortage), AT-09 (a death leaves a vacancy that an apprentice fills), the seasonal half of AT-22, and a preview of AT-07 (bold and wary travellers choose different roads).
+**Step G findings (T2):** AT-17 passes: no fixed good-and-road policy was the best in more than 2 of 8 worlds. AT-18 passes: a factor in Copperford leaves the player richer across 10 worlds, net of his wage (very noisy world by world). **AT-16 does not pass yet**: the smart bot beats the median house by 20% in about 2 of 10 worlds (typically +1,200 marks a year against the median house's +2,900). It starts smaller and in debt, and the houses already play near-optimally on the same information. The player's edges (being there, couriers, factors) aren't yet worth much. Per §22, the next moves are information decisions, courier redirects and contracts, not more content.
+
+Automated so far: gates A–E, AT-03, AT-04, AT-06, AT-07, AT-13, AT-21 (letters stolen from the post), AT-24 (both halves), AT-25, AT-10 (Forestwise), AT-17, AT-18 (step G), and AT-16 as a recorded measurement; and before them the step A and B gates, AT-02 (price response to a forced shortage), AT-09 (a death leaves a vacancy that an apprentice fills), the seasonal half of AT-22, and a preview of AT-07 (bold and wary travellers choose different roads).
 
 ## 22. Continue / revise / kill
 The v0.1 table is kept, plus:

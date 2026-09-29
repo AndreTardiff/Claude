@@ -54,6 +54,8 @@ and the home of **Caravans of the Copper Road**, a living-world merchant simulat
 - Lord Aldric judges towns by what he has heard (knowledge holder `lord`), not the truth; his travels live in
   `src/systems/progress.js`. Encounters follow standing orders (`src/systems/orders.js`). Fame and infamy are
   knowledge records (`fame:<id>`) and spread like any news.
+- The player (`src/systems/player.js`) acts only through `player:*` commands. Their caravans are merchant records
+  with `player: true` and `account: 'player'` (left out of `activeMerchants`). Bots (`src/bots/`) play by commands only.
 - Travellers judge roads by what they believe (`road:<segment>` knowledge records), never by where the bands are;
   only the lab sees the truth.
 

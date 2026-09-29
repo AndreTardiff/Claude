@@ -43,6 +43,7 @@ import { createMoneyPanel } from './money.js';
 import { createHousesPanel } from './houses.js';
 import { createLordPanel } from './lord.js';
 import { createMercsPanel, itemButton, mercDoing } from './mercs.js';
+import { createPlayerPanel } from './player.js';
 import { esc, goodOf, money, moneyBits, pct, placeName, qty } from './format.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -53,7 +54,7 @@ const SPEEDS = [0, 1, 5, 20, 100];
 const CHRONICLE_MAX = 200;
 const NIGHT_BOOST = 20;
 // Which chronicle filter each kind of entry belongs to.
-const FAMILY_KIND = { wayfarer: 'travel', post: 'travel', merchant: 'trade', raid: 'roads', camp: 'roads', weather: 'roads', lord: 'lord', merc: 'blades', item: 'blades' };
+const FAMILY_KIND = { wayfarer: 'travel', post: 'travel', merchant: 'trade', raid: 'roads', camp: 'roads', weather: 'roads', lord: 'lord', merc: 'blades', item: 'blades', player: 'you' };
 const MODES = [
   { id: 'wagon', label: 'Wagon (3.5 km/h)', kmh: 3.5 },
   { id: 'foot', label: 'On foot (4 km/h)', kmh: 4 },
@@ -96,6 +97,14 @@ const opportunities = createOpportunityPanel($('#opps'), {
 });
 const moneyPanel = createMoneyPanel($('#money'));
 const housesPanel = createHousesPanel($('#houses'), { onSelect: (id) => select({ kind: 'merchant', id }) });
+const playerPanel = createPlayerPanel($('#player'), {
+  getSim: () => sim,
+  onChange() {
+    renderMarkets(true);
+    renderInspector();
+  },
+  onSelectMerc: (id) => select({ kind: 'merc', id }),
+});
 const mercsPanel = createMercsPanel($('#mercs'), {
   onSelect: (id) => select({ kind: 'merc', id }),
   onSelectItem: (id) => select({ kind: 'item', id }),
@@ -130,6 +139,7 @@ function newWorld(seed) {
   housesPanel.render(sim);
   mercsPanel.render(sim);
   lordPanel.render(sim);
+  playerPanel.render(sim);
 }
 
 // ── Time ─────────────────────────────────────────────────────────────────────
@@ -178,6 +188,7 @@ function frame(now) {
     housesPanel.render(sim);
     mercsPanel.render(sim);
     lordPanel.render(sim);
+    playerPanel.render(sim);
   }
   requestAnimationFrame(frame);
 }
