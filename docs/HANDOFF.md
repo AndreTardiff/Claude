@@ -15,7 +15,8 @@ Read this first when resuming in a fresh session. It's updated at every checkpoi
 | D: merchants, caravans, knowledge, couriers | done |
 | E0: Lord Aldric as an engaged character | done |
 | E: raiders, road news, weather, camps | done |
-| **F: mercenaries, experience, encounters, standing orders** | **in progress** (F1–F4 sim done; F5 lab and docs next) |
+| F: mercenaries, experience, encounters, standing orders, the lord's travels | done |
+| **G: the player (located, trades, dispatches, letters, travels, debt)** | **next** |
 
 ## Step D plan (checkpoints)
 
@@ -109,10 +110,11 @@ armour, belief-driven charms and very rare true relics; gear gains tiers and nam
       days; reports name the order. Fame: renown from deeds (`addFame`), witnessed as `fame:<id>` knowledge records
       that spread like any news; employers weigh what the inn says, wages rise with fame, lookouts fear known names.
       Bands earn infamy; the bounty grows with it. Racks scrap plain gear after 120 days.
-- [ ] **F5**: lab (lord on the map and his trips, orders in the merchant inspector, fame/infamy in panels), spec
-      v0.2.8, site entry. Then step F is done. Later: loyalty, claimed vs true histories.
-- [ ] (old line) **F4c–e**: standing orders (fight / pay / flee, cargo priority, night travel) replace the temper rules in `resolve()`;
-      fame and infamy spread as news; the lord hires sellswords for patrols.
+- [x] **F5** *(done)*: lab: the lord's party on the map (pennant), lord inspector (where, why, party, what he has
+      heard beside the truth, trips weighed), lab tool "Send Lord Aldric to see the town", orders in the merchant
+      inspector, fame column and "told of at" in sellsword/band inspectors, band arms and bounty; spec v0.2.8; site.
+      **Step F is done.** Parked for later: loyalty to employers, claimed vs true histories when hiring, the lord's
+      age, death and heir, thieves and corruption beyond the steward.
 
 **Earlier plan text: step F (mercenaries, experience, encounters, standing orders)**, spec §12–§13. Raiders give them a job:
 merchants hire guards (who add to `def` in `resolve()` in `src/systems/raiders.js`), guards gain experience from

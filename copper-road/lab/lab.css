@@ -453,3 +453,6 @@ button.linkish.gear { text-decoration: none; border-bottom: 1px dotted var(--acc
 button.linkish.gear.tempered { font-weight: 600; }
 button.linkish.gear.named { font-weight: 600; font-style: italic; border-bottom-style: solid; }
 .sub-h { font-size: 1.05rem; margin: 1rem 0 0.3rem; }
+
+/* Lord Aldric's party on the map (step F): a pennant */
+.lg.lordflag { width: 9px; height: 9px; border: none; background: var(--accent); clip-path: polygon(0 0, 100% 35%, 20% 60%, 20% 100%, 0 100%); }

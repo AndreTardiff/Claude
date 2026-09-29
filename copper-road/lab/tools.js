@@ -23,6 +23,9 @@ export function createToolsPanel(root, { getSim, onChange }) {
       <label>Hideout <select data-tool="hideout"></select></label>
       <button type="button" data-act="band">Send 6 outlaws there</button>
     </div>
+    <div class="tool-row">
+      <button type="button" data-act="lord">Send Lord Aldric to see the town</button>
+    </div>
     <p class="tool-result hint" aria-live="polite"></p>`;
   const town = root.querySelector('[data-tool="town"]');
   const good = root.querySelector('[data-tool="good"]');
@@ -65,6 +68,11 @@ export function createToolsPanel(root, { getSim, onChange }) {
     if (act === 'deliver') sim.command('lab:deliver', { at: town.value, good: good.value, qty: 30 });
     if (act === 'coin') sim.command('lab:coin', { at: town.value, marks: 100 });
     if (act === 'band') sim.command('lab:band', { hideout: hideout.value, members: 6 });
+    if (act === 'lord') {
+      const st = sim.state.lord;
+      if (st.away || st.captive || town.value === st.seat) result.textContent = st.away || st.captive ? 'Lord Aldric is not at home.' : 'He is already there.';
+      else sim.command('lab:lord-trip', { to: town.value, trip: sim.graph.nodes.get(town.value).outside ? 'ships' : 'tour' });
+    }
     if (act === 'death') {
       if (!trade.value) {
         result.textContent = 'Nobody in that trade lives there.';

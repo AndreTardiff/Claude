@@ -1,7 +1,7 @@
 # Caravans of the Copper Road
-## Simulation Prototype Design Specification — v0.2.7
+## Simulation Prototype Design Specification — v0.2.8
 
-*v0.2.7 adds: sellswords, gear that remembers, and deed-earned ranks, as built in step F (§12.1–§12.3). v0.2.6 added: raiders as built in step E (§11.1), the camps experiment (§17.2), and nights (§17.3). v0.2.5 added: Lord Aldric as an engaged character (§15.2.1), and the Crown's due as a share of his income (§8.6). v0.2.4 added: knowledge and the lord's post as built in step D1 (§5.4), merchants, caravans, the ships' coin and peddlers as built in steps D2–D3 (§10.1, §10.2). v0.2.3 added: coin and famine as built in step C (§8.6, §8.7) and map tooltips. v0.2.2 added step B's economy as built (§8.5), traveller livelihoods (§10.1), the living map from camps to towns (§17.2) and winter's rewards (§16). v0.2.1 added the player's starting situation, Lord Aldric and drifting names (§15.1, §15.2, §17.1). Supersedes v0.1 ([original document](copper-road-spec-v0.1.docx)). Status: prototype design authority. Target: a headless simulation core with a browser prototype (HTML5 canvas). Godot is a later option if we decide to go big.*
+*v0.2.8 adds: standing orders, fame and infamy as news, and Lord Aldric's travels, as built in step F (§12.3, §13.1, §15.2.2). v0.2.7 added: sellswords, gear that remembers, and deed-earned ranks, as built in step F (§12.1–§12.3). v0.2.6 added: raiders as built in step E (§11.1), the camps experiment (§17.2), and nights (§17.3). v0.2.5 added: Lord Aldric as an engaged character (§15.2.1), and the Crown's due as a share of his income (§8.6). v0.2.4 added: knowledge and the lord's post as built in step D1 (§5.4), merchants, caravans, the ships' coin and peddlers as built in steps D2–D3 (§10.1, §10.2). v0.2.3 added: coin and famine as built in step C (§8.6, §8.7) and map tooltips. v0.2.2 added step B's economy as built (§8.5), traveller livelihoods (§10.1), the living map from camps to towns (§17.2) and winter's rewards (§16). v0.2.1 added the player's starting situation, Lord Aldric and drifting names (§15.1, §15.2, §17.1). Supersedes v0.1 ([original document](copper-road-spec-v0.1.docx)). Status: prototype design authority. Target: a headless simulation core with a browser prototype (HTML5 canvas). Godot is a later option if we decide to go big.*
 
 > **What changed in v0.2, in one breath.** The player is now a *person in one place* who learns about the world through letters that travel at road speed. There are two theses to prove, not one: the world must be worth watching, *and* the player's choices must be hard and meaningful. The closed three-town economy is opened with seasons, an Outside port, a copper mint, and money sinks that grow with a merchant's wealth. Every citizen does economic work, and the player's home town gets full Ultima VII-style daily schedules. Raiders fence, starve, recruit and bury treasure. Caravans leave with standing orders. Style modules (place names earned by history, ledger UI, songs, the Wending Fair) are scheduled in, each tied to a prototype question.
 
@@ -389,8 +389,13 @@ Andre's direction (September 2026): mercenaries carry gear and level up, RPG-sty
 - **Scute coats**, laced from the Old Carrier's shed shell plates, are the best armour and never wear. The region starts with one.
 - **Charms work by belief.** A charm's *repute* rises when its wearer survives a lost fight and falls when they are badly hurt or killed. The repute steadies or shakes whoever wears it next. Very rarely (4%) a charm is a **true relic** that helps unbelieved and halves its wearer's chance of dying. Only the lab can see which.
 
-### 12.3 Next (F4)
-Standing orders (§13) replace the merchant's temper in the encounter rules. Fame and infamy spread as news, the way prices and road reports do, and change wages and whom bands dare to attack. The lord hires sellswords for his patrols. Loyalty and imperfect hiring information follow.
+### 12.3 Fame and infamy, as built (step F)
+- **Renown from deeds:** a band beaten off 1, an outlaw cut down 1, a lord kept safe in a fight 2, a new rank 1, carrying a piece when it earns its name 2. The chronicle notes three thresholds (5: *spoken of*, 15: *famed*, 30: *songs*).
+- **It travels as news.** Everyone at a fight learns who fought (a knowledge record `fame:<id>`), and tells it at inns and campfires like prices and road reports, a little embellished in the retelling. So a name is known where the story has reached, and not yet elsewhere.
+- **What a name does:** an employer weighs what the town's inn says of a sellsword when hiring, and pays for it (a famous blade's day rate rises, up to a mark more). A band's lookouts hear the talk in their fence's tavern, and **guards whose names they know count for more**, both in the reckoning and in the fight.
+- **Infamy:** bands earn it (a robbery 1, a death 1, a merchant taken 3, the lord taken 10), spread the same way. The bounty the lord sets on a band grows with its name.
+- **Sellswords on patrol:** when the lord sends a patrol, sellswords waiting at his seat ride with it. They are paid when it comes home, and live through its clashes like any fight.
+- **Later:** loyalty to an employer (pay, survival, orders), and hiring on *claimed* histories you can check by letter.
 
 ## 13. Automatic encounters and standing orders
 Resolution is as in v0.1: automatic, factor-based, with bounded randomness, explained afterwards. **New: standing orders** are set before dispatch:
@@ -404,6 +409,13 @@ Resolution is as in v0.1: automatic, factor-based, with bounded randomness, expl
 | On bad news (courier) | Continue / return / divert to X |
 
 Orders are shown in the after-action report ("Per your orders, Gregor dropped the grain and ran; 2 guards survived who otherwise would not have"). They also affect mercenary loyalty.
+
+### 13.1 Standing orders, as built (step F)
+- **Orders:** *when threatened*: fight (refuse a toll, stand if attacked), toll (pay if asked, stand if attacked), or flee (run from anything). *Give way when outnumbered*: pay or run when the band looks 1.5, 2 or 3 times stronger, or never. *Cargo*: drop (cut the load loose when running, and everyone gets away) or hold (a running fight at worse odds). *Night*: a double watch (15% more wages; thieves wake it more often) or the usual single watch.
+- **Who sets them:** merchants set them from their temper; wayfarers and the lord go by temper too, and the player will set their own (step G). Timid merchants pay tolls, give way early and keep a double watch. The boldest fight and give way only at three to one.
+- **They change with experience:** a lost fight that cost lives, or a merchant taken for ransom, makes a house warier (pay rather than fight, give way sooner). A band beaten off with guards along makes a toll-payer bolder. Two quiet months later, the orders drift back to the merchant's temper.
+- **Reports say so:** "Per Agnes Tallis's orders, they cut the load loose and ran from a band 2.8 times their strength; everyone got away."
+- Loyalty (how orders treat the guards) is still to come.
 
 ## 14. History, reports, emergent narrative
 v0.1 reports stay (dispatch, encounter, market news, personal and item history, world events). New additions:
@@ -445,6 +457,18 @@ A full treasury shouldn't sit still. Aldric spends it, and how he spends it depe
 - **The steward's fingers:** when the treasury holds more than 800 marks, 1% a day of the excess goes missing and is buried. The skimming is noticed at the season's end. It's the first thread for thieves, bribes and corruption.
 - **Why it matters:** his spending pulls the treasury under the Mint's target, so the Mint keeps striking and buying Copperford's ore; relief feeds hungry towns through the merchants; works change what towns can hold and grow. Over 200 days he typically spends ~1,000–1,500 marks on relief and finishes two or three works, and famine deaths fall further.
 - **Next, from Andre's list:** bribes, corruption and thieves (with the mercenaries), wants that change with events, his age, death and heir.
+
+#### 15.2.2 Lord Aldric's travels, as built in step F (Andre's direction)
+- **He judges by what he has heard.** The lord has his own knowledge: the post's letters and the talk at the inn where he is. Price lists now carry each town's hunger, so a famine reaches him days late, by letter, and old or worrying news makes him want to go and see.
+- **Trips** are weighed apart from his spending, at most every 18 days, and taken about half the times one scores well:
+  - **tour:** a town with stale or worrying news. He sees its market and hunger for himself, gives alms if it is poor and he is generous, and decides on the spot.
+  - **hunt:** a day in the Blackpine when he's pleased with himself. It brings glory (pride) or a fall (eight days abed, nothing decided).
+  - **the ships:** a visit to Saltmouth to buy fine things; the coin leaves the region.
+  - **ride:** with a patrol, down a road whose outlaws have angered him (his post robbed, his patrol ambushed, himself attacked).
+- **His party** is his household guard plus sellswords hired at his seat (more if he believes the road dangerous) and a purse. Where he stays, his household buys bread and fine things in the market and pays the town's households.
+- **The richest mark on the road:** a band reckons a lord worth a great ransom and will gamble on worse odds for him. Taken, he is held until the steward pays from the treasury, or the seat's households are squeezed. A band that isn't paid asks for less. Freed, he is furious: a **bounty** on the band (8 marks a head, more for a band with a name, paid to whoever kills them) and a grudge that sends him riding with his patrols.
+- **While he's away** his steward's fingers grow three times bolder.
+- In test worlds he rides out about once a month. Most trips are tours; bands attack his party a few times a year and have taken him.
 
 **Deferred:** the player turning fence or raider (§23). Revisit when raider ecology (step E) and the player (step G) both exist.
 
@@ -570,7 +594,7 @@ Simulation state is separate from rendering. The simulation is data-driven: good
 
 The browser page on the site grows with the project: A–G show headless charts and logs; H onward is playable.
 
-**Status (September 2026):** A to E are complete. D added knowledge records and the lord's post (§5.4), merchant houses and caravans, the ships' coin and peddlers (§10). Between D and E, Lord Aldric became an engaged character who spends his treasury (§15.2.1). E added raider bands, road news, encounters and ransom, the raiders' economy, the lord's patrols, surprise weather, camps and waystations, and news round the night's fires (§11.1, §17.2). F (in progress) has added sellswords, gear that remembers, and deed-earned ranks and traits (§12.1–§12.2); standing orders and fame are next (§12.3).
+**Status (September 2026):** A to F are complete. D added knowledge records and the lord's post (§5.4), merchant houses and caravans, the ships' coin and peddlers (§10). Between D and E, Lord Aldric became an engaged character who spends his treasury (§15.2.1). E added raider bands, road news, encounters and ransom, the raiders' economy, the lord's patrols, surprise weather, camps and waystations, and news round the night's fires (§11.1, §17.2). F added sellswords, gear that remembers, and deed-earned ranks and traits (§12.1–§12.2), fame and infamy as news (§12.3), standing orders (§13.1), and Lord Aldric judging by what he hears and riding out into his lands (§15.2.2). G (the player) is next.
 
 ## 21. Acceptance tests
 **AT-01 to AT-15 are kept from v0.1** (autonomy, price response, merchant response, physical trade, disruption, competition, risk sensitivity, day cycle, persistent death, contextual experience, combat explanation, player parity, debug legibility, performance, interest test).

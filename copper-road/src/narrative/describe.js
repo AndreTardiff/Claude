@@ -345,6 +345,8 @@ export function describe(entry, sim) {
       return entry.result === 'glory' ? `Lord Aldric brings down a great stag in ${place(entry.at)}; they'll talk of it at his table all season.`
         : entry.result === 'hurt' ? `Lord Aldric is thrown from his horse hunting in ${place(entry.at)}, and will keep to his bed for ${entry.days} days.`
           : `Lord Aldric hunts in ${place(entry.at)} and comes back with nothing but mud.`;
+    case 'lord:lab-trip':
+      return `The experimenter sends Lord Aldric to ${place(entry.to)}.`;
     case 'lord:home':
       return `Lord Aldric is home at Kingscross after ${entry.days} day${entry.days === 1 ? '' : 's'} away.`;
     case 'lord:freed': {

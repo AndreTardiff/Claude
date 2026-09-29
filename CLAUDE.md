@@ -51,6 +51,9 @@ and the home of **Caravans of the Copper Road**, a living-world merchant simulat
 - Sellswords (`src/systems/mercs.js`) are residents too; gear is made from market goods via `useUp` and paid for
   by `transfer()`; every item is in exactly one place (a sellsword, a rack, a band, a wagon, or lost). Growth is slow by
   design (Andre): ranks from deeds, the most-trained stat rises; items earn tiers and names through use.
+- Lord Aldric judges towns by what he has heard (knowledge holder `lord`), not the truth; his travels live in
+  `src/systems/progress.js`. Encounters follow standing orders (`src/systems/orders.js`). Fame and infamy are
+  knowledge records (`fame:<id>`) and spread like any news.
 - Travellers judge roads by what they believe (`road:<segment>` knowledge records), never by where the bands are;
   only the lab sees the truth.
 

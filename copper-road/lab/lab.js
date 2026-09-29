@@ -100,7 +100,7 @@ const mercsPanel = createMercsPanel($('#mercs'), {
   onSelect: (id) => select({ kind: 'merc', id }),
   onSelectItem: (id) => select({ kind: 'item', id }),
 });
-const lordPanel = createLordPanel($('#lord'), { onSelectTown: (id) => select({ kind: 'node', id }) });
+const lordPanel = createLordPanel($('#lord'), { onSelectTown: (id) => select({ kind: 'node', id }), onSelectLord: () => select({ kind: 'lord', id: 'lord' }) });
 const tools = createToolsPanel($('#tools'), {
   getSim: () => sim,
   onChange() {
@@ -246,6 +246,7 @@ function renderInspector() {
       : selected.kind === 'rider' ? riderHtml(selected.id)
       : selected.kind === 'band' ? bandHtml(selected.id)
       : selected.kind === 'merc' ? mercHtml(selected.id)
+      : selected.kind === 'lord' ? lordHtml()
       : selected.kind === 'item' ? itemHtml(selected.id)
       : selected.kind === 'resident' ? residentHtml(selected.id)
         : nodeHtml(selected.id);
@@ -387,10 +388,54 @@ function merchantHtml(id) {
       <dt>Ventures</dt><dd>${m.trades}, ${m.losses} at a loss · ${moneyBits(m.profit)} profit</dd>
       <dt>Spent at home</dt><dd>${moneyBits(m.spent)}${m.loaned ? ` · "lent" the lord ${moneyBits(m.loaned)}` : ''}</dd>
       ${m.wasWayfarer ? '<dt>Began as</dt><dd>a peddler on the roads</dd>' : ''}
+      ${m.orders ? `<dt>Orders</dt><dd>${esc(ORDER_TEXT[m.orders.threatened])}${m.orders.outnumbered ? `; give way to a band ${m.orders.outnumbered}× their strength` : ''}; running, ${m.orders.cargo === 'drop' ? 'cut the load loose' : 'hold on to the load'}; ${m.orders.night === 'watch' ? 'a double watch at night' : 'a single watch at night'}${m.ordersChanged ? ` <span class="dim">(changed ${esc(sim.cal.format(m.ordersChanged.t).stamp)}: ${esc(m.ordersChanged.why)})</span>` : ''}</dd>` : ''}
       ${m.trip?.guards?.length ? `<dt>Guards</dt><dd>${m.trip.guards.map((gid) => `<button class="linkish" data-merc="${esc(gid)}">${esc(mercName(sim, gid))}</button>`).join(', ')}</dd>` : ''}
     </dl>
     ${why}${knows}${book}`;
 }
+
+const ORDER_TEXT = { fight: 'refuse a toll and stand if attacked', toll: 'pay a toll if asked; stand if attacked', flee: 'run from any band' };
+
+// ── Lord Aldric on the road (step F) ───────────────────────────────────────
+
+function lordHtml() {
+  const st = sim.state.lord;
+  if (!st) return '';
+  const cfg = sim.data.lord.travel;
+  const where = st.captive ? `<span class="bad">Held for ransom</span> by ${esc(getBand(sim, st.captive.band)?.name ?? 'outlaws')}: they want ${moneyBits(st.captive.ransom)}.`
+    : !st.away ? `At home in <strong>${esc(place(st.seat))}</strong>.`
+      : st.away.phase === 'staying' ? `At <strong>${esc(place(st.at))}</strong>, leaving ${esc(sim.cal.format(st.away.until).stamp)}.`
+        : st.trip ? tripStatus(st.trip, st.away.phase === 'home' ? 'Riding home:' : 'Riding out:') : 'On the road.';
+  const escort = (st.trip?.guards ?? []).map((gid) => `<button class="linkish" data-merc="${esc(gid)}">${esc(mercName(sim, gid))}</button>`).join(', ');
+  const heard = economyIndex(sim.data).markets.filter((sid) => !sim.graph.nodes.get(sid).outside).map((sid) => {
+    const rec = sim.state.knowledge?.holders.lord?.[sid];
+    const truth = sim.state.economy.hunger[sid] ?? 0;
+    if (!rec) return `<tr><td>${esc(place(sid))}</td><td colspan="3" class="dim">no word</td></tr>`;
+    const age = (sim.now - rec.t) / 1440;
+    const off = Math.abs((rec.hunger ?? 0) - truth) >= 0.15;
+    return `<tr><td>${esc(place(sid))}</td><td>${esc(sourceWord[rec.source] ?? rec.source)}, ${ageWord(age)}</td>
+      <td class="num">${pct(rec.hunger ?? 0)}</td><td class="num${off ? ' warn' : ''}">${pct(truth)}</td></tr>`;
+  }).join('');
+  const tr = st.tripReason;
+  const trips = tr?.options.map((o, i) => `<tr class="${i === tr.choice ? 'chosen' : ''}"><td>${esc(TRIP_WORD[o.trip])} ${esc(place(o.at))}${i === tr.choice ? ' <span class="tag">went</span>' : ''}<br><span class="dim">${esc(o.why)}</span></td><td class="num">${o.score.toFixed(2)}</td></tr>`).join('') ?? '';
+  const b = st.bounty && st.bounty.until > sim.now ? st.bounty : null;
+  return `
+    <h3>Lord ${esc(st.name)} <span class="sub">of ${esc(place(st.seat))}</span></h3>
+    <p>${where}</p>
+    <dl class="facts">
+      ${st.away ? `<dt>Why</dt><dd>${esc(st.away.why)}</dd>` : ''}
+      ${st.trip ? `<dt>Party</dt><dd>${st.trip.crew} of his household${escort ? `; sellswords ${escort}` : ''}</dd>` : ''}
+      ${(st.hurtUntil ?? 0) > sim.now ? `<dt>Abed</dt><dd>after a fall, until ${esc(sim.cal.format(st.hurtUntil).stamp)}</dd>` : ''}
+      ${b ? `<dt>Bounty</dt><dd>${b.perHead} marks a head on ${esc(getBand(sim, b.band)?.name ?? 'a band')} until ${esc(sim.cal.format(b.until).stamp)} · ${b.heads} paid for</dd>` : ''}
+      <dt>Last trip</dt><dd>${st.lastTrip > 0 ? esc(sim.cal.format(st.lastTrip).stamp) : 'not yet'}; he rides out at most every ${cfg.everyDays} days</dd>
+    </dl>
+    <h4>What he has heard <span class="sub">hunger, by letter and hearsay, beside the truth</span></h4>
+    <div class="table-wrap"><table><thead><tr><th>Town</th><th>Word</th><th class="num">He thinks</th><th class="num">Truly</th></tr></thead><tbody>${heard}</tbody></table></div>
+    ${trips ? `<h4>Trips he weighed <span class="sub">${esc(sim.cal.format(tr.t).stamp)}</span></h4>
+      <div class="table-wrap"><table><thead><tr><th>Trip</th><th class="num">Score</th></tr></thead><tbody>${trips}</tbody></table></div>
+      <p class="formula">A trip is weighed apart from his spending: stale or worrying news, his pride, his anger. At ${cfg.minScore} or more, he goes about half the time.</p>` : ''}`;
+}
+const TRIP_WORD = { tour: 'See', hunt: 'Hunt at', ships: 'The ships at', ride: 'Ride with the patrol to' };
 
 // ── Sellswords and their gear ────────────────────────────────────────────────
 
@@ -409,6 +454,12 @@ const HOLDER = (h) => h.kind === 'merc' ? `carried by <button class="linkish" da
   : h.kind === 'band' ? `<span class="bad">in the hands of ${esc(sim.state.raiders.bands[h.id]?.name ?? 'outlaws')}</span>`
     : h.kind === 'rack' ? `for sale on a rack in ${esc(place(h.at))}`
       : h.kind === 'wagon' ? "on a caravan's wagons" : 'lost';
+
+// Which inns tell stories of someone (a sellsword or a band).
+function fameWhere(id) {
+  const inns = economyIndex(sim.data).markets.filter((sid) => sim.state.knowledge?.holders[`inn:${sid}`]?.[`fame:${id}`]);
+  return inns.length ? ` · told of at the inns of ${esc(inns.map((sid) => place(sid)).join(', '))}` : ' · <span class="dim">nobody tells stories of them yet</span>';
+}
 
 function mercHtml(id) {
   const g = getMerc(sim, id);
@@ -445,6 +496,7 @@ function mercHtml(id) {
     <dl class="facts">
       <dt>Wage</dt><dd>${wageOf(sim, g)} marks a day · earned ${moneyBits(g.earned)} all told · purse ${moneyBits(balance(sim, `merc:${g.id}`))}</dd>
       <dt>Strength</dt><dd>${power.toFixed(2)} in a fight on an open road <span class="dim">(a carter counts 1)</span></dd>
+      <dt>Fame</dt><dd>${(g.fame ?? 0).toFixed(0)}${fameWhere(g.id)}</dd>
       <dt>Deeds</dt><dd>${g.deeds.toFixed(1)}${next ? ` of ${next.deeds} for ${esc(next.name)}` : ' (as high as it goes)'}</dd>
       <dt>Fights</dt><dd>${L.fights} (${L.won} won, ${L.lost} lost) of ${L.encounters} run-ins · ${L.kills} killed · ${L.wounds} wounds${L.severe ? ` (${L.severe} bad)` : ''} · ${L.ambushes} ambushes · ${L.nights} at night · ${L.stared ?? 0} stared down</dd>
       <dt>Roads</dt><dd>${terrains}</dd>
@@ -518,6 +570,10 @@ function bandHtml(id) {
       <dt>Loot</dt><dd>${loot || 'nothing waiting for the fence'} · fenced in ${esc(place(hideout.fence))}</dd>
       ${captives ? `<dt>Holding</dt><dd>${captives}</dd>` : ''}
       <dt>Record</dt><dd>${b.raids} raids · ${b.lost} of their own dead · ${b.killed} travellers killed</dd>
+      <dt>Infamy</dt><dd>${(b.infamy ?? 0).toFixed(0)}${fameWhere(b.id)}</dd>
+      ${b.gear?.length ? `<dt>Arms</dt><dd>${b.gear.map((iid) => itemButton(sim, itemById(sim, iid))).join(' ')} <span class="dim">(taken from the road)</span></dd>` : ''}
+      ${sim.state.lord?.bounty?.band === b.id && sim.state.lord.bounty.until > sim.now ? `<dt>Bounty</dt><dd class="bad">${sim.state.lord.bounty.perHead} marks a head, from Lord Aldric</dd>` : ''}
+      ${b.lordHeld ? '<dt>Holding</dt><dd class="bad">Lord Aldric himself</dd>' : ''}
     </dl>
     ${members ? `<h4>Who they are</h4><ul class="plain">${members}</ul>` : ''}
     ${why ? `<h4>Why this road? <span class="sub">what the lookouts have seen pass lately, and the blood it cost</span></h4>
@@ -759,6 +815,11 @@ function tipHtml(hit) {
     const load = cargo ? `${qty(cargo[1])} ${goodUnits(cargo[0])} of ${goodOf(sim, cargo[0]).name.toLowerCase()}` : 'empty wagons';
     const doing = m.captive ? 'held for ransom' : m.trip ? `${load}, bound for ${place(m.trip.dest)}` : cargo ? `selling ${load} in ${place(m.at)}` : `in ${place(m.at)}, looking for a trade`;
     return `<strong>${esc(m.name)}</strong><p>Merchant, ${m.wagons} wagon${m.wagons > 1 ? 's' : ''}: ${esc(doing)}.</p><p class="dim">Click for what they know and why this trade.</p>`;
+  }
+  if (hit.kind === 'lord') {
+    const st = sim.state.lord;
+    const doing = st.away?.phase === 'staying' ? `at ${place(st.at)}` : st.away?.phase === 'home' ? 'riding home to Kingscross' : `riding for ${place(st.away?.target)}`;
+    return `<strong>Lord ${esc(st.name)}</strong><p>With his household${st.trip?.guards?.length ? ` and ${st.trip.guards.length} sellswords` : ''}, ${esc(doing)}.</p><p class="dim">Click for why he rode out and what he has heard.</p>`;
   }
   if (hit.kind === 'rider') {
     const r = getRider(sim, hit.id);

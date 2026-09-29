@@ -597,6 +597,9 @@ export function createMapRenderer(canvas, world) {
     };
     for (const m of Object.values(sim.state.merchants?.byId ?? {})) if (m.active) add('merchant', m, m.at, m.trip);
     for (const r of Object.values(sim.state.post?.byId ?? {})) add('rider', r, r.at, r.trip);
+    // Lord Aldric, when he's out in his lands (step F).
+    const lord = sim.state.lord;
+    if (lord?.trip) add('lord', { id: 'lord', name: `Lord ${lord.name}`, cargo: {} }, null, lord.trip);
     for (const [nodeId, list] of atNode) {
       const n = nodeById.get(nodeId);
       const ring = n.kind === 'waypoint' ? 15 : 22;
@@ -623,6 +626,18 @@ export function createMapRenderer(canvas, world) {
         ctx.fillStyle = s.state === 'waiting' ? colors.danger : loaded ? colors.ink : colors.paper;
         ctx.fill();
         ctx.strokeStyle = loaded ? colors.paper : colors.ink;
+        ctx.stroke();
+      } else if (s.kind === 'lord') {
+        // The lord's party: a pennant on a pole.
+        ctx.beginPath();
+        ctx.moveTo(s.x - 3, s.y + 6);
+        ctx.lineTo(s.x - 3, s.y - 7);
+        ctx.lineTo(s.x + 6, s.y - 4);
+        ctx.lineTo(s.x - 3, s.y - 1);
+        ctx.fillStyle = colors.accent;
+        ctx.strokeStyle = colors.ink;
+        ctx.lineWidth = 1.4;
+        ctx.fill();
         ctx.stroke();
       } else {
         // A rider: a small diamond.
@@ -744,7 +759,7 @@ export function createMapRenderer(canvas, world) {
     let bestD = Infinity;
     for (const h of hits) {
       const d = Math.sqrt((h.x - x) * (h.x - x) + (h.y - y) * (h.y - y));
-      const score = d - (['wayfarer', 'merchant', 'rider', 'band', 'raid'].includes(h.kind) ? 4 : 0);
+      const score = d - (['wayfarer', 'merchant', 'rider', 'lord', 'band', 'raid'].includes(h.kind) ? 4 : 0);
       if (d <= h.r && score < bestD) {
         best = h;
         bestD = score;

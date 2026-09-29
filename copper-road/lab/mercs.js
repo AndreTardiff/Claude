@@ -31,7 +31,7 @@ export function createMercsPanel(root, { onSelect, onSelectItem }) {
   root.innerHTML = `
     <div class="table-wrap">
       <table class="mercs-table">
-        <thead><tr><th>Sellsword</th><th>Rank</th><th>Doing</th><th title="strength, agility, discipline, awareness (W), nerve">S A D W N</th><th>Gear</th><th class="num">Fights</th><th class="num">Purse</th></tr></thead>
+        <thead><tr><th>Sellsword</th><th>Rank</th><th>Doing</th><th title="strength, agility, discipline, awareness (W), nerve">S A D W N</th><th>Gear</th><th class="num">Fights</th><th class="num">Fame</th><th class="num">Purse</th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
@@ -62,6 +62,7 @@ export function createMercsPanel(root, { onSelect, onSelectItem }) {
         <td class="stats">${Object.keys(STAT_SHORT).map((s) => g.stats[s]).join(' ')}</td>
         <td>${gear}</td>
         <td class="num">${L.fights ? `${L.won}–${L.lost}` : '<span class="dim">none</span>'}</td>
+        <td class="num">${g.fame ? g.fame.toFixed(0) : '<span class="dim">–</span>'}</td>
         <td class="num">${moneyBits(balance(sim, `merc:${g.id}`))}</td>
       </tr>`;
     }).join('');
