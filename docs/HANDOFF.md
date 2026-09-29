@@ -15,7 +15,7 @@ Read this first when resuming in a fresh session. It's updated at every checkpoi
 | D: merchants, caravans, knowledge, couriers | done |
 | E0: Lord Aldric as an engaged character | done |
 | E: raiders, road news, weather, camps | done |
-| **F: mercenaries, experience, encounters, standing orders** | **next** |
+| **F: mercenaries, experience, encounters, standing orders** | **in progress** (F1–F2 sim done; lab, docs next) |
 
 ## Step D plan (checkpoints)
 
@@ -81,7 +81,23 @@ killed outright; nights get eventful plus a lab toggle to fast-forward quiet nig
       "Send 6 outlaws" lab tool; chronicle filters (merchants, raids & roads, Lord Aldric). Spec v0.2.6 (§11.1,
       §17.2 as built, §17.3 night decided, status); site entry; CLAUDE.md rules.
 
-**Next: step F (mercenaries, experience, encounters, standing orders)**, spec §12–§13. Raiders give them a job:
+**Step F (Andre, Sep 29): deed-earned ranks whose stat gains depend on what the sellsword lived through; scute
+armour, belief-driven charms and very rare true relics; gear gains tiers and names through use, slowly.**
+- [x] **F1–F2 (sim)** *(done: `src/systems/mercs.js`, `src/data/mercs.js`, `test/mercs.test.js`)*: sellswords are
+      residents (profession `sellsword`, founding populations unchanged, extra on top); stats, purse (`merc:<id>`), odd
+      jobs and board; gear made from market goods (`useUp`) and paid to the till, mended, sold onto town racks. Merchants
+      hire guards by believed exposure (and sellswords in town make them bolder); guards add to `def` in `resolve()`,
+      may spot ambushes (else fight surprised), take blows meant for hands, kill outlaws; dead guards' gear goes to the
+      band (band gear adds to its attack) or back on the wagons to a rack. Ledger → deed points → ranks (the most-trained
+      stat +1) and traits (Forestwise, Goat-footed, Fenwise, Ambush Veteran, Night Fighter, Knows the Outlaw Ways,
+      Trusted Pair, Scarred). Items: fights/kills/turned blows → xp → tiers (plain…legendary) and a name at storied.
+      Charms: repute from wearers' luck; relics hidden. AT-10 (Forestwise) automated.
+- [ ] **F3**: lab: sellswords panel (roster), inspector (ledger, growth, gear histories), item inspector; chronicle
+      filter; spec §12–13 as built (v0.2.7); site entry.
+- [ ] **F4**: standing orders (fight / pay / flee, cargo priority, night travel) replace the temper rules in `resolve()`;
+      fame and infamy spread as news; the lord hires sellswords for patrols.
+
+**Earlier plan text: step F (mercenaries, experience, encounters, standing orders)**, spec §12–§13. Raiders give them a job:
 merchants hire guards (who add to `def` in `resolve()` in `src/systems/raiders.js`), guards gain experience from
 real fights (traits like Forestwise, Night Fighter), and standing orders (fight / pay / flee, cargo priority, night
 travel) replace the temper rules in `resolve()`. Andre's parked ideas for F and later: bribes, corruption and

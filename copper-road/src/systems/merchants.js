@@ -22,6 +22,7 @@
 // Goods move only by load/unload (counted in the towns' books); coin only by
 // transfer. Every decision keeps its candidates and their parts for the inspector.
 
+import { guardedCaution, guardsOnRoad, hireGuards, payGuards, releaseGuards } from './mercs.js';
 import { GIVEN_NAMES, SURNAMES } from '../data/names.js';
 import { economyIndex, estimatePurchase, estimateSale, purchaseCost, quote, saleValue } from '../economy/pricing.js';
 import { load, round3, traderAccount, unload } from '../economy/market.js';
@@ -197,10 +198,13 @@ export function tradeCandidates(sim, m) {
   // Keep back enough for a long trip's wages, provisions and tolls.
   const reserve = cfg.crewPerWagon * 5 * (cfg.crewWage + 0.1 * grainHere) + 6 * m.wagons;
   const budget = toMarks(sim, balance(sim, account(m))) - reserve;
+  // Sellswords waiting for work here make a bolder road thinkable (step F): the risk they
+  // reckon with, and the road they'd take, are judged as if guarded.
+  const nerve = caution(m) * guardedCaution(sim, here);
   const plans = new Map();
   for (const dest of ix.markets) {
     if (dest === here) continue;
-    const plan = planJourney(sim, here, dest, { speedKmh: cfg.speedKmh, caution: caution(m), holder: m.id });
+    const plan = planJourney(sim, here, dest, { speedKmh: cfg.speedKmh, caution: nerve, holder: m.id });
     if (plan) plans.set(dest, plan);
   }
   const out = [];
@@ -239,7 +243,7 @@ export function tradeCandidates(sim, m) {
       const provisions = crewDays * 0.1 * grainHere;
       const wages = crewDays * cfg.crewWage;
       const tolls = pathTolls(sim, here, plan.path, m.wagons);
-      const risk = plan.exposure * revenue * cfg.riskWeight * caution(m);
+      const risk = plan.exposure * revenue * cfg.riskWeight * nerve;
       const profit = revenue - cost * (1 + fee) - provisions - wages - tolls - risk;
       out.push({
         good: gid, to: dest, qty, wagons, days, cost, fee: cost * fee, believedPrice: b.price, ageDays: b.ageDays, source: b.source,
@@ -355,7 +359,8 @@ function setOut(sim, m, c) {
   const fee = transfer(sim, account(m), 'treasury', toBits(sim, cost * sim.data.coin.marketFee));
   if (sim.state.coin) sim.state.coin.today.fees += fee;
   const crew = c.wagons * sim.data.merchants.crewPerWagon;
-  const food = buyProvisions(sim, m, here, c.days, crew);
+  const guards = hireGuards(sim, m, { exposure: c.plan.exposure, days: c.days, wagons: c.wagons, caution: caution(m), account: account(m), tripNo: m.tripNo + 1, from: here });
+  const food = buyProvisions(sim, m, here, c.days, crew + guards.length);
   m.cargo = { [c.good]: round3(got) };
   m.stuck = 0;
   m.venture = {
@@ -365,9 +370,9 @@ function setOut(sim, m, c) {
   };
   sim.log('merchant:departed', {
     who: m.id, from: here, to: c.to, good: c.good, qty: round3(got), wagons: c.wagons, via: c.plan.routes,
-    expected: m.venture.expected, ageDays: m.venture.ageDays, source: c.source,
+    expected: m.venture.expected, ageDays: m.venture.ageDays, source: c.source, guards,
   });
-  travel(sim, m, c.to, c.plan, crew);
+  travel(sim, m, c.to, c.plan, crew, guards);
 }
 
 // The crew eat on the road: grain bought where they set out.
@@ -378,11 +383,12 @@ function buyProvisions(sim, m, sid, days, crew) {
   return got > 0 ? transfer(sim, account(m), traderAccount(sim, sid), toBits(sim, price * got)) : 0;
 }
 
-function travel(sim, m, dest, plan, crew) {
+function travel(sim, m, dest, plan, crew, guards = []) {
   m.idle = 0;
   m.tripNo += 1;
   m.trip = newTrip(sim, { tripNo: m.tripNo, from: m.at, dest, plan, speedKmh: sim.data.merchants.speedKmh });
   m.trip.crew = crew;
+  m.trip.guards = guards;
   m.at = null;
   go(sim, m);
 }
@@ -409,6 +415,7 @@ function onNode(sim, { id, tripNo }) {
   const m = getMerchant(sim, id);
   if (!m?.trip || m.trip.tripNo !== tripNo || !m.trip.legSeg) return;
   const seg = finishLeg(sim, m.trip);
+  guardsOnRoad(sim, m.trip, seg.id);
   afterLeg(sim, m.id, seg.id, m.trip);
   visitWaystation(sim, m.id, m.trip.at);
   const toll = (sim.graph.nodes.get(m.trip.at).toll?.wagon ?? 0) * m.wagons;
@@ -434,7 +441,9 @@ function arrive(sim, m) {
   swapNews(sim, m.id, m.at);
   // The crew are paid off where the trip ends, and spend it there.
   const days = Math.max(1, Math.ceil((sim.now - trip.departedAt) / DAY));
-  const wages = transfer(sim, account(m), `purse:${m.at}`, toBits(sim, trip.crew * days * cfg.crewWage));
+  // Guards are paid their own rates, and are free to hire again from here.
+  const wages = transfer(sim, account(m), `purse:${m.at}`, toBits(sim, trip.crew * days * cfg.crewWage)) + payGuards(sim, trip, days, account(m));
+  releaseGuards(sim, trip, m.at);
   if (m.venture) m.venture.wages += wages;
   else m.overheads += wages;
   if (hasCargo(m)) {

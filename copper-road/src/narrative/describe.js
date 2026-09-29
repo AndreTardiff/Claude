@@ -12,6 +12,7 @@ import { formatMoney, toBits } from '../economy/money.js';
 import { getRider } from '../systems/post.js';
 import { getMerchant } from '../systems/merchants.js';
 import { getBand } from '../systems/raiders.js';
+import { itemById, itemLabel, mercName } from '../systems/mercs.js';
 
 // What a lab "spoil" looks like in the world.
 const DISASTERS = {
@@ -155,7 +156,8 @@ export function describe(entry, sim) {
     case 'merchant:departed': {
       const hope = entry.expected > 0 ? `counting on ${formatMoney(sim, entry.expected)} profit` : 'hoping to break even';
       const news = entry.ageDays < 0.5 ? 'fresh news' : `news ${days(entry.ageDays)} old`;
-      return `${trader(entry.who)} leaves ${place(entry.from)} for ${place(entry.to)} by the ${road(entry.via)} with ${amount(entry.qty, entry.good)}, ${hope} on ${news}.`;
+      const guards = entry.guards?.length ? `, ${entry.guards.length === 1 ? `${mercName(sim, entry.guards[0])} riding guard` : `${entry.guards.length} sellswords riding guard`}` : '';
+      return `${trader(entry.who)} leaves ${place(entry.from)} for ${place(entry.to)} by the ${road(entry.via)} with ${amount(entry.qty, entry.good)}${guards}, ${hope} on ${news}.`;
     }
     case 'merchant:sold': {
       if (entry.dumped) {
@@ -291,6 +293,30 @@ export function describe(entry, sim) {
       return `Lord Aldric's patrol comes home from the ${sim.graph.routes.get(entry.route)?.name ?? entry.route}.`;
     case 'raid:summoned':
       return `The experimenter sends outlaws into ${hideout(entry.band)}: ${bandName(entry.band)} now counts ${entry.members}.`;
+    case 'merc:recruit':
+      return `${mercName(sim, entry.who)} of ${place(entry.at)} takes up the sword: one more sellsword for hire.`;
+    case 'merc:retired':
+      return `${mercName(sim, entry.who)} hangs up the sword in ${place(entry.at)}${entry.why === 'broke' ? ', out of work and out of coin' : ', old wounds aching'}.`;
+    case 'merc:rank': {
+      const rank = sim.data.mercs.ranks[entry.rank]?.name ?? entry.rank;
+      return `${mercName(sim, entry.who)} is reckoned ${rank} now${entry.stat ? `, ${STAT_GROWTH[entry.stat]}` : ''}.`;
+    }
+    case 'merc:trait':
+      return `${mercName(sim, entry.who)} ${TRAIT_TEXT[entry.trait] ?? `has become ${entry.trait}`}.`;
+    case 'merc:pair':
+      return `${mercName(sim, entry.who)} and ${mercName(sim, entry.with)} have stood together often enough to trust each other with their backs: a Trusted Pair.`;
+    case 'merc:bought':
+      return `${mercName(sim, entry.who)} buys ${itemLabel(sim, itemById(sim, entry.item), { owner: false })} in ${place(entry.at)}.`;
+    case 'item:tier': {
+      const item = itemById(sim, entry.item);
+      const tier = sim.data.mercs.item.tiers[entry.tier];
+      if (item?.name && entry.tier === sim.data.mercs.item.nameAt) return `${itemLabel(sim, item, { named: false })} has seen enough that people have a name for it: ${item.name}.`;
+      return `${cap(itemLabel(sim, item))} is ${tier.name} now${tier.id === 'legendary' ? ': they tell stories about it in the inns' : ''}.`;
+    }
+    case 'item:taken':
+      return `${cap(bandName(entry.band))} take ${itemLabel(sim, itemById(sim, entry.item), { owner: false })} from ${mercName(sim, entry.from)}'s body.`;
+    case 'item:recovered':
+      return `${cap(itemLabel(sim, itemById(sim, entry.item), { owner: false }))} comes back to ${place(entry.at)} on a caravan's wagons.`;
     case 'merchant:forced-loan':
       return `Lord Aldric "borrows" ${formatMoney(sim, entry.bits)} from ${trader(entry.who)}. Nobody expects to see it again.`;
     default:
@@ -312,6 +338,43 @@ export function seasonalRoadNotes(sim, seasonId) {
   const parts = [...seen.values()];
   const sentence = parts.join('; ');
   return sentence.charAt(0).toUpperCase() + sentence.slice(1) + '.';
+}
+
+const STAT_GROWTH = {
+  str: 'stronger in the arm for it',
+  agi: 'quicker on their feet for it',
+  dis: 'steadier in the line for it',
+  awa: 'sharper-eyed for it',
+  nerve: 'harder to frighten for it',
+};
+
+const TRAIT_TEXT = {
+  forestwise: 'has learned the forest: Forestwise, quick to see a bad bend in the trees',
+  hillwise: 'has learned the hill paths: Goat-footed, hard to catch on a slope',
+  fenwise: 'has learned the fens: Fenwise, at home on the causeways',
+  ambush: 'has been ambushed often enough not to freeze: an Ambush Veteran',
+  night: 'fights as well in the dark as by day now: a Night Fighter',
+  bandits: 'knows the outlaws\' ways by now',
+  scarred: 'carries a bad scar now, and a careful streak with it',
+};
+
+// What the guards did, for the after-action report: who saw it coming, who fell, who was hurt.
+function guardsText(e, sim) {
+  if (!e.guards?.length) return '';
+  const names = (ids) => listOf(ids.map((id) => mercName(sim, id)));
+  const out = [];
+  const spotted = e.factors?.find((f) => f.k === 'spotted');
+  if (spotted) out.push(`${mercName(sim, spotted.who)} saw the ambush coming.`);
+  else if (e.factors?.some((f) => f.k === 'surprised')) out.push(`The guards were taken by surprise${e.factors.some((f) => f.k === 'trait' && f.trait === 'ambush') ? `, though ${names([...new Set(e.factors.filter((f) => f.trait === 'ambush').map((f) => f.who))])} kept their heads` : ''}.`);
+  const named = [...new Set((e.factors ?? []).filter((f) => f.k === 'item').map((f) => f.item))].map((id) => itemById(sim, id)).filter((i) => i?.name);
+  if (named.length) out.push(`${listOf(named.map((i) => i.name))} ${named.length === 1 ? 'was' : 'were'} in the fight.`);
+  const traits = (e.factors ?? []).filter((f) => f.k === 'trait' && f.trait !== 'ambush');
+  if (traits.length && e.outcome === 'fought off') out.push(`${names([...new Set(traits.map((f) => f.who))])} knew this kind of fight.`);
+  const dead = (e.guardHarm ?? []).filter((h) => h.fate === 'died').map((h) => h.who);
+  const hurt = (e.guardHarm ?? []).filter((h) => h.fate !== 'died');
+  if (dead.length) out.push(`${names(dead)} ${dead.length === 1 ? 'falls' : 'fall'}.`);
+  if (hurt.length) out.push(`${names(hurt.map((h) => h.who))} ${hurt.length === 1 ? 'is' : 'are'} ${hurt.every((h) => h.fate === 'badly hurt') ? 'badly hurt' : 'hurt'}.`);
+  return out.length ? ` ${out.join(' ')}` : '';
 }
 
 // The after-action report of an encounter on the road (spec §13).
@@ -338,14 +401,14 @@ function encounterText(e, { place, person, bandName, segRoad, amount, sim }) {
     case 'dropped':
       return `Seeing ${band} on ${road}, ${m ? `${m.name}'s crew cut loose and run` : `${name} drops everything and runs`}, leaving ${took || 'the load'} behind.`;
     case 'fought off':
-      return `${Band} fall on ${party} on ${road}${e.night ? ' in the dark' : ''} and are driven off.${outlaws}${hands}`;
+      return `${Band} fall on ${party} on ${road}${e.night ? ' in the dark' : ''} and are driven off.${outlaws}${hands}${guardsText(e, sim)}`;
     case 'murdered':
       return `${name} is found dead on ${road}, robbed by ${band} of ${took || 'everything'}.`;
     case 'robbed':
       if (e.kind === 'rider') return `${Band} waylay ${name} on ${road} and take the rider's letters.`;
       return `${Band} fall on ${party} on ${road}${e.night ? ' in the dark' : ''}.${e.response === 'fought' || e.response === 'refused' || e.response === 'woke' ? ' They fight and lose.' : ''}` +
         ` ${took ? `${took.charAt(0).toUpperCase() + took.slice(1)} ${took.includes(' and ') || /s\b/.test(took) ? 'are' : 'is'} taken.` : ''}${hands}${outlaws}` +
-        (e.captured ? ` ${m.name} is dragged off to be held for ransom.` : '');
+        guardsText(e, sim) + (e.captured ? ` ${m.name} is dragged off to be held for ransom.` : '');
     default:
       return `${Band} trouble ${name} on ${road}.`;
   }

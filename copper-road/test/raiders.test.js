@@ -22,7 +22,7 @@ test('bands are named people in hideouts by the wild roads, not in any town', ()
       assert.ok(r.alive && r.home === null && r.profession === 'outlaw' && r.name);
     }
   }
-  for (const n of WORLD.nodes.filter((x) => x.kind !== 'waypoint')) assert.equal(residentsAt(sim, n.id).length, n.residents);
+  for (const n of WORLD.nodes.filter((x) => x.kind !== 'waypoint')) assert.equal(residentsAt(sim, n.id).length, n.residents + (WORLD.mercs.start[n.id] ?? 0));
 });
 
 test('AT-24: hard times fill the bands: hunger and empty purses send the idle to the hills', () => {
@@ -132,10 +132,11 @@ test('GATE E: a caravan lost on the road leaves a visible shortage where it was 
       const safe = replay(false, horizon);
       const sold = safe.state.log.find((e) => e.type === 'merchant:sold' && e.who === dep.who && e.at === dep.to && e.t > dep.t && e.t < horizon);
       if (!sold || !safe.state.log.some((e) => e.type === 'merchant:departed' && e.who === dep.who && e.t === dep.t)) continue;
-      const raided = replay(true, sold.t + DAY);
+      // Just after the sale would have landed: the town either has the grain or doesn't.
+      const raided = replay(true, sold.t + 60);
       const hit = raided.state.log.find((e) => e.type === 'raid:encounter' && e.who === dep.who && e.seg === seg && e.goods.grain > 5 && e.t >= dep.t);
       if (!hit) continue;
-      const calm = replay(false, sold.t + DAY);
+      const calm = replay(false, sold.t + 60);
       const stock = (s) => s.state.economy.markets[dep.to].grain.stock;
       assert.ok(stock(calm) > stock(raided) + 5, `${dep.to} grain: ${stock(calm)} safe vs ${stock(raided)} raided`);
       assert.ok(quote(raided, dep.to, 'grain').price > quote(calm, dep.to, 'grain').price, 'dearer where the caravan never came');
@@ -149,9 +150,10 @@ test('AT-21: letters taken from the post never reach the next inn', () => {
   for (const seed of [1, 2, 3, 4, 5, 6]) {
     const sim = new Simulation({ seed });
     sim.command('lab:band', { hideout: 'fen-islands', members: 10, watch: 'estuary-west' });
-    for (let d = 1; d < 90; d++) {
+    // Hour by hour, so the pouch is looked at before the rider reaches the next inn.
+    for (let h = 1; h < 90 * 24; h++) {
       const seen = sim.state.log.length;
-      sim.advanceTo(at(d));
+      sim.advanceTo(at(0) + h * 60);
       const e = sim.state.log.slice(seen).find((x) => x.type === 'raid:encounter' && x.kind === 'rider' && x.outcome === 'robbed');
       if (!e) continue;
       const pouch = sim.state.knowledge.holders[e.who];

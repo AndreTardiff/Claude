@@ -4,6 +4,7 @@
 import { almanac } from './almanac.js';
 import { wayfarers } from './wayfarers.js';
 import { residents } from './residents.js';
+import { mercs } from './mercs.js';
 import { economy } from './economy.js';
 import { merchants } from './merchants.js';
 import { coin } from './coin.js';
@@ -21,5 +22,7 @@ import { post } from './post.js';
 // the day's closing prices. Seasonal: the lord's forced loans land before the Crown's due.
 // The lord weighs his undertakings after coin has settled the day (and taken the Crown's due).
 // Raiders recruit after the day's hunger is known, and hold their captives until the ransom comes.
+// Sellswords (after residents: they are residents too, and the markets are sized from everyone)
+// heal, pay their board, mend and buy gear, and walk home when there's no work.
 // Roads: surprise weather, camps and waystations, and news round the night's fires.
-export const SYSTEMS = [almanac, wayfarers, residents, economy, merchants, coin, lord, raiders, roads, knowledge, post];
+export const SYSTEMS = [almanac, wayfarers, residents, mercs, economy, merchants, coin, lord, raiders, roads, knowledge, post];

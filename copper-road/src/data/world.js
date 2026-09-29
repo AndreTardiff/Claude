@@ -4,6 +4,7 @@
 // Rendering-only geography (rivers, forests, coast) lives in lab/decor.js.
 
 import { COIN, ECONOMY } from './economy.js';
+import { MERCS } from './mercs.js';
 
 export const WORLD = {
   id: 'copper-road-lab',
@@ -110,6 +111,7 @@ export const WORLD = {
 
   economy: ECONOMY,
   coin: COIN,
+  mercs: MERCS,
 
   // Merchants: the region's trading houses, each with a wagon or two, a purse and a temper.
   merchants: {

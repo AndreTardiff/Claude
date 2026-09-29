@@ -80,7 +80,8 @@ export const ECONOMY = {
     harbourmaster: { name: 'harbourmaster', plural: 'harbourmasters' },
     labourer: { name: 'labourer', plural: 'labourers', toolWear: 0.005, pool: 1 },
     dependant: { name: 'dependant', plural: 'dependants', pool: 2 }, // children and elders
-    outlaw: { name: 'outlaw', plural: 'outlaws' }, // gone to the hills with a raider band (step E); no town, no trade
+    outlaw: { name: 'outlaw', plural: 'outlaws', noVacancy: true }, // gone to the hills with a raider band (step E); no town, no trade
+    sellsword: { name: 'sellsword', plural: 'sellswords', noVacancy: true }, // hired to guard the roads (step F); see src/systems/mercs.js
   },
 
   // Who lives where. Totals must match each node's `residents`.

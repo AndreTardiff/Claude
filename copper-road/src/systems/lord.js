@@ -281,7 +281,11 @@ function decide(sim) {
     t: sim.now,
     budget: round2(purseOfLord(sim)),
     mood: { ...st.mood },
-    options: options.slice(0, 5).map((o) => ({ kind: o.kind, work: o.work, route: o.route, at: o.at, good: o.good, qty: o.qty, cost: o.cost, score: o.score, why: o.why, affordable: o.affordable !== false })),
+    // Only the fields each kind has (state stays plain JSON: no undefined).
+    options: options.slice(0, 5).map((o) => Object.fromEntries(
+      Object.entries({ kind: o.kind, work: o.work, route: o.route, at: o.at, good: o.good, qty: o.qty, cost: o.cost, score: o.score, why: o.why, affordable: o.affordable !== false })
+        .filter(([, v]) => v !== undefined),
+    )),
     choice: null,
     note: null,
   };

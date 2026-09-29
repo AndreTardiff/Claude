@@ -70,7 +70,7 @@ export function professionName(sim, pid, plural = false) {
   return (plural ? p?.plural : p?.name) ?? pid;
 }
 
-const isTrade = (sim, pid) => !sim.data.economy.professions[pid]?.pool;
+const isTrade = (sim, pid) => !sim.data.economy.professions[pid]?.pool && !sim.data.economy.professions[pid]?.noVacancy;
 
 function learn(sim) {
   const { learnPerDay, trainedSkill } = sim.data.economy.succession;
@@ -146,7 +146,7 @@ function onLabDeath(sim, data) {
 // Who famine and emigration take first: dependants, then labourers, then the
 // trades; food producers last; the lord's household and officials never.
 const FOOD = new Set(['farmer', 'shepherd']);
-const PROTECTED = new Set(['noble', 'mintmaster']); // the lord's household and officials eat whatever happens
+const PROTECTED = new Set(['noble', 'mintmaster', 'sellsword']); // the lord's household and officials eat whatever happens; sellswords live by the road (mercs.js)
 function weakness(sim, r) {
   if (PROTECTED.has(r.profession)) return -1;
   const pool = sim.data.economy.professions[r.profession].pool;

@@ -255,7 +255,9 @@ test('every settlement has its full population of named residents', () => {
   const names = new Set();
   for (const n of WORLD.nodes.filter((x) => x.kind !== 'waypoint')) {
     const people = residentsAt(sim, n.id);
-    assert.equal(people.length, n.residents);
+    // Sellswords (step F) live in the towns too, on top of the founding population.
+    assert.equal(people.filter((r) => r.profession !== 'sellsword').length, n.residents);
+    assert.equal(people.filter((r) => r.profession === 'sellsword').length, WORLD.mercs.start[n.id] ?? 0);
     for (const r of people) names.add(r.name);
   }
   // Outlaws in the hills (step E) have no town, but they have names too.

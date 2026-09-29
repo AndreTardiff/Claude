@@ -6,6 +6,8 @@
 //   treasury        Lord Aldric's treasury
 //   wayfarer:<id>   a traveller's purse
 //   merchant:<id>   a merchant house's purse
+//   merc:<id>       a sellsword's purse (step F)
+//   band:<id>       an outlaw band's takings (step E)
 // Eight flows enter or leave circulation and are tallied in sim.state.coin.flows:
 //   in:  minted (the Mint strikes new coin), gifted (lab), exported (the ships at
 //        the Outside pay for the goods they carry away), unearthed (a buried

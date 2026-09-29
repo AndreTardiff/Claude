@@ -38,6 +38,10 @@ export const coin = {
     for (const id of sim.state.merchants?.order ?? []) {
       accounts[`merchant:${id}`] = toBits(sim, rng.int(purse[0], purse[1]));
     }
+    const mercPurse = sim.data.mercs?.purse;
+    for (const id of sim.state.mercs?.order ?? []) {
+      accounts[`merc:${id}`] = toBits(sim, rng.int(mercPurse[0], mercPurse[1]));
+    }
     sim.state.coin = {
       accounts,
       flows: { minted: 0, gifted: 0, exported: 0, unearthed: 0, crown: 0, worn: 0, hoarded: 0, imported: 0 },

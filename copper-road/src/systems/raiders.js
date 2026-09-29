@@ -39,6 +39,7 @@ import { getMerchant, loseCargo, writeOffIfEmpty } from './merchants.js';
 import { getWayfarer, losePack } from './wayfarers.js';
 import { getRider } from './post.js';
 import { patrolOn } from './lord.js';
+import { afterEncounter, bandGearPower, guardTakesBlow, guardsInFight, guardsOf, outlawsDropGear, releaseGuards, rollKillers, scatterBandGear, staredDown, spotAmbush } from './mercs.js';
 
 const DAY = 1440;
 const round2 = (x) => Math.round(x * 100) / 100;
@@ -130,6 +131,7 @@ function foundBand(sim, hideout, rng) {
     food: 0, // sacks of grain in the hideout
     loot: {}, // stolen goods, waiting for the fence
     captives: [], // merchant ids held for ransom
+    gear: [], // arms and armour taken from the road (item ids, mercs.js)
     raids: 0,
     lost: 0, // members killed
     killed: 0, // travellers killed
@@ -203,8 +205,8 @@ function drifters(sim) {
 }
 
 // Who could take to the hills from a hungry town: the idle first, then any able
-// worker. Not children or elders, and not the lord's people or the guard.
-const STAYS = new Set(['dependant', 'noble', 'mintmaster', 'guard']);
+// worker. Not children or elders, not the lord's people or the guard, nor sellswords.
+const STAYS = new Set(['dependant', 'noble', 'mintmaster', 'guard', 'sellsword']);
 function ableBodied(sim, sid) {
   const people = residentsAt(sim, sid).filter((r) => !STAYS.has(r.profession));
   const idle = people.filter((r) => r.profession === 'labourer');
@@ -295,7 +297,7 @@ function victim(sim, kind, id) {
   if (kind === 'merchant') {
     const m = getMerchant(sim, id);
     if (!m?.active || !m.trip) return null;
-    return { kind, id, who: m, name: m.name, trip: m.trip, account: `merchant:${id}`, carried: 0.1, cargo: { ...m.cargo }, people: (m.trip.crew ?? 3) + 1, boldness: m.boldness };
+    return { kind, id, who: m, name: m.name, trip: m.trip, account: `merchant:${id}`, carried: 0.1, cargo: { ...m.cargo }, people: (m.trip.crew ?? 3) + 1, boldness: m.boldness, guards: guardsOf(sim, m.trip) };
   }
   if (kind === 'wayfarer') {
     const w = getWayfarer(sim, id);
@@ -367,27 +369,54 @@ function resolve(sim, band, v, seg, night) {
   const rng = sim.rng('raids');
   const caution = (1000 - v.boldness) / 1000;
   const value = visibleValue(sim, band, v);
-  const att = band.members.length * moraleOf(band) * (night ? cfg.nightEdge : 1);
+  const gearPower = bandGearPower(sim, band);
+  const att = (band.members.length * moraleOf(band) + gearPower) * (night ? cfg.nightEdge : 1);
   const patrol = patrolOn(sim, seg);
-  const def = v.people * (1 + 0.3 * (v.boldness / 1000)) + (patrol ? patrol.guards * sim.data.raiders.patrol.strength : 0);
+  // Hired guards (step F) stand with the crew; the lookouts see them all.
+  const terrain = sim.graph.segments.get(seg).terrain;
+  const guards = v.guards?.length ? guardsInFight(sim, v.guards, { terrain, night }) : null;
+  const base = v.people * (1 + 0.3 * (v.boldness / 1000)) + (patrol ? patrol.guards * sim.data.raiders.patrol.strength : 0);
+  const def = base + (guards?.seen ?? 0);
   const odds = def / (def + att); // the traveller's chance in a straight fight
   const desperate = band.hunger >= cfg.desperateHunger;
   const rec = {
     t: sim.now, band: band.id, seg, kind: v.kind, id: v.id, night, value: round2(value), att: round2(att), def: round2(def), patrol: Boolean(patrol),
     odds: round2(odds), approach: null, response: null, outcome: null, roll: null, goods: {}, bits: 0, hands: [], outlaws: [], captured: false,
+    guards: (v.guards ?? []).map((g) => g.id), guardHarm: [], guardsDead: [], guardKills: 0, bandGear: round2(gearPower), factors: [],
   };
 
   if ((value < cfg.minLoot && !desperate) || (odds > cfg.maxOdds && !desperate)) {
     // Not worth it, or too many to take on: they let them by, and may be seen doing it.
     v.trip.sawBand = band.id;
+    if (v.guards?.length && value >= cfg.minLoot) staredDown(sim, band, v.trip);
     return null;
   }
   rec.approach = night && v.kind !== 'rider' && Object.keys(v.cargo).length ? 'steal'
     : v.kind === 'wayfarer' || (band.cruelty < 500 && !desperate) ? 'demand' : 'attack';
+  // An attack from cover: unless a guard sees it coming, the guards fight surprised.
+  const ctx = { terrain, night, surprised: false, spotted: null };
+  if (guards && rec.approach === 'attack') {
+    const spotter = spotAmbush(sim, v.guards, terrain, rng);
+    if (spotter) {
+      ctx.spotted = spotter.id;
+      rec.factors.push({ k: 'spotted', who: spotter.id });
+    } else {
+      ctx.surprised = true;
+      rec.factors.push({ k: 'surprised' });
+    }
+  }
+  if (guards) {
+    rec.factors.push({ k: 'guards', n: v.guards.length, v: ctx.surprised ? guards.surprised : guards.seen });
+    for (const f of guards.factors) if (ctx.surprised || f.trait !== 'ambush') rec.factors.push(f);
+  }
+  if (gearPower > 0) rec.factors.push({ k: 'bandGear', v: round2(gearPower) });
+  // Taken by surprise, the fight goes as if the guards were weaker than the lookouts reckoned.
+  const fightOdds = ctx.surprised ? (base + guards.surprised) / (base + guards.surprised + att) : odds;
 
   if (rec.approach === 'steal') {
-    // The watch may wake. If not, they're gone before dawn with what they could carry.
-    const woke = rng.chance(Math.min(0.8, v.people / (v.people + 3)));
+    // The watch may wake (sellswords keep a better one). If not, they're gone before dawn with what they could carry.
+    const watch = v.people + (v.guards ?? []).reduce((sum, g) => sum + g.stats.awa / 3, 0);
+    const woke = rng.chance(Math.min(0.9, watch / (watch + 3)));
     rec.response = woke ? 'woke' : 'slept';
     if (!woke) {
       rec.outcome = 'stolen';
@@ -418,9 +447,11 @@ function resolve(sim, band, v, seg, night) {
     } else fight(sim, band, v, rec, odds * 0.7, rng, caution);
   } else {
     rec.response = 'fought';
-    fight(sim, band, v, rec, odds, rng, caution);
+    fight(sim, band, v, rec, fightOdds, rng, caution);
   }
 
+  if (v.guards?.length) afterEncounter(sim, band, v, rec, ctx);
+  if (rec.captured) releaseGuards(sim, v.trip, v.trip.from); // the guards scatter back the way they came, unpaid
   band.raids += rec.outcome === 'fought off' ? 0 : 1;
   const danger = threatOf(sim, band, seg);
   if (v.trip) v.trip.raided = { band: band.id, seg, danger };
@@ -431,7 +462,7 @@ function resolve(sim, band, v, seg, night) {
   sim.log('raid:encounter', {
     band: band.id, kind: v.kind, who: v.id, seg, night, approach: rec.approach, response: rec.response, outcome: rec.outcome,
     goods: rec.goods, bits: rec.bits, hands: rec.hands.length, outlaws: rec.outlaws.length, captured: rec.captured,
-    leaderFell: rec.leaderFell ?? false,
+    leaderFell: rec.leaderFell ?? false, guards: rec.guards, guardHarm: rec.guardHarm, factors: rec.factors,
   });
   if (v.kind === 'merchant') writeOffIfEmpty(sim, v.who);
   checkWiped(sim, band);
@@ -443,8 +474,12 @@ function fight(sim, band, v, rec, odds, rng, caution) {
   rec.roll = round2(rng.float());
   if (rec.roll < odds) {
     rec.outcome = 'fought off';
-    killOutlaws(sim, band, rec, 1 + (rng.chance(0.3) ? 1 : 0));
-    if (rng.chance(0.25)) killHands(sim, v, rec, 1);
+    // Sellswords cut down more of them.
+    rec.killers = v.guards?.length ? rollKillers(sim, v.guards, rec, rng) : [];
+    const dead = 1 + (rng.chance(0.3) ? 1 : 0) + rec.killers.length;
+    killOutlaws(sim, band, rec, dead);
+    outlawsDropGear(sim, band, v, rec.outlaws.length, rng);
+    if (rng.chance(0.25)) killHands(sim, v, rec, 1, band);
     band.fear[rec.seg] = round3(band.fear[rec.seg] + 0.5 * rec.outlaws.length);
     return;
   }
@@ -460,7 +495,7 @@ function fight(sim, band, v, rec, odds, rng, caution) {
     return;
   }
   if (v.kind === 'merchant') {
-    killHands(sim, v, rec, 1 + (rng.chance(0.4) ? 1 : 0));
+    killHands(sim, v, rec, 1 + (rng.chance(0.4) ? 1 : 0), band);
     if (rng.chance(cfg.captureChance * (0.5 + caution))) capture(sim, band, v, rec);
   }
 }
@@ -510,9 +545,11 @@ function takeLetters(sim, band, v, rec) {
 }
 
 // Hired hands come from the town the caravan set out from; their deaths are that town's losses.
-function killHands(sim, v, rec, n) {
+// Sellswords stand in front: a blow meant for a hand may fall on a guard instead (mercs.js).
+function killHands(sim, v, rec, n, band) {
   if (v.kind !== 'merchant') return;
   for (let i = 0; i < n && (v.trip.crew ?? 0) > 1; i++) {
+    if (guardTakesBlow(sim, band, v, rec, sim.rng('raids'))) continue;
     const pool = residentsAt(sim, v.trip.from).filter((r) => ['labourer', 'porter', 'carter'].includes(r.profession));
     const r = pool.length ? sim.rng('raids').pick(pool) : null;
     if (r) killResident(sim, { id: r.id, cause: 'raid' });
@@ -664,6 +701,7 @@ function disband(sim, band, why) {
     }
   }
   band.members = [];
+  scatterBandGear(sim, band, hideoutById(sim, band.hideout).fence); // their arms turn up for sale in the fence's town
   // Whatever coin is left goes into the ground at the hideout.
   const buried = transfer(sim, bandAccount(band), 'hoard', balance(sim, bandAccount(band)));
   if (buried) addHoard(sim, band, buried);
