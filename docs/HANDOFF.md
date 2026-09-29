@@ -16,7 +16,7 @@ Read this first when resuming in a fresh session. It's updated at every checkpoi
 | E0: Lord Aldric as an engaged character | done |
 | E: raiders, road news, weather, camps | done |
 | F: mercenaries, experience, encounters, standing orders, the lord's travels | done |
-| **G: the player (located, trades, dispatches, letters, travels, debt)** | **in progress** (G1 done) |
+| **G: the player (located, trades, dispatches, letters, travels, debt)** | **in progress** (G1–G2 done; G3 lab next) |
 
 ## Step G plan (checkpoints)
 
@@ -31,8 +31,18 @@ Read this first when resuming in a fresh session. It's updated at every checkpoi
       `account: 'player'`: same travel, selling, crews, guards, tolls and encounters; left out of `activeMerchants`.
       Riding with one, you may die (heir takes over) or be taken for ransom. Knowledge holder `player`: the inn where
       you stand, your caravans' crews, letters (mail waits at the courier's town), your own eyes.
-- [ ] **G2**: factors (a resident in another town: reports by courier, sells your stores there on standing
-      instructions); player bots; AT-16 (skill gap), AT-17 (no dominant policy), AT-18 (factor pays).
+- [x] **G2** *(done: factors in player.js, `src/bots/trader.js`, `test/player-bots.test.js`)*: factors (hire in person in
+      another town; a mark a day, owed wages pile up and they quit after 12 unpaid days; the board home by courier every
+      3 days, robbable; sell your stores there when the price is 10% over its worth; a hidden honesty that skims).
+      Also: `player:sell-wagon`; a waiting caravan where you stand is reused by `player:dispatch`. Bots: `smart` (rides
+      with its caravan, trades from wherever it stands with the merchants' scoring on the player's own price lists,
+      sells only above cost or carries on, stakes at most 2/3 of the purse) and `fixed` (one good, one road).
+      **Findings:** AT-17 passes (no fixed policy best in more than 2 of 8 worlds). AT-18 passes (a factor in
+      Copperford: more worth across 10 worlds, net of wages; very noisy per world). **AT-16 does not pass yet** (kept
+      as a `todo` test): the smart bot beats the median house by 20% in about 2 of 10 worlds; typical year +1,200 marks
+      against the median house's +2,900. Reasons: a smaller stake and a debt; the houses already play near-optimally
+      on the same information; the player's edges (presence, couriers, factors) aren't worth much yet. This is the T2
+      signal the spec asks us to watch (§22): add information decisions, redirects and contracts before content.
 - [ ] **G3**: lab player panel (ledger, stores, dispatch form, couriers, debt), spec v0.2.9, site.
 
 ## Step D plan (checkpoints)

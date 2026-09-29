@@ -33,6 +33,10 @@ export const PLAYER = {
   // Couriers: a townsman on a good horse, paid by the distance, who carries your
   // orders and brings back the other town's board. They can be robbed.
   courier: { speedKmh: 8, perKm: 0.06, min: 3, waitDays: 3 },
+  // Factors: a townsperson who acts for you in another town (spec §4.2). They send
+  // the town's board home by courier every few days (it can be robbed on the way),
+  // and sell your goods stored there when the price is right. Some skim.
+  factor: { wage: 1, reportEvery: 3, honesty: [700, 1000], quitAfter: 12, sellAbove: 1.1 },
   // Travelling alone, on horseback.
   travelKmh: 6,
   fee: 0.03, // what a player pays over the price for their own purchases (the market fee is the lord's)

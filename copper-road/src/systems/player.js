@@ -65,6 +65,7 @@ export const player = {
       debt: { principal: toBits(sim, cfg.debt.principal), missed: 0, paid: 0, interest: 0, collector: null },
       bonded: null, // until when, if bankrupt
       couriers: {},
+      factors: {}, // by town: { id, resident, at, since, honesty (hidden), sellAbove, unpaid, skimmed, sold, reports }
       mail: {}, // letters waiting at a town for the player to come and read them
       porter: porter?.id ?? null,
       ledger: [],
@@ -96,6 +97,7 @@ export const player = {
     const spare = balance(sim, 'changer') - toBits(sim, cfg.changer.spendAbove);
     if (spare > 0) transfer(sim, 'changer', `purse:${st.home}`, spare / 10);
     if (st.bonded && sim.now >= st.bonded.until) release(sim);
+    for (const f of Object.values(st.factors)) factorDay(sim, f);
   },
 
   // The money-changer's due, and the lord's "loans" from the rich (the same rubber band as the houses).
@@ -124,9 +126,12 @@ export const player = {
     'player:borrow': onBorrow,
     'player:repay': onRepay,
     'player:buy-wagon': onBuyWagon,
+    'player:sell-wagon': onSellWagon,
     'player:contact': onContact,
     'player:courier-node': onCourierNode,
     'player:courier-wait': onCourierWait,
+    'player:hire-factor': onHireFactor,
+    'player:dismiss-factor': onDismissFactor,
   },
 };
 
@@ -213,20 +218,27 @@ function onSell(sim, { good, qty }) {
   const have = st.stores[sid]?.[good]?.qty ?? 0;
   qty = Math.min(qty, have);
   if (!(qty > 0)) return refuse(sim, 'sell', 'none in store');
+  if (!sellFromStore(sim, sid, good, qty, 'player')) refuse(sim, 'sell', 'nobody can pay');
+}
+
+// Sell from your stores in a town to its market (you, or your factor there). Returns true if anything sold.
+function sellFromStore(sim, sid, good, qty, by) {
+  const st = sim.state.player;
   const buyer = traderAccount(sim, sid);
   const outside = buyer === 'ships';
   const till = outside ? Infinity : balance(sim, buyer);
   const money = outside ? Infinity : till + Math.floor(balance(sim, `purse:${sid}`) * sim.data.merchants.householdShare);
   let sell = outside ? qty : sellable(sim, sid, good, qty, money);
   if (qty - sell < 0.1) sell = qty;
-  if (!(sell > 0)) return refuse(sim, 'sell', 'nobody can pay');
+  if (!(sell > 0)) return false;
   const bits = Math.min(toBits(sim, saleValue(sim, sid, good, sell)), money);
   if (bits > till) transfer(sim, `purse:${sid}`, buyer, bits - till);
   const paid = transfer(sim, buyer, PLAYER, bits);
   const cost = takeStore(st, sid, good, sell);
   unload(sim, sid, good, sell);
-  sim.log('player:sold', { at: sid, good, qty: sell, bits: paid, profit: paid - cost });
-  entry(sim, 'sold', { at: sid, good, qty: sell, bits: paid, profit: paid - cost });
+  sim.log('player:sold', { at: sid, good, qty: sell, bits: paid, profit: paid - cost, by });
+  entry(sim, 'sold', { at: sid, good, qty: sell, bits: paid, profit: paid - cost, by });
+  return true;
 }
 
 // ── Caravans ────────────────────────────────────────────────────────────────
@@ -247,14 +259,24 @@ function onDispatch(sim, { to, good = null, qty = 0, wagons = null, road = 'bala
   const cfg = sim.data.merchants;
   const from = st.at;
   if (!sim.graph.nodes.get(to) || to === from) return refuse(sim, 'dispatch', 'no such place');
+  // A caravan of yours waiting here can be loaded and sent on; at home, wagons in the yard too.
+  const waiting = caravans(sim).find((c) => !c.trip && !c.captive && c.at === from && c.wagons > 0);
+  // Unload what it carries into your stores here, keeping what it cost.
+  if (waiting) for (const [gid, q] of Object.entries(waiting.cargo)) addStore(st, from, gid, q, waiting.venture?.good === gid && waiting.venture.qty > 0 ? Math.round((waiting.venture.bought * q) / waiting.venture.qty) : 0);
+  if (waiting) waiting.cargo = {};
   qty = good ? Math.min(qty, st.stores[from]?.[good]?.qty ?? 0) : 0;
   const need = Math.max(1, Math.ceil(qty / cfg.wagonCapacity));
-  wagons = Math.max(need, wagons ?? need);
-  if (wagons > idleWagons(sim)) return refuse(sim, 'dispatch', 'not enough wagons');
+  const spare = (waiting?.wagons ?? 0) + (from === st.home ? idleWagons(sim) : 0);
+  wagons = Math.max(need, wagons ?? need, waiting?.wagons ?? 0);
+  if (wagons > spare) return refuse(sim, 'dispatch', 'not enough wagons');
   const caution = CAUTION[road] ?? 0.5;
   const plan = planJourney(sim, from, to, { speedKmh: cfg.speedKmh, caution, holder: PLAYER });
   if (!plan) return refuse(sim, 'dispatch', 'no road');
-  const m = newCaravan(sim, { at: from, wagons, caution, orders: orders ?? ordersFor(Math.round((1 - caution) * 1000)), sell, then });
+  const standing = orders ?? ordersFor(Math.round((1 - caution) * 1000));
+  const m = waiting ?? newCaravan(sim, { at: from, wagons, caution, orders: standing, sell, then });
+  if (waiting) {
+    Object.assign(m, { wagons, capacity: wagons * cfg.wagonCapacity, crew: wagons * cfg.crewPerWagon, boldness: Math.round((1 - caution) * 1000), orders: standing, instructions: { sell, then }, venture: null });
+  }
   const cost = qty > 0 ? takeStore(st, from, good, qty) : 0;
   if (qty > 0) m.cargo[good] = qty;
   // The caravan knows what you know.
@@ -531,6 +553,86 @@ function deliverOrWait(sim, c) {
   courierGo(sim, c);
 }
 
+// ── Factors ─────────────────────────────────────────────────────────────────
+
+/** Hire a factor in the town where you stand (not your own: you're there yourself). */
+function onHireFactor(sim, { sellAbove = null } = {}) {
+  if (busy(sim, 'hire-factor')) return;
+  const st = sim.state.player;
+  const cfg = sim.data.player.factor;
+  const at = st.at;
+  if (at === st.home || !sim.state.economy.markets[at]) return refuse(sim, 'hire-factor', 'not here');
+  if (st.factors[at]) return refuse(sim, 'hire-factor', 'you have one here');
+  const rng = sim.rng('player');
+  const pool = residentsAt(sim, at).filter((r) => ['labourer', 'innkeeper', 'porter', 'dockhand', 'weaver', 'priest'].includes(r.profession));
+  if (!pool.length) return refuse(sim, 'hire-factor', 'nobody to hire');
+  const r = rng.pick(pool);
+  const f = { id: nextId(st, 'f'), resident: r.id, at, since: sim.now, honesty: rng.int(cfg.honesty[0], cfg.honesty[1]), sellAbove: sellAbove ?? cfg.sellAbove, unpaid: 0, skimmed: 0, sold: 0, reports: 0, lastReport: sim.now };
+  st.factors[at] = f;
+  swapNews(sim, f.id, at);
+  sim.log('player:factor', { who: r.id, at });
+  entry(sim, 'factor', { who: r.id, at });
+}
+
+function onDismissFactor(sim, { at }) {
+  const st = sim.state.player;
+  if (!st.factors[at]) return refuse(sim, 'dismiss-factor', 'no factor there');
+  endFactor(sim, st.factors[at], 'dismissed');
+}
+
+function endFactor(sim, f, why) {
+  const st = sim.state.player;
+  delete st.factors[f.at];
+  if (sim.state.knowledge) delete sim.state.knowledge.holders[f.id];
+  sim.log('player:factor-gone', { who: f.resident, at: f.at, why });
+  entry(sim, 'factor-gone', { at: f.at, why });
+}
+
+// A factor's day: paid (or not), they watch the market, sell your goods there when the
+// price is right (minus what they skim), and every few days send the board home.
+function factorDay(sim, f) {
+  const st = sim.state.player;
+  const cfg = sim.data.player.factor;
+  const r = residentsAt(sim, f.at).find((x) => x.id === f.resident);
+  if (!r) return endFactor(sim, f, 'gone');
+  // Wages owed pile up; they're paid as soon as there's coin, and the factor quits only after a long wait.
+  f.owed = (f.owed ?? 0) + toBits(sim, cfg.wage);
+  f.owed -= transfer(sim, PLAYER, `purse:${f.at}`, f.owed);
+  f.unpaid = f.owed > 0 ? f.unpaid + 1 : 0;
+  if (f.unpaid >= cfg.quitAfter) return endFactor(sim, f, 'unpaid');
+  swapNews(sim, f.id, f.at);
+  // Selling your stores here on your standing instruction.
+  const goods = st.stores[f.at] ?? {};
+  for (const gid of Object.keys(goods).sort()) {
+    const q = quote(sim, f.at, gid);
+    if (q.price < q.base * f.sellAbove) continue;
+    const coin = balance(sim, PLAYER);
+    const sold = sellFromStore(sim, f.at, gid, goods[gid].qty, 'factor');
+    if (!sold) continue;
+    // What they keep back for themselves (you'll never know, unless you check the books).
+    const got = balance(sim, PLAYER) - coin;
+    const skim = Math.round(got * (1 - f.honesty / 1000));
+    f.skimmed += transfer(sim, PLAYER, `purse:${f.at}`, skim);
+    f.sold += got - skim;
+  }
+  if (sim.now - f.lastReport >= cfg.reportEvery * DAY) sendReport(sim, f);
+}
+
+// A letter home: what the factor has seen and heard, carried by a courier who can be robbed.
+function sendReport(sim, f) {
+  const st = sim.state.player;
+  const cfg = sim.data.player.courier;
+  f.lastReport = sim.now;
+  const plan = planJourney(sim, f.at, st.home, { speedKmh: cfg.speedKmh, caution: 0.6, holder: f.id });
+  if (!plan) return;
+  const c = { id: nextId(st, 'k'), name: 'a courier', from: st.home, to: f.at, caravan: null, orders: null, phase: 'back', trip: null, tripNo: 2, robbed: false, delivered: false, fee: 0, waitUntil: null, report: f.at };
+  st.couriers[c.id] = c;
+  copyKnowledge(sim, f.id, c.id);
+  c.trip = newTrip(sim, { tripNo: 2, from: f.at, dest: st.home, plan, speedKmh: cfg.speedKmh });
+  f.reports += 1;
+  courierGo(sim, c);
+}
+
 function courierHome(sim, c) {
   const st = sim.state.player;
   // The letters wait for you at the courier's town.
@@ -539,7 +641,7 @@ function courierHome(sim, c) {
   (st.mail[c.from] ??= []).push(...letters);
   delete st.couriers[c.id];
   delete sim.state.knowledge.holders[c.id];
-  sim.log('player:courier-home', { id: c.id, at: c.from, robbed: c.robbed, delivered: c.delivered, letters: letters.length });
+  sim.log('player:courier-home', { id: c.id, at: c.from, robbed: c.robbed, delivered: c.delivered, letters: letters.length, report: c.report ?? null });
   if (st.at === c.from) readMail(sim, c.from);
 }
 
@@ -574,7 +676,7 @@ function payChanger(sim) {
   const st = sim.state.player;
   const cfg = sim.data.player.debt;
   const d = st.debt;
-  if (d.principal <= 0) return;
+  if (d.principal <= 0 || st.bonded) return; // a bonded debtor's work is the payment
   const interest = Math.round(d.principal * cfg.rate);
   const due = interest + Math.round(d.principal * cfg.installment);
   const paid = transfer(sim, PLAYER, 'changer', Math.min(due, balance(sim, PLAYER)));
@@ -668,6 +770,17 @@ function onBuyWagon(sim) {
   st.wagons += 1;
   sim.log('player:wagon', { at: st.at, wagons: st.wagons });
   entry(sim, 'wagon', { at: st.at, wagons: st.wagons });
+}
+
+// Hard up: a wagon standing in the yard goes back to the wheelwrights for half what it cost.
+function onSellWagon(sim) {
+  if (busy(sim, 'sell-wagon')) return;
+  const st = sim.state.player;
+  if (st.at !== st.home || idleWagons(sim) < 1) return refuse(sim, 'sell-wagon', 'no wagon in the yard');
+  const got = transfer(sim, `purse:${st.at}`, PLAYER, toBits(sim, sim.data.merchants.wagonCost * 0.5));
+  st.wagons -= 1;
+  sim.log('player:wagon-sold', { at: st.at, bits: got, wagons: st.wagons });
+  entry(sim, 'wagon-sold', { bits: got, wagons: st.wagons });
 }
 
 // ── Worth, death and heirs ──────────────────────────────────────────────────

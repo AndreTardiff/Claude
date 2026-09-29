@@ -513,7 +513,7 @@ function resolve(sim, band, v, seg, night) {
   sim.log('raid:encounter', {
     band: band.id, kind: v.kind, who: v.id, seg, night, approach: rec.approach, response: rec.response, outcome: rec.outcome,
     goods: rec.goods, bits: rec.bits, hands: rec.hands.length, outlaws: rec.outlaws.length, captured: rec.captured, bounty: rec.bounty ?? 0,
-    leaderFell: rec.leaderFell ?? false, playerDied: rec.playerDied ?? false, player: Boolean(v.who?.player), guards: rec.guards, guardHarm: rec.guardHarm, factors: rec.factors, order: rec.order ?? null,
+    leaderFell: rec.leaderFell ?? false, playerDied: rec.playerDied ?? false, player: Boolean(v.who?.player), rider: Boolean(v.who?.player && (v.who.rider || rec.playerDied)), guards: rec.guards, guardHarm: rec.guardHarm, factors: rec.factors, order: rec.order ?? null,
   });
   // Infamy: what the band did, and everyone who met them knows it.
   const I = sim.data.raiders.infamy;

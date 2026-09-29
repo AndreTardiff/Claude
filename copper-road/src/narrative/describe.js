@@ -367,6 +367,7 @@ export function describe(entry, sim) {
     case 'player:bought':
       return `${you()} buys ${amount(entry.qty, entry.good)} in ${place(entry.at)} for ${formatMoney(sim, entry.bits)}.`;
     case 'player:sold':
+      if (entry.by === 'factor') return `The family's factor in ${place(entry.at)} sells ${amount(entry.qty, entry.good)} for ${formatMoney(sim, entry.bits)}.`;
       return `${you()} sells ${amount(entry.qty, entry.good)} in ${place(entry.at)} for ${formatMoney(sim, entry.bits)}${entry.profit ? `: ${entry.profit >= 0 ? `${formatMoney(sim, entry.profit)} over cost` : `${formatMoney(sim, -entry.profit)} under cost`}` : ''}.`;
     case 'player:dispatched': {
       const load = entry.qty ? `${amount(entry.qty, entry.good)}` : 'empty wagons';
@@ -379,6 +380,12 @@ export function describe(entry, sim) {
       return `${you()} arrives in ${place(entry.at)}.`;
     case 'player:caravan-sold':
       return `The ${sim.state.player?.family ?? ''} caravan sells ${amount(entry.qty, entry.good)} in ${place(entry.at)} for ${formatMoney(sim, entry.bits)}${entry.left ? `; ${amount(entry.left, entry.good)} nobody could pay for` : ''}.`;
+    case 'player:factor':
+      return `${you()} hires ${person(entry.who)} as the family's factor in ${place(entry.at)}.`;
+    case 'player:factor-gone':
+      return `${person(entry.who)} is no longer the family's factor in ${place(entry.at)} (${entry.why === 'unpaid' ? 'not paid for days' : entry.why === 'gone' ? 'gone from the town' : 'dismissed'}).`;
+    case 'player:wagon-sold':
+      return `${you()} sells a wagon back to the wheelwrights of ${place(entry.at)} for ${formatMoney(sim, entry.bits)}.`;
     case 'player:caravan-home':
       return `The family wagons are back in the yard at ${place(entry.at)}.`;
     case 'player:courier':
@@ -388,6 +395,7 @@ export function describe(entry, sim) {
     case 'player:orders-undelivered':
       return `The courier waits in ${place(entry.at)}, but the family caravan never comes; the orders go home undelivered.`;
     case 'player:courier-home':
+      if (entry.report) return entry.robbed ? `The factor's letter from ${place(entry.report)} never arrives: the courier was robbed.` : `A letter from the family's factor in ${place(entry.report)} reaches ${place(entry.at)}.`;
       return entry.robbed ? `The courier limps home to ${place(entry.at)}: robbed on the road, the letters gone.` : `The courier is back in ${place(entry.at)} with ${entry.letters} letter${entry.letters === 1 ? '' : 's'} of news.`;
     case 'player:paid':
       return `${you()} pays the money-changer ${formatMoney(sim, entry.bits)}; ${formatMoney(sim, entry.owed)} still owed.`;
@@ -512,7 +520,9 @@ function encounterCore(e, { place, person, bandName, segRoad, amount, sim }) {
   const r = e.kind === 'rider' ? getRider(sim, e.who) : null;
   const lordly = e.kind === 'lord';
   const name = m ? m.name : w ? `${w.name} the ${tradeName(sim, w)}` : r ? `${r.name} of the lord's post` : lordly ? 'Lord Aldric' : e.kind === 'courier' ? `${sim.state.player?.family ?? 'the family'}'s courier` : e.who;
-  const party = m ? `${m.name}'s caravan` : lordly ? "Lord Aldric's party" : name;
+  // The player's own caravan (step G): named for them if they rode with it.
+  const rider = e.rider && sim.state.player ? sim.state.player.died.find((d) => d.t >= e.t)?.name ?? sim.state.player.name : null;
+  const party = m?.player ? (rider ? `${rider}'s caravan` : `the ${sim.state.player.family} family's caravan`) : m ? `${m.name}'s caravan` : lordly ? "Lord Aldric's party" : name;
   const goods = Object.entries(e.goods ?? {}).filter(([, q]) => q > 0.05).map(([gid, q]) => amount(q, gid));
   const took = [goods.join(' and '), e.bits ? formatMoney(sim, e.bits) : ''].filter(Boolean).join(' and ');
   const hands = e.hands ? ` ${e.hands === 1 ? `One ${lordly ? 'of his guard' : 'hired hand'} is` : `${e.hands} ${lordly ? 'of his guard' : 'hired hands'} are`} killed.` : '';
@@ -535,7 +545,7 @@ function encounterCore(e, { place, person, bandName, segRoad, amount, sim }) {
       if (e.kind === 'rider' || e.kind === 'courier') return `${Band} waylay ${name} on ${road} and take the rider's letters.`;
       return `${Band} fall on ${party} on ${road}${e.night ? ' in the dark' : ''}.${e.response === 'fought' || e.response === 'refused' || e.response === 'woke' ? ' They fight and lose.' : e.response === 'fled' ? ' They run, and are caught.' : ''}` +
         `${took ? ` ${took.charAt(0).toUpperCase() + took.slice(1)} ${took.includes(' and ') || /s\b/.test(took) ? 'are' : 'is'} taken.` : ''}${hands}${outlaws}` +
-        guardsText(e, sim) + (e.captured ? (lordly ? ' Lord Aldric himself is dragged off into the hills, to be held for a great ransom.' : ` ${m.name} is dragged off to be held for ransom.`) : '');
+        guardsText(e, sim) + (e.playerDied ? ` ${rider} is killed.` : '') + (e.captured ? (lordly ? ' Lord Aldric himself is dragged off into the hills, to be held for a great ransom.' : ` ${rider ?? m.name} is dragged off to be held for ransom.`) : '');
     default:
       return `${Band} trouble ${name} on ${road}.`;
   }
