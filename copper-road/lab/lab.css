@@ -445,3 +445,11 @@ ul.plain li { margin: 0.15rem 0; }
 .lg.hideout { width: 0; height: 0; border: none; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 9px solid var(--map-danger); }
 .lg.watched { border-top: 5px solid var(--map-danger); opacity: 0.45; }
 .lg.patrolled { border-top: 5px dotted var(--accent); opacity: 0.7; }
+
+/* Sellswords (step F) */
+.mercs-table .stats { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: 0.85rem; white-space: nowrap; }
+.mercs-table .traits { font-size: 0.8rem; font-style: italic; color: var(--muted); }
+button.linkish.gear { text-decoration: none; border-bottom: 1px dotted var(--accent); }
+button.linkish.gear.tempered { font-weight: 600; }
+button.linkish.gear.named { font-weight: 600; font-style: italic; border-bottom-style: solid; }
+.sub-h { font-size: 1.05rem; margin: 1rem 0 0.3rem; }

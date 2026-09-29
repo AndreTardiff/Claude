@@ -11,7 +11,15 @@ import {
   balance,
   getResident,
   getBand,
+  getMerc,
   getMerchant,
+  guardPower,
+  itemById,
+  itemLabel,
+  mercName,
+  rankOf,
+  tierOf,
+  wageOf,
   getRider,
   getWayfarer,
   belief,
@@ -34,6 +42,7 @@ import { createToolsPanel } from './tools.js';
 import { createMoneyPanel } from './money.js';
 import { createHousesPanel } from './houses.js';
 import { createLordPanel } from './lord.js';
+import { createMercsPanel, itemButton, mercDoing } from './mercs.js';
 import { esc, goodOf, money, moneyBits, pct, placeName, qty } from './format.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -44,7 +53,7 @@ const SPEEDS = [0, 1, 5, 20, 100];
 const CHRONICLE_MAX = 200;
 const NIGHT_BOOST = 20;
 // Which chronicle filter each kind of entry belongs to.
-const FAMILY_KIND = { wayfarer: 'travel', post: 'travel', merchant: 'trade', raid: 'roads', camp: 'roads', weather: 'roads', lord: 'lord' };
+const FAMILY_KIND = { wayfarer: 'travel', post: 'travel', merchant: 'trade', raid: 'roads', camp: 'roads', weather: 'roads', lord: 'lord', merc: 'blades', item: 'blades' };
 const MODES = [
   { id: 'wagon', label: 'Wagon (3.5 km/h)', kmh: 3.5 },
   { id: 'foot', label: 'On foot (4 km/h)', kmh: 4 },
@@ -87,6 +96,10 @@ const opportunities = createOpportunityPanel($('#opps'), {
 });
 const moneyPanel = createMoneyPanel($('#money'));
 const housesPanel = createHousesPanel($('#houses'), { onSelect: (id) => select({ kind: 'merchant', id }) });
+const mercsPanel = createMercsPanel($('#mercs'), {
+  onSelect: (id) => select({ kind: 'merc', id }),
+  onSelectItem: (id) => select({ kind: 'item', id }),
+});
 const lordPanel = createLordPanel($('#lord'), { onSelectTown: (id) => select({ kind: 'node', id }) });
 const tools = createToolsPanel($('#tools'), {
   getSim: () => sim,
@@ -115,6 +128,7 @@ function newWorld(seed) {
   renderMarkets(true);
   moneyPanel.render(sim, true);
   housesPanel.render(sim);
+  mercsPanel.render(sim);
   lordPanel.render(sim);
 }
 
@@ -162,6 +176,7 @@ function frame(now) {
     renderMarkets(false);
     moneyPanel.render(sim, false);
     housesPanel.render(sim);
+    mercsPanel.render(sim);
     lordPanel.render(sim);
   }
   requestAnimationFrame(frame);
@@ -230,6 +245,8 @@ function renderInspector() {
       : selected.kind === 'merchant' ? merchantHtml(selected.id)
       : selected.kind === 'rider' ? riderHtml(selected.id)
       : selected.kind === 'band' ? bandHtml(selected.id)
+      : selected.kind === 'merc' ? mercHtml(selected.id)
+      : selected.kind === 'item' ? itemHtml(selected.id)
       : selected.kind === 'resident' ? residentHtml(selected.id)
         : nodeHtml(selected.id);
 }
@@ -370,8 +387,104 @@ function merchantHtml(id) {
       <dt>Ventures</dt><dd>${m.trades}, ${m.losses} at a loss · ${moneyBits(m.profit)} profit</dd>
       <dt>Spent at home</dt><dd>${moneyBits(m.spent)}${m.loaned ? ` · "lent" the lord ${moneyBits(m.loaned)}` : ''}</dd>
       ${m.wasWayfarer ? '<dt>Began as</dt><dd>a peddler on the roads</dd>' : ''}
+      ${m.trip?.guards?.length ? `<dt>Guards</dt><dd>${m.trip.guards.map((gid) => `<button class="linkish" data-merc="${esc(gid)}">${esc(mercName(sim, gid))}</button>`).join(', ')}</dd>` : ''}
     </dl>
     ${why}${knows}${book}`;
+}
+
+// ── Sellswords and their gear ────────────────────────────────────────────────
+
+const STAT_NAMES = { str: 'Strength', agi: 'Agility', dis: 'Discipline', awa: 'Awareness', nerve: 'Nerve' };
+const TRAIT_ABOUT = {
+  forestwise: 'fights better in the forest, and sees ambushes there sooner',
+  hillwise: 'fights better on hill paths, and sees ambushes there sooner',
+  fenwise: 'fights better in the fens, and sees ambushes there sooner',
+  ambush: 'not shaken by surprise',
+  night: 'no worse in the dark',
+  bandits: 'a little better against outlaws',
+  pair: 'better beside their partner',
+  scarred: 'a little slower, a lot harder to kill',
+};
+const HOLDER = (h) => h.kind === 'merc' ? `carried by <button class="linkish" data-merc="${esc(h.id)}">${esc(mercName(sim, h.id))}</button>`
+  : h.kind === 'band' ? `<span class="bad">in the hands of ${esc(sim.state.raiders.bands[h.id]?.name ?? 'outlaws')}</span>`
+    : h.kind === 'rack' ? `for sale on a rack in ${esc(place(h.at))}`
+      : h.kind === 'wagon' ? "on a caravan's wagons" : 'lost';
+
+function mercHtml(id) {
+  const g = getMerc(sim, id);
+  if (!g) return '';
+  const cfg = sim.data.mercs;
+  const next = cfg.ranks[g.rank + 1];
+  const top = cfg.stats.filter((s) => g.stats[s] < cfg.maxStat).sort((a, b) => g.growth[b] - g.growth[a])[0];
+  const stats = cfg.stats.map((s) => `<tr><td>${STAT_NAMES[s]}</td><td class="num">${g.stats[s]}</td>
+    <td class="num dim">${g.growth[s].toFixed(1)}${s === top && g.growth[s] > 0 ? ' <span class="tag">next</span>' : ''}</td></tr>`).join('');
+  const gear = ['weapon', 'armour', 'shield', 'charm'].map((slot) => {
+    const item = itemById(sim, g.gear[slot]);
+    if (!item) return `<tr><td>${slot}</td><td colspan="3" class="dim">none</td></tr>`;
+    return `<tr><td>${slot}</td><td>${itemButton(sim, item)}</td><td>${esc(tierOf(sim, item).name)}</td>
+      <td class="num">${item.type === 'charm' ? `repute ${item.repute >= 0 ? '+' : ''}${item.repute.toFixed(2)}` : `${Math.round(item.cond * 100)}%`}</td></tr>`;
+  }).join('');
+  const L = g.ledger;
+  const terrains = ['road', 'forest', 'hills', 'marsh'].map((t) => `${t} ${Math.round(L.km[t] ?? 0)} km${L.fightsIn[t] ? ` (${L.fightsIn[t]} fights)` : ''}`).join(' · ');
+  const companions = Object.entries(L.with).sort((a, b) => b[1] - a[1]).slice(0, 4)
+    .map(([o, n]) => `<button class="linkish" data-merc="${esc(o)}">${esc(mercName(sim, o))}</button> ${n}${g.pairs.includes(o) ? ' <span class="tag">trusted</span>' : ''}`).join(', ');
+  const traits = g.traits.map((t) => `<li><strong>${esc(cfg.traits[t]?.name ?? t)}</strong> <span class="dim">${esc(TRAIT_ABOUT[t] ?? '')}</span></li>`).join('');
+  const history = g.history.slice(-8).reverse().map((h) => {
+    const when = esc(sim.cal.format(h.t).stamp);
+    const text = h.type === 'rank' ? `rose to ${cfg.ranks[h.rank].name}${h.stat ? ` (+1 ${STAT_NAMES[h.stat].toLowerCase()})` : ''}`
+      : h.type === 'trait' ? `became ${cfg.traits[h.trait]?.name ?? h.trait}${h.with ? ` with ${mercName(sim, h.with)}` : ''}`
+        : h.type === 'bought' ? `bought ${itemLabel(sim, itemById(sim, h.item), { owner: false })}`
+          : h.type === 'sold' ? `sold ${itemLabel(sim, itemById(sim, h.item), { owner: false })}`
+            : `${h.fought ? (h.outcome === 'fought off' ? 'won a fight' : 'lost a fight') : h.outcome === 'toll' ? 'paid a toll' : 'met outlaws'} on the ${road([sim.graph.segments.get(h.seg).route])}${h.kills ? ', killed one' : ''}${h.hurt ? `, ${h.hurt}` : ''}`;
+    return `<li><time>${when}</time> ${esc(text)}</li>`;
+  }).join('');
+  const power = guardPower(sim, g, { terrain: 'road' }).power;
+  return `
+    <h3>${esc(mercName(sim, g.id))} <span class="sub">${esc(rankOf(sim, g).name)} sellsword of ${esc(place(g.home))}</span></h3>
+    <p>${mercDoing(sim, g)}.</p>
+    <dl class="facts">
+      <dt>Wage</dt><dd>${wageOf(sim, g)} marks a day · earned ${moneyBits(g.earned)} all told · purse ${moneyBits(balance(sim, `merc:${g.id}`))}</dd>
+      <dt>Strength</dt><dd>${power.toFixed(2)} in a fight on an open road <span class="dim">(a carter counts 1)</span></dd>
+      <dt>Deeds</dt><dd>${g.deeds.toFixed(1)}${next ? ` of ${next.deeds} for ${esc(next.name)}` : ' (as high as it goes)'}</dd>
+      <dt>Fights</dt><dd>${L.fights} (${L.won} won, ${L.lost} lost) of ${L.encounters} run-ins · ${L.kills} killed · ${L.wounds} wounds${L.severe ? ` (${L.severe} bad)` : ''} · ${L.ambushes} ambushes · ${L.nights} at night · ${L.stared ?? 0} stared down</dd>
+      <dt>Roads</dt><dd>${terrains}</dd>
+      ${companions ? `<dt>Beside</dt><dd>${companions}</dd>` : ''}
+      <dt>Favours</dt><dd>the ${esc(cfg.gear[g.favours]?.name ?? g.favours)}</dd>
+    </dl>
+    ${traits ? `<h4>Traits</h4><ul class="plain">${traits}</ul>` : ''}
+    <h4>Stats <span class="sub">and what their deeds have trained since the last rank</span></h4>
+    <div class="table-wrap"><table><thead><tr><th>Stat</th><th class="num">Now</th><th class="num">Trained</th></tr></thead><tbody>${stats}</tbody></table></div>
+    <p class="formula">A rank comes from deeds (a fight survived 2–3, a kill 1, a band stared down 0.3). It raises the stat trained most, by one.</p>
+    <h4>Gear</h4>
+    <div class="table-wrap"><table><thead><tr><th>Slot</th><th>Piece</th><th>Tier</th><th class="num">State</th></tr></thead><tbody>${gear}</tbody></table></div>
+    ${history ? `<h4>Lately</h4><ul class="plain">${history}</ul>` : ''}`;
+}
+
+function itemHtml(id) {
+  const item = itemById(sim, id);
+  if (!item) return '';
+  const cfg = sim.data.mercs;
+  const tier = tierOf(sim, item);
+  const next = cfg.item.tiers[item.tier + 1];
+  const owners = item.owners.map((rid) => esc(sim.state.residents.byId[rid]?.name ?? rid)).join(' → ');
+  const roads = Object.entries(item.roads).sort((a, b) => b[1] - a[1]).map(([r, n]) => `${esc(road([r]))} ${n}`).join(' · ');
+  const d = item.deeds;
+  const kind = item.type === 'charm' ? item.charm : cfg.gear[item.type].name;
+  return `
+    <h3>${esc(item.name ?? kind)} <span class="sub">${item.name ? `${esc(kind)}, ` : ''}${esc(tier.name)}</span></h3>
+    <p>${HOLDER(item.holder)}.</p>
+    <dl class="facts">
+      ${item.type === 'charm' ? `<dt>Repute</dt><dd>${item.repute >= 0 ? '+' : ''}${item.repute.toFixed(2)}: ${item.repute >= 0.3 ? 'said to be lucky' : item.repute <= -0.3 ? 'said to be cursed' : 'nobody says much about it'}</dd>
+        <dt>Truly</dt><dd>${item.relic ? '<strong>a true relic</strong> <span class="dim">(only the lab knows)</span>' : 'a keepsake; it works as far as its wearer believes'}</dd>`
+        : `<dt>Record</dt><dd>${item.xp.toFixed(1)}${next ? ` of ${next.xp} for ${esc(next.name)}${next.owners ? ` (and ${next.owners} owners)` : ''}` : ''} · edge +${tier.bonus.toFixed(2)}</dd>
+        <dt>State</dt><dd>${cfg.gear[item.type].wear ? `${Math.round(item.cond * 100)}%` : 'does not wear'}</dd>`}
+      <dt>Lived through</dt><dd>${d.fights} fights (${d.won} won) · ${d.kills} killed · ${d.turned} blows turned · ${d.nights} at night · ${d.deaths} owners died with it</dd>
+      ${item.statuses.length ? `<dt>Known as</dt><dd>${esc(item.statuses.join(', '))}</dd>` : ''}
+      ${roads ? `<dt>Where</dt><dd>${roads}</dd>` : ''}
+      <dt>Made</dt><dd>${item.madeAt ? `in ${esc(place(item.madeAt))}` : 'nobody remembers where'}${item.maker ? ` by ${esc(sim.state.residents.byId[item.maker]?.name ?? '')}` : ''}, ${esc(sim.cal.format(item.made).stamp)}</dd>
+      ${owners ? `<dt>Owners</dt><dd>${owners}</dd>` : ''}
+    </dl>
+    <p class="formula">Gear earns its record slowly: a fight 1, a win 1, a kill 1.5, a blow turned 1. Tiers at ${cfg.item.tiers.slice(1).map((t) => `${t.xp} (${t.name})`).join(', ')}; named at ${cfg.item.tiers[cfg.item.nameAt].name}.</p>`;
 }
 
 const cruelWord = (c) => (c >= 650 ? 'merciless' : c >= 400 ? 'hard' : 'soft for an outlaw');
@@ -705,9 +818,11 @@ function tipHtml(hit) {
   return null;
 }
 $('#inspector-body').addEventListener('click', (ev) => {
-  const t = ev.target.closest('[data-wayfarer], [data-merchant], [data-resident], [data-node], [data-market]');
+  const t = ev.target.closest('[data-wayfarer], [data-merchant], [data-resident], [data-node], [data-market], [data-merc], [data-item]');
   if (!t) return;
   if (t.dataset.wayfarer) select({ kind: 'wayfarer', id: t.dataset.wayfarer });
+  else if (t.dataset.merc) select({ kind: 'merc', id: t.dataset.merc });
+  else if (t.dataset.item) select({ kind: 'item', id: t.dataset.item });
   else if (t.dataset.merchant) select({ kind: 'merchant', id: t.dataset.merchant });
   else if (t.dataset.resident) select({ kind: 'resident', id: t.dataset.resident });
   else if (t.dataset.node) select({ kind: 'node', id: t.dataset.node });

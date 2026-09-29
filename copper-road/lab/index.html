@@ -18,8 +18,8 @@
     <header class="lab-head">
       <p class="eyebrow">Caravans of the Copper Road</p>
       <h1>The Laboratory</h1>
-      <p class="tagline">Build step C: coin. Copper marks from the Mint, wages, taxes and the Crown's due, households that can
-        afford food or can't, and famine that kills, drives people away and eventually settles. There are no merchants yet, so nothing moves between towns.</p>
+      <p class="tagline">Build step F: sellswords. Towns, markets and coin; merchants who trade on what they've heard; outlaw bands
+        that rob the roads; and hired blades who guard the caravans, growing slowly from what they live through, with gear that keeps its own record.</p>
     </header>
 
     <section class="controls" aria-label="Time controls">
@@ -85,6 +85,7 @@
               <option value="town">towns &amp; markets</option>
               <option value="trade">merchants</option>
               <option value="roads">raids &amp; roads</option>
+              <option value="blades">sellswords &amp; gear</option>
               <option value="lord">Lord Aldric</option>
               <option value="travel">travellers</option>
             </select></label>
@@ -96,9 +97,6 @@
 
     <section class="panel" id="markets-panel" aria-labelledby="markets-h">
       <h2 id="markets-h">Markets</h2>
-      <p class="banner"><strong>No merchants yet.</strong> Until build step D, goods can't move between towns, so Kingscross and
-        Copperford slowly run out of grain, salt runs out everywhere when autumn salting begins, and Greenhollow's tools wear out.
-        The opportunity board shows what that's worth to whoever fixes it.</p>
       <div id="markets"></div>
     </section>
 
@@ -106,6 +104,12 @@
       <h2 id="houses-h">Merchant houses</h2>
       <p class="small">The region's traders. Each buys, carries and sells on what it has heard, which is never quite what is true. Click a name for what they know and why they chose their trade.</p>
       <div id="houses"></div>
+    </section>
+
+    <section class="panel" id="mercs-panel" aria-labelledby="mercs-h">
+      <h2 id="mercs-h">Sellswords</h2>
+      <p class="small">Hired blades who guard the caravans. They grow slowly, from what they live through: each rank raises the stat their deeds trained most, and their gear keeps a record too, earning tiers and, in time, a name. Click a name or a piece of gear for its story.</p>
+      <div id="mercs"></div>
     </section>
 
     <section class="panel" id="lord-panel" aria-labelledby="lord-h">

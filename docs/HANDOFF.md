@@ -15,7 +15,7 @@ Read this first when resuming in a fresh session. It's updated at every checkpoi
 | D: merchants, caravans, knowledge, couriers | done |
 | E0: Lord Aldric as an engaged character | done |
 | E: raiders, road news, weather, camps | done |
-| **F: mercenaries, experience, encounters, standing orders** | **in progress** (F1–F2 sim done; lab, docs next) |
+| **F: mercenaries, experience, encounters, standing orders** | **in progress** (F1–F3 done; F4 standing orders and fame next) |
 
 ## Step D plan (checkpoints)
 
@@ -92,8 +92,11 @@ armour, belief-driven charms and very rare true relics; gear gains tiers and nam
       stat +1) and traits (Forestwise, Goat-footed, Fenwise, Ambush Veteran, Night Fighter, Knows the Outlaw Ways,
       Trusted Pair, Scarred). Items: fights/kills/turned blows → xp → tiers (plain…legendary) and a name at storied.
       Charms: repute from wearers' luck; relics hidden. AT-10 (Forestwise) automated.
-- [ ] **F3**: lab: sellswords panel (roster), inspector (ledger, growth, gear histories), item inspector; chronicle
-      filter; spec §12–13 as built (v0.2.7); site entry.
+- [x] **F3** *(done: `lab/mercs.js`, inspectors in `lab/lab.js`)*: Sellswords panel (roster, "gear with a story",
+      fallen), sellsword inspector (ledger, what their deeds trained, gear, lately), gear inspector (record, owners,
+      roads, a charm's repute and the lab-only truth), guards in the merchant inspector, chronicle filter
+      "sellswords & gear"; spec v0.2.7 §12.1–12.3; site entry. Balance (seeds 1/7/23 × 400–500 days): 30–50% of
+      departures guarded, guards in 3–6 encounters, 1–3 Blooded, gear reaches "proven" rarely, none named yet.
 - [ ] **F4**: standing orders (fight / pay / flee, cargo priority, night travel) replace the temper rules in `resolve()`;
       fame and infamy spread as news; the lord hires sellswords for patrols.
 
