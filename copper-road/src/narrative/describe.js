@@ -259,8 +259,8 @@ export function describe(entry, sim) {
     case 'raid:patrol-clash': {
       const r = sim.graph.routes.get(entry.route)?.name ?? entry.route;
       return entry.guardsWin
-        ? `Lord Aldric's patrol runs down ${bandName(entry.band)} on the ${r}: ${entry.outlaws === 1 ? 'one outlaw' : `${entry.outlaws} outlaws`} will rob no more.`
-        : `${cap(bandName(entry.band))} ambush Lord Aldric's patrol on the ${r}${entry.guard ? `; ${person(entry.guard)}, a guard, is killed` : ''}.`;
+        ? `Lord Aldric's patrol runs down ${bandName(entry.band)} on the ${r}: ${entry.outlaws === 1 ? 'one outlaw' : `${entry.outlaws} outlaws`} will rob no more.${entry.bounty ? ` The bounty pays ${formatMoney(sim, entry.bounty)}.` : ''}${harmText(entry.guardHarm, sim)}`
+        : `${cap(bandName(entry.band))} ambush Lord Aldric's patrol on the ${r}${entry.guard ? `; ${person(entry.guard)}, a guard, is killed` : ''}.${harmText(entry.guardHarm, sim)}`;
     }
     case 'weather:closed': {
       const ev = sim.data.weather?.events.find((x) => x.id === entry.event);
@@ -317,6 +317,33 @@ export function describe(entry, sim) {
       return `${cap(bandName(entry.band))} take ${itemLabel(sim, itemById(sim, entry.item), { owner: false })} from ${mercName(sim, entry.from)}'s body.`;
     case 'item:recovered':
       return `${cap(itemLabel(sim, itemById(sim, entry.item), { owner: false }))} comes back to ${place(entry.at)} on a caravan's wagons.`;
+    case 'lord:sets-out': {
+      const escort = entry.escort?.length ? `, ${entry.escort.length === 1 ? `${mercName(sim, entry.escort[0])} riding escort` : `${entry.escort.length} sellswords riding escort`}` : '';
+      const what = entry.trip === 'hunt' ? `rides out to hunt in ${place(entry.to)}`
+        : entry.trip === 'ships' ? `rides to ${place(entry.to)} to see the ships`
+          : entry.trip === 'ride' ? `rides out with his patrol down the ${sim.graph.routes.get(entry.route)?.name ?? 'road'}, bound for ${place(entry.to)}`
+            : `sets out to see ${place(entry.to)} for himself`;
+      return `Lord Aldric ${what}, with ${entry.household} of his household${escort}.`;
+    }
+    case 'lord:visit': {
+      if (entry.port) return `Lord Aldric rides into ${place(entry.at)} at the head of his patrol, and the harbour watches him go by.`;
+      const saw = entry.hunger >= 0.25 ? 'finds it hungry' : entry.hunger >= 0.1 ? 'finds bread short' : 'finds it well fed';
+      const news = Math.abs(entry.hunger - entry.believed) >= 0.15 ? (entry.hunger > entry.believed ? ', worse than the letters said' : ', better than the letters said') : '';
+      return `Lord Aldric rides into ${place(entry.at)} and ${saw}${news}.${entry.alms ? ` He gives ${formatMoney(sim, entry.alms)} in alms.` : ''}`;
+    }
+    case 'lord:ships':
+      return `At ${place(entry.at)}, Lord Aldric looks over the ships and buys ${formatMoney(sim, entry.bits)} of fine things from the Outside.`;
+    case 'lord:hunt':
+      return entry.result === 'glory' ? `Lord Aldric brings down a great stag in ${place(entry.at)}; they'll talk of it at his table all season.`
+        : entry.result === 'hurt' ? `Lord Aldric is thrown from his horse hunting in ${place(entry.at)}, and will keep to his bed for ${entry.days} days.`
+          : `Lord Aldric hunts in ${place(entry.at)} and comes back with nothing but mud.`;
+    case 'lord:home':
+      return `Lord Aldric is home at Kingscross after ${entry.days} day${entry.days === 1 ? '' : 's'} away.`;
+    case 'lord:freed': {
+      if (entry.how === 'escaped') return `With ${bandName(entry.band)} broken up, Lord Aldric walks free and comes home in a black mood.`;
+      const who = entry.how === 'treasury' ? 'his steward pays' : "Kingscross's households are made to pay";
+      return `Lord Aldric is ransomed: ${who} ${formatMoney(sim, entry.bits)} to ${bandName(entry.band)}.${entry.bounty ? ` He puts a price of ${entry.bounty} marks on every head of theirs.` : ''}`;
+    }
     case 'merchant:forced-loan':
       return `Lord Aldric "borrows" ${formatMoney(sim, entry.bits)} from ${trader(entry.who)}. Nobody expects to see it again.`;
     default:
@@ -358,6 +385,14 @@ const TRAIT_TEXT = {
   scarred: 'carries a bad scar now, and a careful streak with it',
 };
 
+// Sellswords hurt or killed (a patrol's clash).
+function harmText(harm, sim) {
+  if (!harm?.length) return '';
+  const dead = harm.filter((h) => h.fate === 'died').map((h) => mercName(sim, h.who));
+  const hurt = harm.filter((h) => h.fate !== 'died' && !harm.some((x) => x.who === h.who && x.fate === 'died')).map((h) => mercName(sim, h.who));
+  return `${dead.length ? ` ${listOf(dead)} ${dead.length === 1 ? 'falls' : 'fall'}.` : ''}${hurt.length ? ` ${listOf(hurt)} ${hurt.length === 1 ? 'is' : 'are'} hurt.` : ''}`;
+}
+
 // What the guards did, for the after-action report: who saw it coming, who fell, who was hurt.
 function guardsText(e, sim) {
   if (!e.guards?.length) return '';
@@ -371,7 +406,7 @@ function guardsText(e, sim) {
   const traits = (e.factors ?? []).filter((f) => f.k === 'trait' && f.trait !== 'ambush');
   if (traits.length && e.outcome === 'fought off') out.push(`${names([...new Set(traits.map((f) => f.who))])} knew this kind of fight.`);
   const dead = (e.guardHarm ?? []).filter((h) => h.fate === 'died').map((h) => h.who);
-  const hurt = (e.guardHarm ?? []).filter((h) => h.fate !== 'died');
+  const hurt = (e.guardHarm ?? []).filter((h) => h.fate !== 'died' && !dead.includes(h.who));
   if (dead.length) out.push(`${names(dead)} ${dead.length === 1 ? 'falls' : 'fall'}.`);
   if (hurt.length) out.push(`${names(hurt.map((h) => h.who))} ${hurt.length === 1 ? 'is' : 'are'} ${hurt.every((h) => h.fate === 'badly hurt') ? 'badly hurt' : 'hurt'}.`);
   return out.length ? ` ${out.join(' ')}` : '';
@@ -385,15 +420,17 @@ function encounterText(e, { place, person, bandName, segRoad, amount, sim }) {
   const m = e.kind === 'merchant' ? getMerchant(sim, e.who) : null;
   const w = e.kind === 'wayfarer' ? getWayfarer(sim, e.who) : null;
   const r = e.kind === 'rider' ? getRider(sim, e.who) : null;
-  const name = m ? m.name : w ? `${w.name} the ${tradeName(sim, w)}` : r ? `${r.name} of the lord's post` : e.who;
-  const party = m ? `${m.name}'s caravan` : name;
+  const lordly = e.kind === 'lord';
+  const name = m ? m.name : w ? `${w.name} the ${tradeName(sim, w)}` : r ? `${r.name} of the lord's post` : lordly ? 'Lord Aldric' : e.who;
+  const party = m ? `${m.name}'s caravan` : lordly ? "Lord Aldric's party" : name;
   const goods = Object.entries(e.goods ?? {}).filter(([, q]) => q > 0.05).map(([gid, q]) => amount(q, gid));
   const took = [goods.join(' and '), e.bits ? formatMoney(sim, e.bits) : ''].filter(Boolean).join(' and ');
-  const hands = e.hands ? ` ${e.hands === 1 ? 'One hired hand is' : `${e.hands} hired hands are`} killed.` : '';
+  const hands = e.hands ? ` ${e.hands === 1 ? `One ${lordly ? 'of his guard' : 'hired hand'} is` : `${e.hands} ${lordly ? 'of his guard' : 'hired hands'} are`} killed.` : '';
+  const bounty = e.bounty ? ` The lord's bounty pays ${formatMoney(sim, e.bounty)}.` : '';
   const outlaws = e.outlaws ? ` ${e.outlaws === 1 ? 'One outlaw is' : `${e.outlaws} outlaws are`} left dead${e.leaderFell ? ', their leader among them' : ''}.` : '';
   switch (e.outcome) {
     case 'toll':
-      return `On ${road}, ${band} stop ${party} and demand a toll${m ? `; ${m.name} pays` : `. ${name} pays`} ${took || 'what they ask'} rather than fight.`;
+      return `On ${road}, ${band} stop ${party} and demand a toll${m ? `; ${m.name} pays` : lordly ? '; Lord Aldric, white with fury, pays' : `. ${name} pays`} ${took || 'what they ask'} rather than fight.`;
     case 'stolen':
       return `In the night, thieves from ${band} creep into ${party === name ? `${name}'s camp` : `the camp of ${party}`} on ${road} and are gone before dawn with ${took || 'what they could carry'}.`;
     case 'escaped':
@@ -401,14 +438,14 @@ function encounterText(e, { place, person, bandName, segRoad, amount, sim }) {
     case 'dropped':
       return `Seeing ${band} on ${road}, ${m ? `${m.name}'s crew cut loose and run` : `${name} drops everything and runs`}, leaving ${took || 'the load'} behind.`;
     case 'fought off':
-      return `${Band} fall on ${party} on ${road}${e.night ? ' in the dark' : ''} and are driven off.${outlaws}${hands}${guardsText(e, sim)}`;
+      return `${Band} fall on ${party} on ${road}${e.night ? ' in the dark' : ''} and are driven off.${outlaws}${bounty}${hands}${guardsText(e, sim)}`;
     case 'murdered':
       return `${name} is found dead on ${road}, robbed by ${band} of ${took || 'everything'}.`;
     case 'robbed':
       if (e.kind === 'rider') return `${Band} waylay ${name} on ${road} and take the rider's letters.`;
       return `${Band} fall on ${party} on ${road}${e.night ? ' in the dark' : ''}.${e.response === 'fought' || e.response === 'refused' || e.response === 'woke' ? ' They fight and lose.' : ''}` +
-        ` ${took ? `${took.charAt(0).toUpperCase() + took.slice(1)} ${took.includes(' and ') || /s\b/.test(took) ? 'are' : 'is'} taken.` : ''}${hands}${outlaws}` +
-        guardsText(e, sim) + (e.captured ? ` ${m.name} is dragged off to be held for ransom.` : '');
+        `${took ? ` ${took.charAt(0).toUpperCase() + took.slice(1)} ${took.includes(' and ') || /s\b/.test(took) ? 'are' : 'is'} taken.` : ''}${hands}${outlaws}` +
+        guardsText(e, sim) + (e.captured ? (lordly ? ' Lord Aldric himself is dragged off into the hills, to be held for a great ransom.' : ` ${m.name} is dragged off to be held for ransom.`) : '');
     default:
       return `${Band} trouble ${name} on ${road}.`;
   }

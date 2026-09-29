@@ -437,12 +437,16 @@ export function guardedCaution(sim, sid) {
 /**
  * A merchant setting out hires guards for the danger they believe is on the road:
  * more for more exposure and more wagons, more if timid, fewer if the purse is thin.
- * The best strength for the wage first. Returns the guards' ids.
+ * (The lord's escort and patrols say how many they `want`.) The best strength for
+ * the wage first. Returns the guards' ids.
  */
-export function hireGuards(sim, m, { exposure, days, wagons, caution, account, tripNo, from }) {
+export function hireGuards(sim, employer, { exposure, days, wagons, caution, account, tripNo, from, want = null, kind = 'merchant' }) {
   const cfg = sim.data.mercs?.hire;
-  if (!cfg || exposure < cfg.minExposure) return [];
-  const want = Math.min(cfg.max, Math.round(wagons * exposure * cfg.perExposure * (0.6 + caution)));
+  if (!cfg) return [];
+  if (want === null) {
+    if (exposure < cfg.minExposure) return [];
+    want = Math.min(cfg.max, Math.round(wagons * exposure * cfg.perExposure * (0.6 + caution)));
+  }
   if (want <= 0) return [];
   let budget = balance(sim, account) * cfg.maxWageShare;
   const pool = forHire(sim, from)
@@ -454,7 +458,7 @@ export function hireGuards(sim, m, { exposure, days, wagons, caution, account, t
     const cost = toBits(sim, wageOf(sim, g) * Math.max(1, Math.ceil(days)));
     if (cost > budget) continue;
     budget -= cost;
-    g.trip = { merchant: m.id, tripNo, from };
+    g.trip = { kind, id: employer.id, tripNo, from }; // kind: merchant, lord or patrol
     g.at = null;
     g.idleDays = 0;
     g.ledger.hires += 1;

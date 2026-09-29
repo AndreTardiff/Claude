@@ -34,8 +34,9 @@ function checkGear(sim) {
     place(item, `band:${id}`);
     assert.deepEqual(st.items[item].holder, { kind: 'band', id });
   }
-  for (const m of Object.values(sim.state.merchants.byId)) for (const item of m.trip?.salvage ?? []) {
-    place(item, `wagon:${m.id}`);
+  const wagons = [...Object.values(sim.state.merchants.byId).map((m) => m.trip), sim.state.lord.trip, ...(sim.state.lord.patrols ?? [])];
+  for (const w of wagons) for (const item of w?.salvage ?? []) {
+    place(item, 'wagon');
     assert.equal(st.items[item].holder.kind, 'wagon');
   }
   for (const [id, item] of Object.entries(st.items)) if (!seen.has(id)) assert.equal(item.holder.kind, 'lost', `${id} is nowhere`);
@@ -68,7 +69,8 @@ test('merchants hire guards for roads they believe dangerous, pay them where the
   // Hired guards are on the road with their employer, not waiting in town.
   for (const g of activeMercs(sim)) {
     if (!g.trip) continue;
-    const m = sim.state.merchants.byId[g.trip.merchant];
+    if (g.trip.kind !== 'merchant') continue;
+    const m = sim.state.merchants.byId[g.trip.id];
     assert.ok(m.trip?.guards.includes(g.id), `${g.id} is hired but not with the caravan`);
     assert.equal(g.at, null);
   }

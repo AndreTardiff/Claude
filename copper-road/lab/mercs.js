@@ -10,8 +10,10 @@ const STAT_SHORT = { str: 'S', agi: 'A', dis: 'D', awa: 'W', nerve: 'N' };
 /** What a sellsword is doing, in a few words. */
 export function mercDoing(sim, g) {
   if (!g.active) return g.died ? 'fallen' : 'retired';
-  const m = g.trip ? sim.state.merchants.byId[g.trip.merchant] : null;
   const hurt = g.wound ? ` <span class="bad">${g.wound.severe ? 'badly hurt' : 'hurt'}</span>` : '';
+  if (g.trip?.kind === 'lord') return `riding with Lord Aldric's party${hurt}`;
+  if (g.trip?.kind === 'patrol') return `riding with the lord's patrol${hurt}`;
+  const m = g.trip ? sim.state.merchants.byId[g.trip.id] : null;
   if (m) return `guarding ${esc(m.name)}'s caravan${m.trip ? ` to ${esc(placeName(sim, m.trip.dest))}` : ''}${hurt}`;
   if (g.walking) return `walking home to ${esc(placeName(sim, g.home))}${hurt}`;
   return `in ${esc(placeName(sim, g.at))}${hurt}`;

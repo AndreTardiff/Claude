@@ -197,7 +197,7 @@ export const WORLD = {
     recruit: { chance: 0.005, hungerWeight: 3, povertyWeight: 2, poorBelow: 8, newBandHunger: 0.35, lure: 0.4 },
     // Lookouts: chance a band spots a traveller on its road, by how visible they are.
     spot: 0.8,
-    visibility: { merchant: 1, wayfarer: 0.5, peddler: 0.75, rider: 0.6 },
+    visibility: { merchant: 1, wayfarer: 0.5, peddler: 0.75, rider: 0.6, lord: 1.3 },
     noticeChance: 0.35, // chance a traveller who isn't attacked notices the band's signs
     takeMemory: 0.9, // lookouts' running estimate of each road's takings fades by this a day
     fearMemory: 0.93, // …and so does the fear a bloody road leaves
@@ -216,6 +216,8 @@ export const WORLD = {
       captureChance: 0.4, // a merchant whose crew lose a fight may be dragged off (more if timid)
       murderChance: 0.25, // a wayfarer who fights and loses may not live
       letterValue: 20, // marks a band reckons the post's letters are worth to a fence
+      lordValue: 150, // marks a band reckons a lord is worth taking (the ransom he'd fetch)
+      lordOdds: 0.62, // …and for that prize a band will take on worse odds than usual
     },
     ransom: { share: 0.2, min: 50, days: 6, lordGenerosity: 600, townKeepsPerHead: 15, killAbove: 650 },
   },
@@ -260,7 +262,29 @@ export const WORLD = {
     ],
     steward: { tempted: 800, share: 0.01, noticeAbove: 10 }, // skims 1% a day of anything above 800 marks
     // Patrols (step E): guards ride a road his seat believes dangerous (this much above its old reputation).
-    patrol: { minDanger: 0.15, guards: 4, pay: 1, days: 10 },
+    patrol: { minDanger: 0.15, guards: 4, pay: 1, days: 10, sellswords: 2 },
+    // His travels (step F): now and then he rides out to see for himself, hunt, visit the ships, or ride
+    // with a patrol when outlaws have angered him. His party is the richest mark on the road.
+    travel: {
+      everyDays: 18, // at least this long at home between trips
+      minScore: 0.18, // a trip worth making (weighed apart from his spending)
+      chance: 0.5, // …and whether he stirs himself to go, when one is
+      speedKmh: 5,
+      household: 4, // household guards riding with him (from the seat's guard)
+      escort: 2, // sellswords hired for the road, more if he believes it dangerous (up to 4)
+      purse: 40, // marks carried for the road
+      stayDays: [1, 3], // days he stays where he's going
+      spendPerDay: 3, // marks a day his household spends where it stays (to the town's households)
+      eats: { grain: 0.8, luxuries: 0.3 }, // a day, bought in the town's market
+      staleDays: 6, // news of a town older than this makes him want to go and see
+      hunt: { at: 'blackpine', glory: 0.35, hurt: 0.08, hurtDays: 8 },
+      ships: { luxuries: 25 }, // marks of fine things he buys from the ships (the coin leaves the region)
+      alms: 0.3, // marks a head he gives a poor town he visits, if generous
+      ransom: { min: 250, share: 0.3, days: 8 }, // what a band asks for a lord: at least this, or a share of the treasury
+      stewardAway: 3, // the steward skims this many times as much while the lord is away
+      bounty: { perHead: 8, days: 40 }, // marks a head for outlaws of a band that crossed him
+      anger: 0.5, // mood when a band robs his post, his patrol or him
+    },
   },
 
   // Word of mouth: each retelling moves prices by up to ±6% and costs 15% of the trust.

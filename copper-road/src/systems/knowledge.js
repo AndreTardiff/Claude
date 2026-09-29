@@ -68,6 +68,8 @@ export function snapshot(sim, sid, source = 'seen', confidence = 1000) {
     goods[gid] = { price: round2(q.price), stock: round1(q.stock), desired: round1(q.desired) };
   }
   const rec = { at: sid, t: sim.now, source, confidence, goods };
+  // How hungry the town is (0–1): what anyone standing there can see (step F: the lord judges by it).
+  if (sim.state.economy?.hunger && !ix.isOutside(sid)) rec.hunger = round2(sim.state.economy.hunger[sid] ?? 0);
   if (sim.state.coin && !ix.isOutside(sid)) {
     const marks = (account) => Math.round(balance(sim, account) / sim.data.coin.bitsPerMark);
     rec.coin = { till: marks(`till:${sid}`), purse: marks(`purse:${sid}`) };
@@ -144,6 +146,11 @@ export function observe(sim, holder, sid) {
 function retell(sim, rec) {
   const noise = sim.data.knowledge.rumourNoise;
   const rng = sim.rng('rumour');
+  if (rec.fame) {
+    // A tale of a sellsword (or a band) grows in the telling more often than it shrinks.
+    const wobble = 1 + (rng.float() * 2 - 0.8) * noise * 3;
+    return { ...rec, renown: round2(Math.max(0, rec.renown * wobble)), source: 'rumour', confidence: Math.round(rec.confidence * sim.data.knowledge.rumourTrust) };
+  }
   if (rec.road) {
     // A road story grows or shrinks in the telling.
     const wobble = 1 + (rng.float() * 2 - 1) * noise * 3;
@@ -157,6 +164,7 @@ function retell(sim, rec) {
   }
   const confidence = Math.round(rec.confidence * sim.data.knowledge.rumourTrust);
   const told = { at: rec.at, t: rec.t, source: 'rumour', confidence, goods };
+  if (rec.hunger !== undefined) told.hunger = round2(Math.min(1, Math.max(0, rec.hunger * (1 + (rng.float() * 2 - 1) * noise * 2))));
   if (rec.coin) {
     const wobble = 1 + (rng.float() * 2 - 1) * noise;
     told.coin = { till: Math.round(rec.coin.till * wobble), purse: Math.round(rec.coin.purse * wobble) };

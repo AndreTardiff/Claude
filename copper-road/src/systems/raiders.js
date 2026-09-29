@@ -39,6 +39,7 @@ import { getMerchant, loseCargo, writeOffIfEmpty } from './merchants.js';
 import { getWayfarer, losePack } from './wayfarers.js';
 import { getRider } from './post.js';
 import { patrolOn } from './lord.js';
+import { LORD, LORD_PURSE, angerLord, captureLord, payBounty } from './progress.js';
 import { afterEncounter, bandGearPower, guardTakesBlow, guardsInFight, guardsOf, outlawsDropGear, releaseGuards, rollKillers, scatterBandGear, staredDown, spotAmbush } from './mercs.js';
 
 const DAY = 1440;
@@ -290,6 +291,7 @@ function visibleValue(sim, band, v) {
   for (const [gid, qty] of Object.entries(v.cargo)) marks += quote(sim, fence, gid).price * qty;
   if (v.account) marks += (balance(sim, v.account) * v.carried) / sim.data.coin.bitsPerMark;
   if (v.letters) marks += sim.data.raiders.encounter.letterValue;
+  if (v.kind === 'lord') marks += sim.data.raiders.encounter.lordValue; // what he'd fetch in ransom
   return marks;
 }
 
@@ -303,6 +305,12 @@ function victim(sim, kind, id) {
     const w = getWayfarer(sim, id);
     if (!w?.trip || w.retired || w.dead) return null;
     return { kind, id, who: w, name: w.name, trip: w.trip, account: `wayfarer:${id}`, carried: 1, cargo: w.pack ? { [w.pack.good]: w.pack.qty } : {}, people: 1, boldness: w.boldness, peddler: Boolean(w.pack) };
+  }
+  if (kind === 'lord') {
+    // Lord Aldric's party (step F): his household guards, hired sellswords, a purse, and the man himself.
+    const st = sim.state.lord;
+    if (!st?.trip || st.captive) return null;
+    return { kind, id: LORD, who: st, name: `Lord ${st.name}`, trip: st.trip, account: LORD_PURSE, carried: 1, cargo: {}, people: (st.trip.crew ?? 4) + 1, boldness: st.traits.ambition, guards: guardsOf(sim, st.trip) };
   }
   if (kind === 'rider') {
     const r = getRider(sim, id);
@@ -385,7 +393,8 @@ function resolve(sim, band, v, seg, night) {
     guards: (v.guards ?? []).map((g) => g.id), guardHarm: [], guardsDead: [], guardKills: 0, bandGear: round2(gearPower), factors: [],
   };
 
-  if ((value < cfg.minLoot && !desperate) || (odds > cfg.maxOdds && !desperate)) {
+  const maxOdds = v.kind === 'lord' ? cfg.lordOdds : cfg.maxOdds;
+  if ((value < cfg.minLoot && !desperate) || (odds > maxOdds && !desperate)) {
     // Not worth it, or too many to take on: they let them by, and may be seen doing it.
     v.trip.sawBand = band.id;
     if (v.guards?.length && value >= cfg.minLoot) staredDown(sim, band, v.trip);
@@ -451,6 +460,17 @@ function resolve(sim, band, v, seg, night) {
   }
 
   if (v.guards?.length) afterEncounter(sim, band, v, rec, ctx);
+  // The lord takes it personally: an attack on his party, or on his post.
+  if (v.kind === 'lord') angerLord(sim, sim.data.lord.travel.anger + (rec.captured ? 0.5 : 0), band);
+  if (v.kind === 'rider' && rec.outcome === 'robbed') angerLord(sim, 0.2, band);
+  // A bounty on this band: the treasury pays for every one of them killed.
+  if (rec.outlaws.length && v.kind !== 'lord') {
+    const killers = rec.killers ?? [];
+    rec.bounty = payBounty(sim, band, [
+      ...killers.map((id) => ({ account: `merc:${id}`, heads: 1 })),
+      ...(v.account ? [{ account: v.account, heads: rec.outlaws.length - killers.length }] : []),
+    ]);
+  }
   if (rec.captured) releaseGuards(sim, v.trip, v.trip.from); // the guards scatter back the way they came, unpaid
   band.raids += rec.outcome === 'fought off' ? 0 : 1;
   const danger = threatOf(sim, band, seg);
@@ -461,7 +481,7 @@ function resolve(sim, band, v, seg, night) {
   if (st.encounters.length > 60) st.encounters.shift();
   sim.log('raid:encounter', {
     band: band.id, kind: v.kind, who: v.id, seg, night, approach: rec.approach, response: rec.response, outcome: rec.outcome,
-    goods: rec.goods, bits: rec.bits, hands: rec.hands.length, outlaws: rec.outlaws.length, captured: rec.captured,
+    goods: rec.goods, bits: rec.bits, hands: rec.hands.length, outlaws: rec.outlaws.length, captured: rec.captured, bounty: rec.bounty ?? 0,
     leaderFell: rec.leaderFell ?? false, guards: rec.guards, guardHarm: rec.guardHarm, factors: rec.factors,
   });
   if (v.kind === 'merchant') writeOffIfEmpty(sim, v.who);
@@ -497,6 +517,11 @@ function fight(sim, band, v, rec, odds, rng, caution) {
   if (v.kind === 'merchant') {
     killHands(sim, v, rec, 1 + (rng.chance(0.4) ? 1 : 0), band);
     if (rng.chance(cfg.captureChance * (0.5 + caution))) capture(sim, band, v, rec);
+  }
+  if (v.kind === 'lord') {
+    // His household guards die around him; and the prize is the man himself.
+    killHands(sim, v, rec, 1 + (rng.chance(0.5) ? 1 : 0), band);
+    if (rng.chance(cfg.captureChance + 0.2)) captureLord(sim, band, rec);
   }
 }
 
@@ -547,10 +572,13 @@ function takeLetters(sim, band, v, rec) {
 // Hired hands come from the town the caravan set out from; their deaths are that town's losses.
 // Sellswords stand in front: a blow meant for a hand may fall on a guard instead (mercs.js).
 function killHands(sim, v, rec, n, band) {
-  if (v.kind !== 'merchant') return;
+  if (v.kind !== 'merchant' && v.kind !== 'lord') return;
+  // A caravan's hands are hired where it set out; the lord's are his seat's guard.
+  const home = v.kind === 'lord' ? sim.state.lord.seat : v.trip.from;
+  const trades = v.kind === 'lord' ? ['guard'] : ['labourer', 'porter', 'carter'];
   for (let i = 0; i < n && (v.trip.crew ?? 0) > 1; i++) {
     if (guardTakesBlow(sim, band, v, rec, sim.rng('raids'))) continue;
-    const pool = residentsAt(sim, v.trip.from).filter((r) => ['labourer', 'porter', 'carter'].includes(r.profession));
+    const pool = residentsAt(sim, home).filter((r) => trades.includes(r.profession));
     const r = pool.length ? sim.rng('raids').pick(pool) : null;
     if (r) killResident(sim, { id: r.id, cause: 'raid' });
     rec.hands.push(r?.id ?? null);
@@ -929,18 +957,38 @@ function patrolled(sim, band) {
   band.fear[band.watching] = round3(band.fear[band.watching] + cfg.fear);
   const rng = sim.rng('raids');
   if (!rng.chance(cfg.clash)) return;
-  const att = band.members.length * moraleOf(band);
-  const def = p.guards * cfg.strength;
+  const att = band.members.length * moraleOf(band) + bandGearPower(sim, band);
+  // Sellswords riding with the patrol (step F) count as the guards they are.
+  const trip = { guards: p.mercs ?? [], salvage: p.salvage ?? [] };
+  const hired = guardsOf(sim, trip);
+  const terrain = sim.graph.segments.get(band.watching).terrain;
+  const def = p.guards * cfg.strength + (hired.length ? guardsInFight(sim, hired, { terrain, night: false }).seen : 0);
   const guardsWin = rng.float() < def / (att + def);
-  const rec = { band: band.id, route: p.route, guardsWin, outlaws: 0, guard: null };
+  const rec = { band: band.id, route: p.route, guardsWin, outlaws: 0, guard: null, mercs: hired.map((g) => g.id) };
+  // What the sellswords live through, as in any fight on the road.
+  const fightRec = { t: sim.now, band: band.id, seg: band.watching, night: false, roll: 0, outcome: guardsWin ? 'fought off' : 'robbed', response: 'fought', hands: [], outlaws: [], guardHarm: [], guardsDead: [], killers: [] };
   if (guardsWin) {
-    const r = { outlaws: [] };
-    killOutlaws(sim, band, r, 1 + (rng.chance(0.5) ? 1 : 0));
-    rec.outlaws = r.outlaws.length;
+    fightRec.killers = hired.length ? rollKillers(sim, hired, fightRec, rng) : [];
+    killOutlaws(sim, band, fightRec, 1 + (rng.chance(0.5) ? 1 : 0) + fightRec.killers.length);
+    rec.outlaws = fightRec.outlaws.length;
     band.fear[band.watching] = round3(band.fear[band.watching] + 1);
+    rec.bounty = payBounty(sim, band, [
+      ...fightRec.killers.map((id) => ({ account: `merc:${id}`, heads: 1 })),
+      { account: `purse:${sim.state.lord.seat}`, heads: fightRec.outlaws.length - fightRec.killers.length },
+    ]);
   } else {
-    const guards = residentsAt(sim, sim.state.lord.seat).filter((r) => r.profession === 'guard');
-    if (guards.length) rec.guard = killResident(sim, { id: rng.pick(guards).id, cause: 'raid' })?.id ?? null;
+    // Half the time the blow falls where a sellsword stands (the patrol spreads out more than a caravan).
+    if (!(hired.length && rng.chance(0.5) && guardTakesBlow(sim, band, { trip }, fightRec, rng))) {
+      const guards = residentsAt(sim, sim.state.lord.seat).filter((r) => r.profession === 'guard');
+      if (guards.length) rec.guard = killResident(sim, { id: rng.pick(guards).id, cause: 'raid' })?.id ?? null;
+    }
+    angerLord(sim, 0.2, band);
+  }
+  if (hired.length) {
+    afterEncounter(sim, band, { trip }, fightRec, { terrain, night: false, surprised: false, spotted: null });
+    p.mercs = trip.guards;
+    p.salvage = trip.salvage;
+    rec.guardHarm = fightRec.guardHarm;
   }
   sim.log('raid:patrol-clash', rec);
   checkWiped(sim, band);

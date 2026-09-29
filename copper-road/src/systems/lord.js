@@ -15,7 +15,12 @@
 //                lasting: a granary, new fields, new houses, a workshop
 //   patrol       guards ride a road his seat has heard is dangerous (step E);
 //                bands see them and move off, or get run down
+//   trip         he rides out himself: a tour, a hunt, the ships, or a ride with
+//                a patrol (step F, progress.js)
 //
+// He judges by what he has heard (step F): the post's letters and the talk at
+// the inn where he is, kept as his own knowledge ('lord'), not the truth. News
+// from a town that is old or worrying is a reason to go and see.
 // Spending brings the treasury down, so the Mint strikes again and buys ore.
 // A fat treasury also tempts his steward, who skims a little and buries it.
 // Every choice keeps its reasons (the options, their scores, his mood).
@@ -28,7 +33,9 @@ import { balance, toBits, toMarks, transfer } from '../economy/money.js';
 import { residentsAt } from '../economy/people.js';
 import { improve, improvementsOf, landOf, storageOf } from '../world/improvements.js';
 import { refreshNeeds } from './economy.js';
-import { believedDanger } from './knowledge.js';
+import { belief, believedDanger, swapNews } from './knowledge.js';
+import { hireGuards, payGuards, releaseGuards } from './mercs.js';
+import { LORD, atHome, believedHunger, heldForRansom, hurt, progressHandlers, setOut, travelOptions, whileAway } from './progress.js';
 
 const DAY = 1440;
 const round2 = (x) => Math.round(x * 100) / 100;
@@ -59,23 +66,43 @@ export const lord = {
       done: [], // finished works, for the inspector
       saving: null, // { work, at, since } while he puts coin aside for works
       crownSeen: 0,
+      at: cfg.seat, // where he is (null on the road)
+      away: null, // a trip in hand (progress.js)
+      trip: null,
+      tripNo: 0,
+      lastTrip: sim.now,
+      captive: null,
+      hurtUntil: 0,
+      bounty: null, // { band, perHead, until, paid, heads }
+      grudge: null, // the band that last crossed him
+      decideNow: false,
+      tripReason: null,
     };
+    sim.state.lord.mood.anger = 0;
   },
 
   daily(sim) {
     const st = sim.state.lord;
     if (!st) return;
+    // What he hears where he is (the inn, or his own eyes).
+    if (st.at && sim.state.knowledge) swapNews(sim, LORD, st.at, { look: Boolean(sim.state.economy.markets[st.at]) });
     updateMood(sim);
     runOrders(sim);
     runProjects(sim);
     runPatrols(sim);
+    whileAway(sim, buyForLord);
+    heldForRansom(sim);
     steward(sim);
     const day = sim.cal.day(sim.now);
-    if (day >= st.nextDecision) {
+    if (st.captive || hurt(sim, st)) return; // held by outlaws, or abed with a hunting fall: nothing is decided
+    if (day >= st.nextDecision || st.decideNow) {
+      st.decideNow = false;
       decide(sim);
       st.nextDecision = day + sim.data.lord.decideEvery;
     }
   },
+
+  handlers: progressHandlers,
 
   seasonal(sim) {
     const st = sim.state.lord;
@@ -92,6 +119,14 @@ export const lord = {
 };
 
 export const getLord = (sim) => sim.state.lord;
+
+// A market as he has heard of it: price, stock, and how glutted (the price against its worth).
+function heardQuote(sim, sid, gid) {
+  const b = belief(sim, LORD, sid, gid);
+  if (!b) return null;
+  const q = quote(sim, sid, gid); // only its fixed worth and local factor
+  return { price: b.price, stock: b.stock, factor: b.price / (q.base * q.local), ageDays: b.ageDays };
+}
 const heads = (sim, sid) => residentsAt(sim, sid).length;
 const towns = (sim) => {
   const ix = economyIndex(sim.data);
@@ -125,14 +160,14 @@ function committed(sim) {
 
 function updateMood(sim) {
   const st = sim.state.lord;
-  const hunger = sim.state.economy.hunger;
   let worst = 0;
-  for (const sid of towns(sim)) worst = Math.max(worst, hunger[sid]);
+  for (const sid of towns(sim)) worst = Math.max(worst, believedHunger(sim, sid).hunger);
   const full = toMarks(sim, balance(sim, 'treasury')) / sim.data.coin.mint.treasuryTarget;
   // Moods drift toward what he sees, a little each day.
   st.mood.worry = round3(st.mood.worry * 0.8 + clamp01(worst / 0.6) * 0.2);
   st.mood.pride = round3(st.mood.pride * 0.9 + clamp01((1 - worst / 0.25) * Math.min(1, full)) * 0.1);
   st.mood.grievance = round3(st.mood.grievance * 0.94);
+  st.mood.anger = round3((st.mood.anger ?? 0) * 0.95);
 }
 
 // ── Deciding ────────────────────────────────────────────────────────────────
@@ -142,7 +177,6 @@ export function lordOptions(sim) {
   const cfg = sim.data.lord;
   const st = sim.state.lord;
   const t = st.traits;
-  const hunger = sim.state.economy.hunger;
   const budget = purseOfLord(sim);
   const out = [];
   const busy = (kind, at) => st.orders.some((o) => o.kind === kind && o.at === at) || st.projects.some((p) => p.at === at);
@@ -150,20 +184,22 @@ export function lordOptions(sim) {
   for (const sid of towns(sim)) {
     const people = heads(sim, sid);
     if (!people) continue;
-    const h = hunger[sid];
+    const heard = believedHunger(sim, sid);
+    const h = heard.hunger;
 
     // Relief: grain for a hungry town, paid for by the treasury.
     if (h >= cfg.relief.hunger && !st.orders.some((o) => o.kind === 'relief' && o.at === sid)) {
       const price = round2(quote(sim, sid, 'grain').base * cfg.relief.premium);
       const qty = Math.floor(Math.min(people * 0.1 * cfg.relief.days, purseOfLord(sim, { emergency: true }) / price));
       if (qty >= cfg.relief.minQty) {
-        out.push({ kind: 'relief', at: sid, good: 'grain', qty, price, cost: round2(qty * price), score: round2((t.generosity / 1000) * (0.5 + h) * (1 + st.mood.worry)), why: `${sid} is hungry` });
+        out.push({ kind: 'relief', at: sid, good: 'grain', qty, price, cost: round2(qty * price), score: round2((t.generosity / 1000) * (0.5 + h) * (1 + st.mood.worry)), why: heard.ageDays < 1 ? `${sid} is hungry` : `word is that ${sid} is hungry (${Math.round(heard.ageDays)} days old)` });
       }
     }
 
     // Commission: prop up a glutted craft by buying its goods for the household and garrison.
     for (const gid of cfg.commission.goods) {
-      const q = quote(sim, sid, gid);
+      const q = heardQuote(sim, sid, gid);
+      if (!q) continue;
       const lastTime = st.lastCommission?.[`${sid}:${gid}`] ?? -Infinity;
       if (q.factor > cfg.commission.glutFactor || q.stock < cfg.commission.minQty || sim.now - lastTime < cfg.commission.everyDays * DAY) continue;
       const qty = Math.floor(Math.min(q.stock * 0.5, cfg.commission.maxQty, budget / Math.max(q.price, 0.01)));
@@ -174,7 +210,7 @@ export function lordOptions(sim) {
 
     // Festival: a fed town, a full treasury, a vain lord.
     if (h < 0.1 && !busy('festival', sid)) {
-      const cost = round2(people * (cfg.festival.perHead + cfg.festival.grainPerHead * quote(sim, sid, 'grain').price));
+      const cost = round2(people * (cfg.festival.perHead + cfg.festival.grainPerHead * (heardQuote(sim, sid, 'grain')?.price ?? quote(sim, sid, 'grain').base)));
       if (cost <= budget) {
         const seat = sid === st.seat ? 1.3 : 1;
         out.push({ kind: 'festival', at: sid, cost, score: round2((t.vanity / 1000) * (0.3 + st.mood.pride) * seat), why: 'a fed town and a full treasury' });
@@ -186,7 +222,7 @@ export function lordOptions(sim) {
       if (busy('works', sid)) break;
       const built = st.done.findLast((d) => d.work === w.id && d.at === sid);
       if (built && sim.now - built.t < cfg.worksEvery * DAY) continue;
-      const need = worksNeed(sim, sid, w);
+      const need = worksNeed(sim, sid, w, h);
       if (!need) continue;
       const cost = round2(w.days * w.labour + materialsCost(sim, sid, w));
       // Paid as it goes: a few days in hand will do. Short of that, he may save up for it.
@@ -222,6 +258,11 @@ function runPatrols(sim) {
   const keep = [];
   for (const p of st.patrols ?? []) {
     if (p.until <= sim.now) {
+      if (p.mercs?.length || p.salvage?.length) {
+        const trip = { guards: p.mercs, salvage: p.salvage ?? [] };
+        st.spent.patrol += payGuards(sim, trip, Math.max(1, Math.round((sim.now - (p.since ?? sim.now)) / DAY)), 'treasury');
+        releaseGuards(sim, trip, st.seat);
+      }
       sim.log('lord:patrol-home', { route: p.route });
       continue;
     }
@@ -233,7 +274,8 @@ function runPatrols(sim) {
 }
 
 // Does this town need this work, and how much? Null if not.
-function worksNeed(sim, sid, w) {
+// His reeves report the stores and the fields; hunger is what he has heard.
+function worksNeed(sim, sid, w, hunger) {
   const eco = sim.state.economy;
   const people = heads(sim, sid);
   if (w.effect.storage) {
@@ -244,12 +286,12 @@ function worksNeed(sim, sid, w) {
   if (w.effect.farmers) {
     const land = landOf(sim, sid);
     const farmers = residentsAt(sim, sid).filter((r) => r.profession === 'farmer').length;
-    if (land && farmers >= land.farmers && eco.hunger[sid] >= 0.1) return { weight: 1, why: 'every field is worked and still it goes hungry' };
+    if (land && farmers >= land.farmers && hunger >= 0.1) return { weight: 1, why: 'every field is worked and still it goes hungry' };
   }
   if (w.effect.homes) {
     const d = sim.data.economy.demography;
     const ceiling = Math.floor(sim.graph.nodes.get(sid).residents * d.ceiling) + improvementsOf(sim, sid).homes;
-    if (people >= ceiling - 1 && eco.hunger[sid] < 0.1) return { weight: 0.9, why: 'it is full to bursting and well fed' };
+    if (people >= ceiling - 1 && hunger < 0.1) return { weight: 0.9, why: 'it is full to bursting and well fed' };
   }
   if (w.effect.trade) {
     const p = sim.data.economy.professions[w.effect.trade];
@@ -271,6 +313,7 @@ function materialsCost(sim, sid, w) {
 function decide(sim) {
   const cfg = sim.data.lord;
   const st = sim.state.lord;
+  considerTrip(sim);
   const options = lordOptions(sim);
   // Once he has set his heart on a work, he keeps to it while it's still needed,
   // unless something more pressing (relief) comes first.
@@ -283,7 +326,7 @@ function decide(sim) {
     mood: { ...st.mood },
     // Only the fields each kind has (state stays plain JSON: no undefined).
     options: options.slice(0, 5).map((o) => Object.fromEntries(
-      Object.entries({ kind: o.kind, work: o.work, route: o.route, at: o.at, good: o.good, qty: o.qty, cost: o.cost, score: o.score, why: o.why, affordable: o.affordable !== false })
+      Object.entries({ kind: o.kind, trip: o.trip, work: o.work, route: o.route, at: o.at, good: o.good, qty: o.qty, cost: o.cost, score: o.score, why: o.why, affordable: o.affordable !== false })
         .filter(([, v]) => v !== undefined),
     )),
     choice: null,
@@ -308,11 +351,29 @@ function decide(sim) {
   else if (best.kind === 'commission') commission(sim, best);
   else if (best.kind === 'festival') festival(sim, best);
   else if (best.kind === 'works') beginWorks(sim, best);
+
   else if (best.kind === 'patrol') {
     const route = sim.data.routes.find((r) => r.id === best.route);
-    st.patrols = [...(st.patrols ?? []), { route: route.id, segs: route.segments, guards: sim.data.lord.patrol.guards, until: sim.now + sim.data.lord.patrol.days * DAY }];
-    sim.log('lord:patrol', { route: route.id, guards: sim.data.lord.patrol.guards, days: sim.data.lord.patrol.days });
+    const pc = sim.data.lord.patrol;
+    // Sellswords waiting at his seat ride with the guard (step F), paid when they come home.
+    const id = sim.nextId('pt');
+    const mercs = st.at === st.seat ? hireGuards(sim, { id }, { kind: 'patrol', want: pc.sellswords ?? 0, days: pc.days, account: 'treasury', tripNo: 0, from: st.seat, exposure: 1, wagons: 1, caution: 0.5 }) : [];
+    st.patrols = [...(st.patrols ?? []), { id, route: route.id, segs: route.segments, guards: pc.guards, until: sim.now + pc.days * DAY, since: sim.now, mercs }];
+    sim.log('lord:patrol', { route: route.id, guards: pc.guards, days: pc.days, mercs });
   }
+}
+
+// A trip is weighed apart from the spending (step F): he can fund works and still ride
+// out. Cheap enough to take from the emergency purse; taken now and then, not whenever it scores.
+function considerTrip(sim) {
+  const st = sim.state.lord;
+  const cfg = sim.data.lord.travel;
+  if (!cfg) return;
+  const trips = travelOptions(sim, purseOfLord(sim, { emergency: true })).sort((a, b) => b.score - a.score || (a.at < b.at ? -1 : 1));
+  st.tripReason = trips.length ? { t: sim.now, options: trips.slice(0, 4).map(({ trip, at, route, score, why }) => ({ trip, at, route: route ?? null, score, why })), choice: null } : st.tripReason ?? null;
+  const best = trips[0];
+  if (!best || best.score < cfg.minScore || !sim.rng('lord.travel').chance(cfg.chance)) return;
+  if (setOut(sim, best)) st.tripReason.choice = 0;
 }
 
 // ── Orders: the treasury pays for goods delivered ───────────────────────────
@@ -383,7 +444,7 @@ export function fillOrder(sim, sid, gid, qty, account) {
 
 // ── Commissions and festivals: the lord buys, and the town is paid ──────────
 
-function buyForLord(sim, sid, gid, qty) {
+export function buyForLord(sim, sid, gid, qty) {
   const cost = purchaseCost(sim, sid, gid, qty);
   const got = useUp(sim, sid, gid, qty);
   return transfer(sim, 'treasury', `till:${sid}`, toBits(sim, cost * (got / Math.max(qty, 1e-9))));
@@ -462,7 +523,9 @@ function steward(sim) {
   const st = sim.state.lord;
   const excess = balance(sim, 'treasury') - toBits(sim, cfg.tempted);
   if (excess <= 0) return;
-  const taken = transfer(sim, 'treasury', 'hoard', excess * cfg.share);
+  // While the cat's away (step F).
+  const bolder = atHome(st) ? 1 : sim.data.lord.travel?.stewardAway ?? 1;
+  const taken = transfer(sim, 'treasury', 'hoard', excess * cfg.share * bolder);
   if (!taken) return;
   const hoards = sim.state.coin.hoards;
   hoards[st.seat] = (hoards[st.seat] ?? 0) + taken; // buried somewhere near the castle

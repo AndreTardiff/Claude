@@ -97,7 +97,13 @@ armour, belief-driven charms and very rare true relics; gear gains tiers and nam
       roads, a charm's repute and the lab-only truth), guards in the merchant inspector, chronicle filter
       "sellswords & gear"; spec v0.2.7 §12.1–12.3; site entry. Balance (seeds 1/7/23 × 400–500 days): 30–50% of
       departures guarded, guards in 3–6 encounters, 1–3 Blooded, gear reaches "proven" rarely, none named yet.
-- [ ] **F4**: standing orders (fight / pay / flee, cargo priority, night travel) replace the temper rules in `resolve()`;
+- [x] **F4a–b** *(done: `src/systems/progress.js`, lord.js)*: the lord judges by what he has heard (knowledge holder
+      `lord`; price lists now carry `hunger`); trips weighed apart from spending (`considerTrip`): tour (stale or
+      worrying news), hunt (Blackpine), ships (Saltmouth, imports), ride (with a patrol, when angry). Household guards
+      + hired sellswords escort him; bands gamble on worse odds for him (`lordOdds`); taken, he is ransomed
+      (treasury, else the seat's households) and puts a bounty on the band (paid per head to killers). Patrols hire
+      sellswords at the seat. The steward skims more while he's away. Lab command `lab:lord-trip`.
+- [ ] **F4c–e**: standing orders (fight / pay / flee, cargo priority, night travel) replace the temper rules in `resolve()`;
       fame and infamy spread as news; the lord hires sellswords for patrols.
 
 **Earlier plan text: step F (mercenaries, experience, encounters, standing orders)**, spec §12–§13. Raiders give them a job:
