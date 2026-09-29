@@ -34,13 +34,14 @@ import { balance, toBits, transfer } from '../economy/money.js';
 import { residentsAt } from '../economy/people.js';
 import { refreshNeeds } from './economy.js';
 import { getResident, killResident, newName } from './residents.js';
-import { holderOf, learn, reportRoad } from './knowledge.js';
+import { holderOf, learn, reportRoad, swapNews } from './knowledge.js';
 import { getMerchant, loseCargo, writeOffIfEmpty } from './merchants.js';
 import { getWayfarer, losePack } from './wayfarers.js';
 import { getRider } from './post.js';
 import { patrolOn } from './lord.js';
 import { LORD, LORD_PURSE, angerLord, captureLord, payBounty } from './progress.js';
-import { afterEncounter, bandGearPower, guardTakesBlow, guardsInFight, guardsOf, outlawsDropGear, releaseGuards, rollKillers, scatterBandGear, staredDown, spotAmbush } from './mercs.js';
+import { orderedResponse, ordersFor, reviseOrders } from './orders.js';
+import { addFame, believedRenown, witnessFame, afterEncounter, bandGearPower, guardTakesBlow, guardsInFight, guardsOf, outlawsDropGear, releaseGuards, rollKillers, scatterBandGear, staredDown, spotAmbush } from './mercs.js';
 
 const DAY = 1440;
 const round2 = (x) => Math.round(x * 100) / 100;
@@ -299,18 +300,18 @@ function victim(sim, kind, id) {
   if (kind === 'merchant') {
     const m = getMerchant(sim, id);
     if (!m?.active || !m.trip) return null;
-    return { kind, id, who: m, name: m.name, trip: m.trip, account: `merchant:${id}`, carried: 0.1, cargo: { ...m.cargo }, people: (m.trip.crew ?? 3) + 1, boldness: m.boldness, guards: guardsOf(sim, m.trip) };
+    return { kind, id, who: m, name: m.name, trip: m.trip, account: `merchant:${id}`, carried: 0.1, cargo: { ...m.cargo }, people: (m.trip.crew ?? 3) + 1, boldness: m.boldness, guards: guardsOf(sim, m.trip), orders: m.orders ?? ordersFor(m.boldness) };
   }
   if (kind === 'wayfarer') {
     const w = getWayfarer(sim, id);
     if (!w?.trip || w.retired || w.dead) return null;
-    return { kind, id, who: w, name: w.name, trip: w.trip, account: `wayfarer:${id}`, carried: 1, cargo: w.pack ? { [w.pack.good]: w.pack.qty } : {}, people: 1, boldness: w.boldness, peddler: Boolean(w.pack) };
+    return { kind, id, who: w, name: w.name, trip: w.trip, account: `wayfarer:${id}`, carried: 1, cargo: w.pack ? { [w.pack.good]: w.pack.qty } : {}, people: 1, boldness: w.boldness, peddler: Boolean(w.pack), orders: ordersFor(w.boldness) };
   }
   if (kind === 'lord') {
     // Lord Aldric's party (step F): his household guards, hired sellswords, a purse, and the man himself.
     const st = sim.state.lord;
     if (!st?.trip || st.captive) return null;
-    return { kind, id: LORD, who: st, name: `Lord ${st.name}`, trip: st.trip, account: LORD_PURSE, carried: 1, cargo: {}, people: (st.trip.crew ?? 4) + 1, boldness: st.traits.ambition, guards: guardsOf(sim, st.trip) };
+    return { kind, id: LORD, who: st, name: `Lord ${st.name}`, trip: st.trip, account: LORD_PURSE, carried: 1, cargo: {}, people: (st.trip.crew ?? 4) + 1, boldness: st.traits.ambition, guards: guardsOf(sim, st.trip), orders: ordersFor(st.traits.ambition) };
   }
   if (kind === 'rider') {
     const r = getRider(sim, id);
@@ -383,6 +384,17 @@ function resolve(sim, band, v, seg, night) {
   // Hired guards (step F) stand with the crew; the lookouts see them all.
   const terrain = sim.graph.segments.get(seg).terrain;
   const guards = v.guards?.length ? guardsInFight(sim, v.guards, { terrain, night }) : null;
+  // Guards whose names the band knows: the lookouts think twice, and the outlaws fight less hard.
+  if (guards) {
+    const F = sim.data.mercs.fame;
+    for (const g of v.guards) {
+      const dread = Math.min(F.fearMax, believedRenown(sim, band.id, g.id) * F.fear);
+      if (dread <= 0) continue;
+      guards.seen = round2(guards.seen + dread);
+      guards.surprised = round2(guards.surprised + dread);
+      guards.factors.push({ k: 'fame', who: g.id, v: round2(dread) });
+    }
+  }
   const base = v.people * (1 + 0.3 * (v.boldness / 1000)) + (patrol ? patrol.guards * sim.data.raiders.patrol.strength : 0);
   const def = base + (guards?.seen ?? 0);
   const odds = def / (def + att); // the traveller's chance in a straight fight
@@ -424,7 +436,10 @@ function resolve(sim, band, v, seg, night) {
 
   if (rec.approach === 'steal') {
     // The watch may wake (sellswords keep a better one). If not, they're gone before dawn with what they could carry.
-    const watch = v.people + (v.guards ?? []).reduce((sum, g) => sum + g.stats.awa / 3, 0);
+    // A double watch, if their orders keep one (step F).
+    const doubled = v.orders?.night === 'watch';
+    if (doubled) rec.order = { rule: 'watch' };
+    const watch = (v.people + (v.guards ?? []).reduce((sum, g) => sum + g.stats.awa / 3, 0)) * (doubled ? 1.5 : 1);
     const woke = rng.chance(Math.min(0.9, watch / (watch + 3)));
     rec.response = woke ? 'woke' : 'slept';
     if (!woke) {
@@ -438,25 +453,33 @@ function resolve(sim, band, v, seg, night) {
       rec.outcome = 'robbed';
       takeLetters(sim, band, v, rec);
     }
-  } else if (rec.approach === 'demand') {
-    if (caution >= 0.5 || odds < 0.35) {
+  } else {
+    // Standing orders (§13) decide: pay, run, or stand and fight.
+    const said = orderedResponse(v.orders, rec.approach, att, def);
+    rec.order = { rule: said.rule, ...(said.ratio ? { ratio: said.ratio } : {}) };
+    if (said.act === 'pay') {
       rec.response = 'paid';
       rec.outcome = 'toll';
       payToll(sim, band, v, rec, value * cfg.tollShare);
+    } else if (said.act === 'run') {
+      rec.response = 'fled';
+      const load = Object.keys(v.cargo).length > 0;
+      if (load && v.orders.cargo === 'drop' && (v.kind === 'merchant' || rng.chance(cfg.flee.wayfarer))) {
+        // Cut loose and run: the goods are the price of getting away.
+        rec.order.cargo = 'drop';
+        rec.outcome = 'dropped';
+        takeGoods(sim, band, v, rec, 1);
+      } else if (!load && rng.chance(cfg.flee.wayfarer)) {
+        rec.outcome = 'escaped';
+      } else {
+        // A running fight, holding on to the load (or caught): worse odds than standing.
+        if (load) rec.order.cargo = 'hold';
+        fight(sim, band, v, rec, fightOdds * 0.7, rng, caution);
+      }
     } else {
-      rec.response = 'refused';
-      fight(sim, band, v, rec, odds, rng, caution);
+      rec.response = rec.approach === 'demand' ? 'refused' : 'fought';
+      fight(sim, band, v, rec, rec.approach === 'demand' ? odds : fightOdds, rng, caution);
     }
-  } else if (caution > cfg.fleeCaution) {
-    // Cut loose and run: the goods are the price of getting away.
-    rec.response = 'fled';
-    if (v.kind === 'merchant' || rng.chance(cfg.flee.wayfarer)) {
-      rec.outcome = 'dropped';
-      takeGoods(sim, band, v, rec, 1);
-    } else fight(sim, band, v, rec, odds * 0.7, rng, caution);
-  } else {
-    rec.response = 'fought';
-    fight(sim, band, v, rec, fightOdds, rng, caution);
   }
 
   if (v.guards?.length) afterEncounter(sim, band, v, rec, ctx);
@@ -482,9 +505,18 @@ function resolve(sim, band, v, seg, night) {
   sim.log('raid:encounter', {
     band: band.id, kind: v.kind, who: v.id, seg, night, approach: rec.approach, response: rec.response, outcome: rec.outcome,
     goods: rec.goods, bits: rec.bits, hands: rec.hands.length, outlaws: rec.outlaws.length, captured: rec.captured, bounty: rec.bounty ?? 0,
-    leaderFell: rec.leaderFell ?? false, guards: rec.guards, guardHarm: rec.guardHarm, factors: rec.factors,
+    leaderFell: rec.leaderFell ?? false, guards: rec.guards, guardHarm: rec.guardHarm, factors: rec.factors, order: rec.order ?? null,
   });
-  if (v.kind === 'merchant') writeOffIfEmpty(sim, v.who);
+  // Infamy: what the band did, and everyone who met them knows it.
+  const I = sim.data.raiders.infamy;
+  const infamy = (rec.outcome === 'fought off' || rec.outcome === 'escaped' ? 0 : I.robbery) + (rec.hands.length + rec.guardsDead.length) * I.death +
+    (rec.outcome === 'murdered' ? I.death : 0) + (rec.captured ? (v.kind === 'lord' ? I.lord : I.captive) : 0);
+  if (infamy) addFame(sim, band, infamy, { band: true });
+  witnessFame(sim, v.id, band, { band: true });
+  if (v.kind === 'merchant') {
+    reviseOrders(sim, v.who, rec); // a bad day changes a merchant's standing orders
+    writeOffIfEmpty(sim, v.who);
+  }
   checkWiped(sim, band);
   return rec;
 }
@@ -561,7 +593,7 @@ function takeLetters(sim, band, v, rec) {
   const pouch = holderOf(sim, v.id) ?? {};
   let letters = 0;
   for (const key of Object.keys(pouch).sort()) {
-    if (pouch[key].road) continue; // what the rider saw of the roads stays in their head
+    if (pouch[key].road || pouch[key].fame) continue; // what the rider saw (of the roads, of who's who) stays in their head
     learn(sim, band.id, pouch[key]);
     delete pouch[key];
     letters++;
@@ -806,6 +838,8 @@ function provision(sim, band) {
 function fence(sim, band) {
   const cfg = sim.data.raiders;
   const town = hideoutById(sim, band.hideout).fence;
+  // The fence's tavern: the band hears the talk (who guards whom), and lets slip what it knows.
+  swapNews(sim, band.id, town, { look: false });
   const buyer = traderAccount(sim, town);
   const keepGrain = band.members.length * cfg.food.perHead * 20; // stolen grain they'll eat themselves
   for (const gid of Object.keys(band.loot).sort()) {

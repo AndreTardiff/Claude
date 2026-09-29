@@ -22,6 +22,7 @@
 // Goods move only by load/unload (counted in the towns' books); coin only by
 // transfer. Every decision keeps its candidates and their parts for the inspector.
 
+import { ordersFor, settleOrders } from './orders.js';
 import { guardedCaution, guardsOnRoad, hireGuards, payGuards, releaseGuards } from './mercs.js';
 import { GIVEN_NAMES, SURNAMES } from '../data/names.js';
 import { economyIndex, estimatePurchase, estimateSale, purchaseCost, quote, saleValue } from '../economy/pricing.js';
@@ -126,6 +127,7 @@ function newMerchant(sim, rng, { given, house, home, wagons }) {
     capacity: wagons * cfg.wagonCapacity,
     crew: wagons * cfg.crewPerWagon,
     boldness: rng.int(0, 1000), // permille: 0 = timid, 1000 = reckless
+    orders: null, // standing orders (orders.js), set from the temper below
     threshold: rng.int(cfg.threshold[0], cfg.threshold[1]), // marks a day worth the road
     cargo: {},
     venture: null,
@@ -142,6 +144,7 @@ function newMerchant(sim, rng, { given, house, home, wagons }) {
     loaned: 0, // bits the lord has "borrowed"
     ledger: [],
   };
+  m.orders = ordersFor(m.boldness);
   st.byId[m.id] = m;
   st.order.push(m.id);
   return m;
@@ -273,6 +276,7 @@ function onDecide(sim, { id, tripNo }) {
   if (!m || !m.active || m.trip || m.captive || m.tripNo !== tripNo) return;
   const cfg = sim.data.merchants;
   swapNews(sim, m.id, m.at);
+  settleOrders(sim, m);
 
   // Goods still in the wagons: a market that couldn't pay for them all.
   if (hasCargo(m)) {
@@ -442,7 +446,9 @@ function arrive(sim, m) {
   // The crew are paid off where the trip ends, and spend it there.
   const days = Math.max(1, Math.ceil((sim.now - trip.departedAt) / DAY));
   // Guards are paid their own rates, and are free to hire again from here.
-  const wages = transfer(sim, account(m), `purse:${m.at}`, toBits(sim, trip.crew * days * cfg.crewWage)) + payGuards(sim, trip, days, account(m));
+  // A double watch at night (their standing orders) costs more.
+  const watch = m.orders?.night === 'watch' ? 1.15 : 1;
+  const wages = transfer(sim, account(m), `purse:${m.at}`, toBits(sim, trip.crew * days * cfg.crewWage * watch)) + payGuards(sim, trip, days, account(m));
   releaseGuards(sim, trip, m.at);
   if (m.venture) m.venture.wages += wages;
   else m.overheads += wages;

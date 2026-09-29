@@ -33,6 +33,7 @@ import { balance, toBits, transfer } from '../economy/money.js';
 import { residentsAt } from '../economy/people.js';
 import { refreshNeeds } from './economy.js';
 import { getResident, newName } from './residents.js';
+import { innOf, learn } from './knowledge.js';
 
 const DAY = 1440;
 const round2 = (x) => Math.round(x * 100) / 100;
@@ -81,6 +82,7 @@ export const mercs = {
       waitForWork(sim, g);
     }
     recruit(sim);
+    clearRacks(sim);
   },
 
   handlers: {
@@ -121,7 +123,37 @@ export function itemLabel(sim, item, { owner = true, named = true } = {}) {
 /** A sellsword's day rate, in marks: more for rank. */
 export function wageOf(sim, g) {
   const w = sim.data.mercs.wage;
-  return round2(w.base + w.perRank * g.rank);
+  // Fame puts the price up (they know their own name).
+  return round2(w.base + w.perRank * g.rank + Math.min(w.fameMax, w.perFame * (g.fame ?? 0)));
+}
+
+// ── Fame (and infamy): deeds become stories, and stories travel ─────────────
+
+const FAME_LEVELS = [5, 15, 30]; // spoken of, famed, a legend
+
+/** A sellsword (or a band) gains renown: the chronicle notes the thresholds. */
+export function addFame(sim, who, amount, { band = false } = {}) {
+  const before = band ? who.infamy ?? 0 : who.fame ?? 0;
+  const after = round2(before + amount);
+  if (band) who.infamy = after;
+  else who.fame = after;
+  const level = FAME_LEVELS.findIndex((x) => before < x && after >= x);
+  if (level >= 0) sim.log(band ? 'raid:infamy' : 'merc:fame', { who: who.id, level, renown: after, ...(band ? { band: who.id } : {}) });
+}
+
+/**
+ * Someone saw it happen: they now know the renown of `who` (a sellsword or a
+ * band), and will tell it at every inn (knowledge.js carries it like any news).
+ */
+export function witnessFame(sim, holder, who, { band = false } = {}) {
+  const renown = band ? who.infamy ?? 0 : who.fame ?? 0;
+  if (!(renown > 0) || !holder) return;
+  learn(sim, holder, { at: `fame:${who.id}`, t: sim.now, fame: band ? 'band' : 'merc', who: who.id, renown, source: 'seen', confidence: 1000 });
+}
+
+/** What a holder has heard of someone's renown (0: never heard of them). */
+export function believedRenown(sim, holder, id) {
+  return sim.state.knowledge?.holders[holder]?.[`fame:${id}`]?.renown ?? 0;
 }
 
 // ── People ──────────────────────────────────────────────────────────────────
@@ -152,6 +184,7 @@ function newMerc(sim, rng, r, at) {
       km: { road: 0, forest: 0, hills: 0, marsh: 0 }, fightsIn: { road: 0, forest: 0, hills: 0, marsh: 0 }, with: {}, hires: 0,
     },
     favours: rng.pick(['spear', 'axe', 'sword', 'bow']), // the weapon they'd rather carry
+    fame: 0, // renown from deeds (the stories told of them are knowledge records)
     traits: [],
     pairs: [], // merc ids they're a Trusted Pair with
     gear: { weapon: null, armour: null, shield: null, charm: null },
@@ -258,6 +291,7 @@ function fall(sim, g, rec) {
   const r = getResident(sim, g.resident);
   g.active = false;
   g.died = sim.now;
+  g.trip = null;
   if (r) {
     r.alive = false;
     r.diedAt = sim.now;
@@ -315,6 +349,20 @@ function toRack(sim, item, sid) {
   const racks = sim.state.mercs.racks;
   (racks[sid] ??= []).push(item.id);
   item.holder = { kind: 'rack', at: sid };
+  item.racked = sim.now;
+}
+
+// Plain gear nobody buys goes for scrap in the end; a piece with a story waits on the rack.
+function clearRacks(sim) {
+  const days = sim.data.mercs.scrapAfter;
+  for (const [sid, list] of Object.entries(sim.state.mercs.racks)) {
+    sim.state.mercs.racks[sid] = list.filter((id) => {
+      const item = itemById(sim, id);
+      if (item.tier > 0 || item.name || item.type === 'scute' || sim.now - (item.racked ?? 0) < days * DAY) return true;
+      item.holder = { kind: 'lost' };
+      return false;
+    });
+  }
 }
 
 function offRack(sim, item) {
@@ -449,8 +497,10 @@ export function hireGuards(sim, employer, { exposure, days, wagons, caution, acc
   }
   if (want <= 0) return [];
   let budget = balance(sim, account) * cfg.maxWageShare;
+  // What the town's inn says of them counts too: a famous blade is worth the price.
+  const fameWeight = sim.data.mercs.fame.hire;
   const pool = forHire(sim, from)
-    .map((g) => ({ g, value: guardPower(sim, g, {}).power / wageOf(sim, g) }))
+    .map((g) => ({ g, value: (guardPower(sim, g, {}).power * (1 + fameWeight * Math.min(20, believedRenown(sim, innOf(from), g.id)))) / wageOf(sim, g) }))
     .sort((a, b) => b.value - a.value || (a.g.id < b.g.id ? -1 : 1));
   const hired = [];
   for (const { g } of pool) {
@@ -727,6 +777,10 @@ export function afterEncounter(sim, band, v, rec, ctx) {
     }
     for (const key of grow) for (const [s, v2] of Object.entries(D.grow[key])) g.growth[s] = round3(g.growth[s] + v2);
     g.deeds = round2(g.deeds + points);
+    // Fame: a band beaten off, outlaws cut down, a lord kept safe.
+    const F = cfg.fame;
+    const renown = (won ? F.won : 0) + (kills[g.id] ?? 0) * F.kill + (v.kind === 'lord' && fought && !rec.captured ? F.lord : 0);
+    if (renown) addFame(sim, g, renown);
     note(g, sim.now, { type: 'encounter', seg: rec.seg, band: band.id, outcome: rec.outcome, fought, kills: kills[g.id] ?? 0, hurt: hurt?.fate ?? null });
     // Their gear lives through it too.
     if (fought) {
@@ -740,6 +794,11 @@ export function afterEncounter(sim, band, v, rec, ctx) {
     checkTraits(sim, g);
   }
   rec.guardKills = Object.keys(kills).length;
+  // Those who were there know who fought, and will tell it; so will the band.
+  for (const g of alive) {
+    witnessFame(sim, v.id, g);
+    witnessFame(sim, band.id, g);
+  }
   // The band's own gear was in the fight too.
   if (fought) {
     for (const id of band.gear ?? []) itemDeed(sim, itemById(sim, id), { won: !won, kill: rec.guardsDead.length || rec.hands.length ? 1 : 0, night: ctx.night, route: routeOf(sim, rec.seg), owner: false });
@@ -836,7 +895,11 @@ function itemDeed(sim, item, { won, kill = 0, night, route, survivedLoss = false
     const next = tiers[item.tier + 1];
     if (item.xp < next.xp || (next.owners && item.owners.length < next.owners)) break;
     item.tier += 1;
-    if (item.tier >= cfg.nameAt && !item.name) item.name = nameItem(sim, item);
+    if (item.tier >= cfg.nameAt && !item.name) {
+      item.name = nameItem(sim, item);
+      // Carrying a named piece is a story in itself.
+      if (item.holder.kind === 'merc') addFame(sim, getMerc(sim, item.holder.id), sim.data.mercs.fame.named);
+    }
     sim.log('item:tier', { item: item.id, tier: item.tier, holder: item.holder });
   }
 }
@@ -896,6 +959,7 @@ function rankUp(sim, g) {
       g.growth[stat] = 0;
     }
     note(g, sim.now, { type: 'rank', rank: g.rank, stat });
+    addFame(sim, g, sim.data.mercs.fame.rank);
     sim.log('merc:rank', { who: g.id, rank: g.rank, stat: stat ?? null });
   }
 }

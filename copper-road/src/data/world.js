@@ -211,7 +211,6 @@ export const WORLD = {
       nightEdge: 1.25, // surprise, in the dark
       tollShare: 0.25, // a toll: this share of what they carry
       stealShare: 0.4, // what night thieves get away with, if the watch sleeps
-      fleeCaution: 0.7, // the timid cut loose and run
       flee: { rider: 0.8, wayfarer: 0.5 }, // chance of getting away (a caravan that drops its cargo always does)
       captureChance: 0.4, // a merchant whose crew lose a fight may be dragged off (more if timid)
       murderChance: 0.25, // a wayfarer who fights and loses may not live
@@ -220,6 +219,8 @@ export const WORLD = {
       lordOdds: 0.62, // …and for that prize a band will take on worse odds than usual
     },
     ransom: { share: 0.2, min: 50, days: 6, lordGenerosity: 600, townKeepsPerHead: 15, killAbove: 650 },
+    // Infamy: what a band's deeds add to its name (spread as news like a sellsword's fame).
+    infamy: { robbery: 1, death: 1, captive: 3, lord: 10 },
   },
 
   // Surprise weather (step E4): chance a day, by season, that a stretch of road shuts
@@ -282,7 +283,7 @@ export const WORLD = {
       alms: 0.3, // marks a head he gives a poor town he visits, if generous
       ransom: { min: 250, share: 0.3, days: 8 }, // what a band asks for a lord: at least this, or a share of the treasury
       stewardAway: 3, // the steward skims this many times as much while the lord is away
-      bounty: { perHead: 8, days: 40 }, // marks a head for outlaws of a band that crossed him
+      bounty: { perHead: 8, perInfamy: 0.3, max: 20, days: 40 }, // marks a head for outlaws of a band that crossed him (more for a worse name)
       anger: 0.5, // mood when a band robs his post, his patrol or him
     },
   },

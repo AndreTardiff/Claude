@@ -177,3 +177,56 @@ test('same seed, same sellswords: twin worlds agree', () => {
   b.runDays(120);
   assert.deepEqual(a.state.mercs, b.state.mercs);
 });
+
+// ── F4: standing orders and fame ────────────────────────────────────────────
+
+test('standing orders decide the answer to a band: fight, pay, or run', async () => {
+  const { orderedResponse, ordersFor, reviseOrders } = await import('../src/systems/orders.js');
+  const fight = { threatened: 'fight', outnumbered: 2, cargo: 'drop', night: 'sleep' };
+  assert.equal(orderedResponse(fight, 'demand', 10, 8).act, 'fight');
+  assert.equal(orderedResponse(fight, 'demand', 20, 8).act, 'pay', 'outnumbered: give way');
+  assert.equal(orderedResponse(fight, 'attack', 20, 8).act, 'run');
+  assert.equal(orderedResponse({ ...fight, threatened: 'toll' }, 'demand', 5, 8).act, 'pay');
+  assert.equal(orderedResponse({ ...fight, threatened: 'toll' }, 'attack', 10, 8).act, 'fight', 'attacked, a toll-payer stands');
+  assert.equal(orderedResponse({ ...fight, threatened: 'flee' }, 'demand', 1, 8).act, 'run');
+  assert.equal(orderedResponse({ ...fight, outnumbered: null }, 'attack', 100, 8).act, 'fight', 'never give way');
+  // Tempers set them.
+  assert.equal(ordersFor(900).threatened, 'fight');
+  assert.equal(ordersFor(100).threatened, 'toll');
+  // A merchant taken for ransom becomes warier.
+  const sim = new Simulation({ seed: 1 });
+  const m = Object.values(sim.state.merchants.byId)[0];
+  m.orders = { ...fight };
+  reviseOrders(sim, m, { outcome: 'robbed', captured: true, hands: [], guardsDead: [], guards: [] });
+  assert.equal(m.orders.threatened, 'toll');
+  assert.equal(m.orders.outnumbered, 1.5);
+  // In a running world, every merchant's encounter says which order decided it, and loads are only dropped on orders.
+  const world = new Simulation({ seed: 9 });
+  world.runDays(300);
+  const enc = world.state.log.filter((e) => e.type === 'raid:encounter' && e.kind === 'merchant' && e.approach !== 'steal');
+  assert.ok(enc.length >= 5);
+  for (const e of enc) {
+    assert.ok(e.order?.rule, 'the order that decided it is in the report');
+    if (e.outcome === 'dropped') assert.equal(e.order.cargo, 'drop');
+  }
+});
+
+test('fame is news: deeds become renown, the story spreads from inn to inn, and a name costs more', async () => {
+  const { believedRenown, wageOf } = await import('../src/systems/mercs.js');
+  const { innOf } = await import('../src/systems/knowledge.js');
+  for (const seed of [1, 7, 9, 23]) {
+    const sim = new Simulation({ seed });
+    sim.runDays(400);
+    const famous = activeMercs(sim).filter((g) => g.fame >= 2).sort((a, b) => b.fame - a.fame)[0];
+    if (!famous) continue;
+    const inns = ['kingscross', 'copperford', 'greenhollow', 'saltmouth'].filter((sid) => believedRenown(sim, innOf(sid), famous.id) > 0);
+    assert.ok(inns.length >= 2, `the story of ${famous.id} reached ${inns.length} inns`);
+    const plain = { ...famous, fame: 0 };
+    assert.ok(wageOf(sim, famous) > wageOf(sim, plain), 'a name costs more');
+    // Bands have names too.
+    assert.ok(Object.values(sim.state.raiders.bands).some((b) => (b.infamy ?? 0) > 0));
+    checkGear(sim);
+    return;
+  }
+  assert.fail('nobody became famous');
+});

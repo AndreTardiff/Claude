@@ -25,7 +25,10 @@ export const MERCS = {
     { id: 'captain', name: 'Captain', deeds: 70 },
   ],
 
-  wage: { base: 0.9, perRank: 0.35 }, // marks a day on the road, paid where the trip ends
+  wage: { base: 0.9, perRank: 0.35, perFame: 0.04, fameMax: 1 }, // marks a day on the road, paid where the trip ends
+  // Fame: renown from deeds, spread as news (knowledge records 'fame:<id>'). Employers pay for a
+  // name they've heard of; lookouts think twice about guards whose names they know.
+  fame: { won: 1, kill: 1, lord: 2, rank: 1, named: 2, hire: 0.03, fear: 0.04, fearMax: 0.8 },
   upkeep: 0.25, // marks a day for bed and board while waiting for work (to the town's households)
   oddJobs: 0.3, // marks a day for watching the stalls and the inn door, from the town's traders, if they can pay
   spendAbove: 40, // marks: a sellsword with more than this lives well (a tenth of the excess a day)
@@ -110,6 +113,7 @@ export const MERCS = {
   startGear: { weapons: ['spear', 'spear', 'axe', 'club', 'sword', 'bow'], armour: 0.6, shield: 0.4, charm: 0.3, scutes: 1 },
   markup: 1.25, // what the smith asks over the goods' price
   resale: 0.5, // second-hand gear on a town's rack, by what it would cost new
+  scrapAfter: 120, // days plain gear waits on a rack before it goes for scrap
 
   // What gear lives through, slowly. Points per fight, tier thresholds, and the edge each tier adds.
   item: {

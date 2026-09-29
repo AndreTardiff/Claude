@@ -24,7 +24,7 @@ import { balance, toBits, transfer } from '../economy/money.js';
 import { residentsAt } from '../economy/people.js';
 import { finishLeg, newTrip, planJourney, reroute, startLeg } from '../world/journey.js';
 import { swapNews } from './knowledge.js';
-import { guardsOnRoad, hireGuards, payGuards, releaseGuards } from './mercs.js';
+import { believedRenown, guardsOnRoad, hireGuards, payGuards, releaseGuards } from './mercs.js';
 import { afterLeg, bandAccount, getBand, onLegStart } from './raiders.js';
 
 const DAY = 1440;
@@ -251,9 +251,11 @@ function onLeave(sim, { tripNo }) {
   const guards = st.trip.guards;
   const crew = st.trip.crew;
   const departedAt = st.trip.departedAt;
+  const salvage = st.trip.salvage ?? [];
   st.trip = newTrip(sim, { tripNo, from: st.at, dest: st.seat, plan, speedKmh: cfg.speedKmh });
   st.trip.guards = guards;
   st.trip.crew = crew;
+  st.trip.salvage = salvage; // arms picked up on the way out come home with him
   st.trip.departedAt = departedAt; // the escort is paid for the whole trip
   st.away.phase = 'home';
   st.at = null;
@@ -325,11 +327,13 @@ function freed(sim, band, bits, how) {
   st.mood.anger = 1;
   st.mood.grievance = round3(clamp01(st.mood.grievance + 0.3));
   if (band?.active) {
-    st.bounty = { band: band.id, perHead: cfg.bounty.perHead, until: sim.now + cfg.bounty.days * DAY, paid: 0, heads: 0 };
+    // The worse their name, the higher the price on their heads.
+    const perHead = Math.min(cfg.bounty.max, round2(cfg.bounty.perHead + cfg.bounty.perInfamy * believedRenown(sim, LORD, band.id)));
+    st.bounty = { band: band.id, perHead, until: sim.now + cfg.bounty.days * DAY, paid: 0, heads: 0 };
     st.grudge = band.id;
   }
   transfer(sim, LORD_PURSE, 'treasury', balance(sim, LORD_PURSE));
-  sim.log('lord:freed', { band: band?.id ?? null, bits, how, bounty: band?.active ? cfg.bounty.perHead : 0 });
+  sim.log('lord:freed', { band: band?.id ?? null, bits, how, bounty: band?.active ? st.bounty.perHead : 0 });
 }
 
 /** Something a band did has angered him (his post robbed, his party attacked). */

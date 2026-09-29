@@ -119,8 +119,12 @@ test('AT-07: caution buys safety: timid merchants take the safer road and price 
   assert.ok(timid.exposure < bold.exposure, 'the timid take the safe road');
 
   // The same trade, valued by the same merchant at either temper.
-  sim.advanceTo(at(30));
-  const m = activeMerchants(sim).find((x) => x.at && tradeCandidates(sim, x).length);
+  // (the first day from 30 on that some merchant in town has a trade to weigh)
+  let m = null;
+  for (let d = 30; d < 60 && !m; d++) {
+    sim.advanceTo(at(d));
+    m = activeMerchants(sim).find((x) => x.at && tradeCandidates(sim, x).length);
+  }
   const saved = m.boldness;
   m.boldness = 1000;
   const reckless = tradeCandidates(sim, m);

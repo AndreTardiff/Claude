@@ -15,7 +15,7 @@ Read this first when resuming in a fresh session. It's updated at every checkpoi
 | D: merchants, caravans, knowledge, couriers | done |
 | E0: Lord Aldric as an engaged character | done |
 | E: raiders, road news, weather, camps | done |
-| **F: mercenaries, experience, encounters, standing orders** | **in progress** (F1–F3 done; F4 standing orders and fame next) |
+| **F: mercenaries, experience, encounters, standing orders** | **in progress** (F1–F4 sim done; F5 lab and docs next) |
 
 ## Step D plan (checkpoints)
 
@@ -103,7 +103,15 @@ armour, belief-driven charms and very rare true relics; gear gains tiers and nam
       + hired sellswords escort him; bands gamble on worse odds for him (`lordOdds`); taken, he is ransomed
       (treasury, else the seat's households) and puts a bounty on the band (paid per head to killers). Patrols hire
       sellswords at the seat. The steward skims more while he's away. Lab command `lab:lord-trip`.
-- [ ] **F4c–e**: standing orders (fight / pay / flee, cargo priority, night travel) replace the temper rules in `resolve()`;
+- [x] **F4c–e** *(done: `src/systems/orders.js`, fame in mercs.js, patrols)*: standing orders (threatened fight/toll/flee,
+      give way when outnumbered ×N, drop or hold the load, double night watch) replace the temper rules in `resolve()`;
+      merchants set them from temper, get warier after a bad day, bolder after guards win, drift back after 60 quiet
+      days; reports name the order. Fame: renown from deeds (`addFame`), witnessed as `fame:<id>` knowledge records
+      that spread like any news; employers weigh what the inn says, wages rise with fame, lookouts fear known names.
+      Bands earn infamy; the bounty grows with it. Racks scrap plain gear after 120 days.
+- [ ] **F5**: lab (lord on the map and his trips, orders in the merchant inspector, fame/infamy in panels), spec
+      v0.2.8, site entry. Then step F is done. Later: loyalty, claimed vs true histories.
+- [ ] (old line) **F4c–e**: standing orders (fight / pay / flee, cargo priority, night travel) replace the temper rules in `resolve()`;
       fame and infamy spread as news; the lord hires sellswords for patrols.
 
 **Earlier plan text: step F (mercenaries, experience, encounters, standing orders)**, spec §12–§13. Raiders give them a job:

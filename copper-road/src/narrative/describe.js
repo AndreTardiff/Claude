@@ -303,6 +303,14 @@ export function describe(entry, sim) {
     }
     case 'merc:trait':
       return `${mercName(sim, entry.who)} ${TRAIT_TEXT[entry.trait] ?? `has become ${entry.trait}`}.`;
+    case 'merc:fame': {
+      const where = ['They have started to speak of', 'At every inn on the road they tell stories of', 'There are songs now about'][entry.level];
+      return `${where} ${mercName(sim, entry.who)}.`;
+    }
+    case 'raid:infamy': {
+      const b = cap(bandName(entry.band));
+      return [`${b} have a name on the roads now.`, `${b} are feared the length of the Copper Road.`, `Mothers frighten children with tales of ${bandName(entry.band)}.`][entry.level];
+    }
     case 'merc:pair':
       return `${mercName(sim, entry.who)} and ${mercName(sim, entry.with)} have stood together often enough to trust each other with their backs: a Trusted Pair.`;
     case 'merc:bought':
@@ -344,6 +352,10 @@ export function describe(entry, sim) {
       const who = entry.how === 'treasury' ? 'his steward pays' : "Kingscross's households are made to pay";
       return `Lord Aldric is ransomed: ${who} ${formatMoney(sim, entry.bits)} to ${bandName(entry.band)}.${entry.bounty ? ` He puts a price of ${entry.bounty} marks on every head of theirs.` : ''}`;
     }
+    case 'merchant:orders':
+      if (entry.why === 'time') return `With the roads quiet for a while, ${trader(entry.who)} goes back to the house's old standing orders: ${ORDER_WORDS[entry.to]}.`;
+      if (entry.why === 'their guards beat a band off') return `Now that their guards have beaten a band off, ${trader(entry.who)} changes the house's standing orders: ${ORDER_WORDS[entry.to]}.`;
+      return `After being ${entry.why === 'taken for ransom' ? 'taken for ransom' : 'badly beaten on the road'}, ${trader(entry.who)} changes the house's standing orders: ${ORDER_WORDS[entry.to]}${entry.outnumbered ? `, and give way to any band ${entry.outnumbered} times their strength` : ''}.`;
     case 'merchant:forced-loan':
       return `Lord Aldric "borrows" ${formatMoney(sim, entry.bits)} from ${trader(entry.who)}. Nobody expects to see it again.`;
     default:
@@ -385,6 +397,22 @@ const TRAIT_TEXT = {
   scarred: 'carries a bad scar now, and a careful streak with it',
 };
 
+const ORDER_WORDS = { fight: 'stand and fight', toll: 'pay a toll rather than fight', flee: 'run from any band' };
+
+// Standing orders, where they decided it (spec §13: the report says so).
+function orderText(e, whose) {
+  const o = e.order;
+  if (!o || (e.kind !== 'merchant' && e.kind !== 'lord')) return '';
+  if (o.rule === 'watch') return e.response === 'woke' ? ' The double watch woke in time.' : '';
+  if (o.cargo === 'drop') return ` Per ${whose} orders, they cut the load loose and ran${o.rule === 'outnumbered' ? ` from a band ${o.ratio.toFixed(1)} times their strength` : ''}; everyone got away.`;
+  if (o.cargo === 'hold') return ` Per ${whose} orders, they ran with the load rather than drop it.`;
+  if (o.rule === 'outnumbered' && e.outcome === 'toll') return ` Per ${whose} orders, they gave way to a band ${o.ratio.toFixed(1)} times their strength.`;
+  if (o.rule === 'toll') return ` Per ${whose} orders: pay rather than fight.`;
+  if (o.rule === 'fight' && e.response === 'refused') return ` Per ${whose} orders, they refused to pay.`;
+  if (o.rule === 'flee' || o.rule === 'outnumbered') return ` Per ${whose} orders, they ran${o.rule === 'outnumbered' ? ` from a band ${o.ratio.toFixed(1)} times their strength` : ''}.`;
+  return '';
+}
+
 // Sellswords hurt or killed (a patrol's clash).
 function harmText(harm, sim) {
   if (!harm?.length) return '';
@@ -413,7 +441,12 @@ function guardsText(e, sim) {
 }
 
 // The after-action report of an encounter on the road (spec §13).
-function encounterText(e, { place, person, bandName, segRoad, amount, sim }) {
+function encounterText(e, ctx) {
+  const whose = e.kind === 'lord' ? "Lord Aldric's" : e.kind === 'merchant' ? `${getMerchant(ctx.sim, e.who)?.name ?? 'the house'}'s` : 'their';
+  return encounterCore(e, ctx) + orderText(e, whose);
+}
+
+function encounterCore(e, { place, person, bandName, segRoad, amount, sim }) {
   const band = bandName(e.band);
   const Band = band.charAt(0).toUpperCase() + band.slice(1);
   const road = `the ${segRoad(e.seg)}`;
@@ -443,7 +476,7 @@ function encounterText(e, { place, person, bandName, segRoad, amount, sim }) {
       return `${name} is found dead on ${road}, robbed by ${band} of ${took || 'everything'}.`;
     case 'robbed':
       if (e.kind === 'rider') return `${Band} waylay ${name} on ${road} and take the rider's letters.`;
-      return `${Band} fall on ${party} on ${road}${e.night ? ' in the dark' : ''}.${e.response === 'fought' || e.response === 'refused' || e.response === 'woke' ? ' They fight and lose.' : ''}` +
+      return `${Band} fall on ${party} on ${road}${e.night ? ' in the dark' : ''}.${e.response === 'fought' || e.response === 'refused' || e.response === 'woke' ? ' They fight and lose.' : e.response === 'fled' ? ' They run, and are caught.' : ''}` +
         `${took ? ` ${took.charAt(0).toUpperCase() + took.slice(1)} ${took.includes(' and ') || /s\b/.test(took) ? 'are' : 'is'} taken.` : ''}${hands}${outlaws}` +
         guardsText(e, sim) + (e.captured ? (lordly ? ' Lord Aldric himself is dragged off into the hills, to be held for a great ransom.' : ` ${m.name} is dragged off to be held for ransom.`) : '');
     default:

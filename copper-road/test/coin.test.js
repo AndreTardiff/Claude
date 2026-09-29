@@ -102,7 +102,7 @@ test('famine kills, but the region settles instead of racing to the bottom', () 
     sim.advanceTo(at(day));
     for (const t of towns) {
       lowest[t] = Math.min(lowest[t], residentsAt(sim, t).length);
-      if (day > 360) hungerLate[t] += sim.state.economy.hunger[t] / 40;
+      if (day > 300) hungerLate[t] += sim.state.economy.hunger[t] / 100; // the last hundred days, so one bad season doesn't count as a spiral
     }
   }
   const deaths = sim.state.log.filter((e) => e.type === 'resident:died' && (getCause(sim, e.who) === 'famine')).length;
