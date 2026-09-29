@@ -35,6 +35,7 @@ import { belief, swapNews } from './knowledge.js';
 import { fillOrder, knownOrder } from './lord.js';
 import { afterLeg, onLegStart } from './raiders.js';
 import { visitWaystation } from './roads.js';
+import { playerCaravanArrived, playerCaravanIdle, sellForPlayer } from './player.js';
 
 const DAY = 1440;
 const round2 = (x) => Math.round(x * 100) / 100;
@@ -105,9 +106,12 @@ export const merchants = {
 };
 
 export const getMerchant = (sim, id) => sim.state.merchants?.byId[id];
-export const activeMerchants = (sim) => (sim.state.merchants?.order ?? []).map((id) => sim.state.merchants.byId[id]).filter((m) => m.active);
-const account = (m) => `merchant:${m.id}`;
-const hasCargo = (m) => Object.keys(m.cargo).length > 0;
+// The region's trading houses. The player's caravans (step G) live here too, so they
+// travel, sell, pay and meet bands by exactly the same code; they are left out of this list.
+export const activeMerchants = (sim) => (sim.state.merchants?.order ?? []).map((id) => sim.state.merchants.byId[id]).filter((m) => m.active && !m.player);
+export const accountOf = (m) => m.account ?? `merchant:${m.id}`;
+const account = accountOf;
+export const hasCargo = (m) => Object.keys(m.cargo).length > 0;
 const caution = (m) => (1000 - m.boldness) / 1000;
 // Crew are hired for the loaded wagons (the empty ones are roped behind).
 const wagonsFor = (sim, m, qty) => Math.min(m.wagons, Math.max(1, Math.ceil(qty / sim.data.merchants.wagonCapacity)));
@@ -276,6 +280,7 @@ function onDecide(sim, { id, tripNo }) {
   if (!m || !m.active || m.trip || m.captive || m.tripNo !== tripNo) return;
   const cfg = sim.data.merchants;
   swapNews(sim, m.id, m.at);
+  if (m.player) return playerCaravanIdle(sim, m); // the player decides for their own (player.js)
   settleOrders(sim, m);
 
   // Goods still in the wagons: a market that couldn't pay for them all.
@@ -380,17 +385,17 @@ function setOut(sim, m, c) {
 }
 
 // The crew eat on the road: grain bought where they set out.
-function buyProvisions(sim, m, sid, days, crew) {
+export function buyProvisions(sim, m, sid, days, crew) {
   const wanted = crew * Math.ceil(days) * 0.1;
   const price = quote(sim, sid, 'grain').price;
   const got = load(sim, sid, 'grain', Math.min(wanted, balance(sim, account(m)) / Math.max(1, toBits(sim, price))));
   return got > 0 ? transfer(sim, account(m), traderAccount(sim, sid), toBits(sim, price * got)) : 0;
 }
 
-function travel(sim, m, dest, plan, crew, guards = []) {
+export function travel(sim, m, dest, plan, crew, guards = []) {
   m.idle = 0;
   m.tripNo += 1;
-  m.trip = newTrip(sim, { tripNo: m.tripNo, from: m.at, dest, plan, speedKmh: sim.data.merchants.speedKmh });
+  m.trip = newTrip(sim, { tripNo: m.tripNo, from: m.at, dest, plan, speedKmh: m.speedKmh ?? sim.data.merchants.speedKmh });
   m.trip.crew = crew;
   m.trip.guards = guards;
   m.at = null;
@@ -400,7 +405,7 @@ function travel(sim, m, dest, plan, crew, guards = []) {
 // Start the next leg, find another way round, or wait for the road to open.
 function go(sim, m) {
   if (!startLeg(sim, m.trip, 'merchant:node', m.id)) return onLegStart(sim, 'merchant', m.id, m.trip);
-  const plan = planJourney(sim, m.trip.at, m.trip.dest, { speedKmh: sim.data.merchants.speedKmh, caution: caution(m), holder: m.id });
+  const plan = planJourney(sim, m.trip.at, m.trip.dest, { speedKmh: m.speedKmh ?? sim.data.merchants.speedKmh, caution: caution(m), holder: m.id });
   if (plan) {
     reroute(m.trip, plan);
     if (!startLeg(sim, m.trip, 'merchant:node', m.id)) return onLegStart(sim, 'merchant', m.id, m.trip);
@@ -452,8 +457,10 @@ function arrive(sim, m) {
   releaseGuards(sim, trip, m.at);
   if (m.venture) m.venture.wages += wages;
   else m.overheads += wages;
-  if (hasCargo(m)) {
-    sellCargo(sim, m);
+  if (m.player) playerCaravanArrived(sim, m);
+  if (hasCargo(m) && m.instructions?.sell !== 'none') {
+    if (m.player) sellForPlayer(sim, m);
+    else sellCargo(sim, m);
     const left = Object.entries(m.cargo)[0];
     if (left) sim.log('merchant:unsold', { who: m.id, at: m.at, good: left[0], qty: round3(left[1]) });
   }
@@ -481,7 +488,7 @@ export function sellable(sim, sid, gid, qty, money) {
  * goods stay in the wagons, unless the merchant is dumping them for what they fetch.
  * The ships at the Outside can always pay.
  */
-function sellCargo(sim, m, { dump = false } = {}) {
+export function sellCargo(sim, m, { dump = false } = {}) {
   const cfg = sim.data.merchants;
   const sid = m.at;
   const buyer = traderAccount(sim, sid);

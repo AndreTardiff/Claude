@@ -38,6 +38,11 @@ export const coin = {
     for (const id of sim.state.merchants?.order ?? []) {
       accounts[`merchant:${id}`] = toBits(sim, rng.int(purse[0], purse[1]));
     }
+    // The player (step G) and the money-changer who holds the family's note.
+    if (sim.data.player) {
+      accounts.player = toBits(sim, sim.data.player.purse);
+      accounts.changer = toBits(sim, sim.data.player.changer.capital);
+    }
     const mercPurse = sim.data.mercs?.purse;
     for (const id of sim.state.mercs?.order ?? []) {
       accounts[`merc:${id}`] = toBits(sim, rng.int(mercPurse[0], mercPurse[1]));

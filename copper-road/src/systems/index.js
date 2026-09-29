@@ -10,6 +10,7 @@ import { merchants } from './merchants.js';
 import { coin } from './coin.js';
 import { lord } from './lord.js';
 import { raiders } from './raiders.js';
+import { player } from './player.js';
 import { roads } from './roads.js';
 import { knowledge } from './knowledge.js';
 import { post } from './post.js';
@@ -24,5 +25,6 @@ import { post } from './post.js';
 // Raiders recruit after the day's hunger is known, and hold their captives until the ransom comes.
 // Sellswords (after residents: they are residents too, and the markets are sized from everyone)
 // heal, pay their board, mend and buy gear, and walk home when there's no work.
+// The player (step G) hears the inn where they stand, pays the changer each season.
 // Roads: surprise weather, camps and waystations, and news round the night's fires.
-export const SYSTEMS = [almanac, wayfarers, residents, mercs, economy, merchants, coin, lord, raiders, roads, knowledge, post];
+export const SYSTEMS = [almanac, wayfarers, residents, mercs, economy, merchants, coin, lord, raiders, player, roads, knowledge, post];

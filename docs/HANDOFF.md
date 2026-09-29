@@ -16,7 +16,24 @@ Read this first when resuming in a fresh session. It's updated at every checkpoi
 | E0: Lord Aldric as an engaged character | done |
 | E: raiders, road news, weather, camps | done |
 | F: mercenaries, experience, encounters, standing orders, the lord's travels | done |
-| **G: the player (located, trades, dispatches, letters, travels, debt)** | **next** |
+| **G: the player (located, trades, dispatches, letters, travels, debt)** | **in progress** (G1 done) |
+
+## Step G plan (checkpoints)
+
+- [x] **G1** *(done: `src/systems/player.js`, `src/data/player.js`, `test/player.test.js`)*: the player is a person in
+      Kingscross with the family stall (stores per town, with cost basis), the family wagon, a purse (`player` account)
+      and a note owed to the money-changer (`changer` account; interest and installment each season, two misses and he
+      seizes coin and stall; nothing left and still owing: bonded for 30 days, then half written off). Commands:
+      `player:buy/sell` (where you stand), `player:dispatch` (a caravan from your stores: good, road fast/balanced/safe,
+      guards auto or n, standing orders, sell all/none, then wait/home/store, ride), `player:orders` (in person),
+      `player:travel`, `player:courier` (orders to a far caravan; brings back that town's board; can be robbed),
+      `player:borrow/repay`, `player:buy-wagon`. Player caravans are merchant records with `player: true` and
+      `account: 'player'`: same travel, selling, crews, guards, tolls and encounters; left out of `activeMerchants`.
+      Riding with one, you may die (heir takes over) or be taken for ransom. Knowledge holder `player`: the inn where
+      you stand, your caravans' crews, letters (mail waits at the courier's town), your own eyes.
+- [ ] **G2**: factors (a resident in another town: reports by courier, sells your stores there on standing
+      instructions); player bots; AT-16 (skill gap), AT-17 (no dominant policy), AT-18 (factor pays).
+- [ ] **G3**: lab player panel (ledger, stores, dispatch form, couriers, debt), spec v0.2.9, site.
 
 ## Step D plan (checkpoints)
 

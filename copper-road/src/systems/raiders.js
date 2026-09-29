@@ -41,6 +41,8 @@ import { getRider } from './post.js';
 import { patrolOn } from './lord.js';
 import { LORD, LORD_PURSE, angerLord, captureLord, payBounty } from './progress.js';
 import { orderedResponse, ordersFor, reviseOrders } from './orders.js';
+import { courierRobbed, getCourier, playerDies, playerFreed, riding } from './player.js';
+import { accountOf } from './merchants.js';
 import { addFame, believedRenown, witnessFame, afterEncounter, bandGearPower, guardTakesBlow, guardsInFight, guardsOf, outlawsDropGear, releaseGuards, rollKillers, scatterBandGear, staredDown, spotAmbush } from './mercs.js';
 
 const DAY = 1440;
@@ -300,7 +302,7 @@ function victim(sim, kind, id) {
   if (kind === 'merchant') {
     const m = getMerchant(sim, id);
     if (!m?.active || !m.trip) return null;
-    return { kind, id, who: m, name: m.name, trip: m.trip, account: `merchant:${id}`, carried: 0.1, cargo: { ...m.cargo }, people: (m.trip.crew ?? 3) + 1, boldness: m.boldness, guards: guardsOf(sim, m.trip), orders: m.orders ?? ordersFor(m.boldness) };
+    return { kind, id, who: m, name: m.name, trip: m.trip, account: accountOf(m), carried: 0.1, cargo: { ...m.cargo }, people: (m.trip.crew ?? 3) + 1, boldness: m.boldness, guards: guardsOf(sim, m.trip), orders: m.orders ?? ordersFor(m.boldness) };
   }
   if (kind === 'wayfarer') {
     const w = getWayfarer(sim, id);
@@ -312,6 +314,12 @@ function victim(sim, kind, id) {
     const st = sim.state.lord;
     if (!st?.trip || st.captive) return null;
     return { kind, id: LORD, who: st, name: `Lord ${st.name}`, trip: st.trip, account: LORD_PURSE, carried: 1, cargo: {}, people: (st.trip.crew ?? 4) + 1, boldness: st.traits.ambition, guards: guardsOf(sim, st.trip), orders: ordersFor(st.traits.ambition) };
+  }
+  if (kind === 'courier') {
+    // The player's courier (step G): letters, and orders for a caravan.
+    const c = getCourier(sim, id);
+    if (!c?.trip) return null;
+    return { kind, id, who: c, name: c.name, trip: c.trip, account: null, carried: 0, cargo: {}, people: 1, boldness: 600, letters: true };
   }
   if (kind === 'rider') {
     const r = getRider(sim, id);
@@ -446,7 +454,7 @@ function resolve(sim, band, v, seg, night) {
       rec.outcome = 'stolen';
       takeGoods(sim, band, v, rec, cfg.stealShare);
     } else fight(sim, band, v, rec, odds, rng, caution);
-  } else if (v.kind === 'rider') {
+  } else if (v.kind === 'rider' || v.kind === 'courier') {
     rec.response = 'fled';
     if (rng.chance(cfg.flee.rider)) rec.outcome = 'escaped';
     else {
@@ -505,7 +513,7 @@ function resolve(sim, band, v, seg, night) {
   sim.log('raid:encounter', {
     band: band.id, kind: v.kind, who: v.id, seg, night, approach: rec.approach, response: rec.response, outcome: rec.outcome,
     goods: rec.goods, bits: rec.bits, hands: rec.hands.length, outlaws: rec.outlaws.length, captured: rec.captured, bounty: rec.bounty ?? 0,
-    leaderFell: rec.leaderFell ?? false, guards: rec.guards, guardHarm: rec.guardHarm, factors: rec.factors, order: rec.order ?? null,
+    leaderFell: rec.leaderFell ?? false, playerDied: rec.playerDied ?? false, player: Boolean(v.who?.player), guards: rec.guards, guardHarm: rec.guardHarm, factors: rec.factors, order: rec.order ?? null,
   });
   // Infamy: what the band did, and everyone who met them knows it.
   const I = sim.data.raiders.infamy;
@@ -514,7 +522,7 @@ function resolve(sim, band, v, seg, night) {
   if (infamy) addFame(sim, band, infamy, { band: true });
   witnessFame(sim, v.id, band, { band: true });
   if (v.kind === 'merchant') {
-    reviseOrders(sim, v.who, rec); // a bad day changes a merchant's standing orders
+    if (!v.who.player) reviseOrders(sim, v.who, rec); // a bad day changes a merchant's standing orders (the player sets their own)
     writeOffIfEmpty(sim, v.who);
   }
   checkWiped(sim, band);
@@ -548,7 +556,11 @@ function fight(sim, band, v, rec, odds, rng, caution) {
   }
   if (v.kind === 'merchant') {
     killHands(sim, v, rec, 1 + (rng.chance(0.4) ? 1 : 0), band);
-    if (rng.chance(cfg.captureChance * (0.5 + caution))) capture(sim, band, v, rec);
+    // The player's caravan (step G): only worth taking if the player rides with it, and the player may die.
+    if (riding(v.who) && rng.chance(sim.data.player.deathChance)) {
+      rec.playerDied = true;
+      playerDies(sim, 'raid', v.who);
+    } else if ((!v.who.player || riding(v.who)) && rng.chance(cfg.captureChance * (0.5 + caution))) capture(sim, band, v, rec);
   }
   if (v.kind === 'lord') {
     // His household guards die around him; and the prize is the man himself.
@@ -599,6 +611,7 @@ function takeLetters(sim, band, v, rec) {
     letters++;
   }
   rec.letters = letters;
+  if (v.kind === 'courier') courierRobbed(sim, v.id); // the player's orders never arrive
 }
 
 // Hired hands come from the town the caravan set out from; their deaths are that town's losses.
@@ -677,7 +690,7 @@ function captives(sim) {
     for (const mid of [...band.captives]) {
       const m = getMerchant(sim, mid);
       const c = m.captive;
-      const house = `merchant:${m.id}`;
+      const house = accountOf(m);
       const heads = Math.max(1, residentsAt(sim, m.home).length);
       const lord = sim.state.lord;
       let payer = null;
@@ -689,7 +702,12 @@ function captives(sim) {
         if (payer === 'treasury' && lord) lord.spent.ransom = (lord.spent.ransom ?? 0) + bits;
         release(sim, band, m, 'ransomed', { bits, payer: payer === house ? 'house' : payer === 'treasury' ? 'lord' : 'town' });
       } else if (sim.now >= c.deadline) {
-        if (band.cruelty >= cfg.killAbove) {
+        if (band.cruelty >= cfg.killAbove && m.player) {
+          // The player dies in the hills; the caravan's hands straggle home with the wagons.
+          playerDies(sim, 'held for ransom and never paid for', m);
+          sim.log('raid:captive-killed', { band: band.id, who: m.id, player: true });
+          release(sim, band, m, 'released', {});
+        } else if (band.cruelty >= cfg.killAbove) {
           band.captives = band.captives.filter((x) => x !== m.id);
           m.captive = null;
           m.active = false;
@@ -707,6 +725,7 @@ function captives(sim) {
 function release(sim, band, m, how, extra) {
   band.captives = band.captives.filter((x) => x !== m.id);
   m.captive = null;
+  if (m.player) playerFreed(sim, m);
   m.at = m.home; // walked home, or was brought there
   sim.schedule(sim.cal.travelWindow(sim.cal.day(sim.now) + 1)[0] + 30, 'merchant:decide', { id: m.id, tripNo: m.tripNo });
   sim.log(`raid:${how}`, { band: band.id, who: m.id, ...extra });

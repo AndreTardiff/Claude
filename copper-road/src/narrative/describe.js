@@ -54,6 +54,7 @@ export function describe(entry, sim) {
   const lower = (gid) => good(gid).name.toLowerCase();
   const person = (id) => getResident(sim, id)?.name ?? id;
   const trader = (id) => getMerchant(sim, id)?.name ?? id;
+  const you = () => sim.state.player?.name ?? 'The player';
   // "12 sacks of grain", "1 sack of grain", "15 tools".
   const amount = (qty, gid) => {
     const g = good(gid);
@@ -358,6 +359,60 @@ export function describe(entry, sim) {
       if (entry.why === 'time') return `With the roads quiet for a while, ${trader(entry.who)} goes back to the house's old standing orders: ${ORDER_WORDS[entry.to]}.`;
       if (entry.why === 'their guards beat a band off') return `Now that their guards have beaten a band off, ${trader(entry.who)} changes the house's standing orders: ${ORDER_WORDS[entry.to]}.`;
       return `After being ${entry.why === 'taken for ransom' ? 'taken for ransom' : 'badly beaten on the road'}, ${trader(entry.who)} changes the house's standing orders: ${ORDER_WORDS[entry.to]}${entry.outnumbered ? `, and give way to any band ${entry.outnumbered} times their strength` : ''}.`;
+    // ── The player (step G) ──
+    case 'player:inherits':
+      return `${entry.parent} is dead. ${entry.who} inherits the family stall in ${place(entry.at)}, ${entry.porter ? `old ${person(entry.porter)} the porter, ` : ''}and a note for ${formatMoney(sim, entry.debt)} owed to the money-changer.`;
+    case 'player:letter':
+      return `A letter reaches the family stall from ${entry.from}, with word of prices in ${place(entry.at)}.`;
+    case 'player:bought':
+      return `${you()} buys ${amount(entry.qty, entry.good)} in ${place(entry.at)} for ${formatMoney(sim, entry.bits)}.`;
+    case 'player:sold':
+      return `${you()} sells ${amount(entry.qty, entry.good)} in ${place(entry.at)} for ${formatMoney(sim, entry.bits)}${entry.profit ? `: ${entry.profit >= 0 ? `${formatMoney(sim, entry.profit)} over cost` : `${formatMoney(sim, -entry.profit)} under cost`}` : ''}.`;
+    case 'player:dispatched': {
+      const load = entry.qty ? `${amount(entry.qty, entry.good)}` : 'empty wagons';
+      const guards = entry.guards?.length ? `, ${entry.guards.length === 1 ? `${mercName(sim, entry.guards[0])} riding guard` : `${entry.guards.length} sellswords riding guard`}` : '';
+      return `The ${sim.state.player?.family ?? ''} caravan leaves ${place(entry.from)} for ${place(entry.to)} by the ${road(entry.via)} with ${load}${guards}${entry.ride ? `, and ${you()} rides with it` : ''}.`;
+    }
+    case 'player:travels':
+      return `${you()} rides out of ${place(entry.from)} for ${place(entry.to)} by the ${road(entry.via)}.`;
+    case 'player:arrived':
+      return `${you()} arrives in ${place(entry.at)}.`;
+    case 'player:caravan-sold':
+      return `The ${sim.state.player?.family ?? ''} caravan sells ${amount(entry.qty, entry.good)} in ${place(entry.at)} for ${formatMoney(sim, entry.bits)}${entry.left ? `; ${amount(entry.left, entry.good)} nobody could pay for` : ''}.`;
+    case 'player:caravan-home':
+      return `The family wagons are back in the yard at ${place(entry.at)}.`;
+    case 'player:courier':
+      return `${you()} pays a courier ${formatMoney(sim, entry.bits)} to ride to ${place(entry.to)}${entry.caravan ? ' with orders for the caravan' : ''}.`;
+    case 'player:orders-delivered':
+      return `In ${place(entry.at)}, the courier finds the family caravan and hands over the orders.`;
+    case 'player:orders-undelivered':
+      return `The courier waits in ${place(entry.at)}, but the family caravan never comes; the orders go home undelivered.`;
+    case 'player:courier-home':
+      return entry.robbed ? `The courier limps home to ${place(entry.at)}: robbed on the road, the letters gone.` : `The courier is back in ${place(entry.at)} with ${entry.letters} letter${entry.letters === 1 ? '' : 's'} of news.`;
+    case 'player:paid':
+      return `${you()} pays the money-changer ${formatMoney(sim, entry.bits)}; ${formatMoney(sim, entry.owed)} still owed.`;
+    case 'player:missed':
+      return `${you()} can't meet the money-changer's due (${formatMoney(sim, entry.due)}); ${sim.data.player.changer.name} makes a note of it.`;
+    case 'player:seized':
+      return `${sim.data.player.changer.name}'s man, ${entry.collector}, empties the family's strongbox and sells off the stall: ${formatMoney(sim, entry.bits)} taken, ${formatMoney(sim, entry.owed)} still owed.`;
+    case 'player:bonded':
+      return `Ruined, ${you()} is bound to work off the debt as a factor for a rival house.`;
+    case 'player:released':
+      return `${you()}'s bond is served; half the debt is written off, and the stall is theirs again.`;
+    case 'player:borrowed':
+      return `${you()} borrows ${formatMoney(sim, entry.bits)} from the money-changer (${formatMoney(sim, entry.owed)} owed now).`;
+    case 'player:repaid':
+      return `${you()} repays the money-changer ${formatMoney(sim, entry.bits)} (${formatMoney(sim, entry.owed)} still owed).`;
+    case 'player:wagon':
+      return `${you()} buys a wagon from the wheelwrights of ${place(entry.at)} (${entry.wagons} now).`;
+    case 'player:died':
+      return `${entry.who} is dead (${entry.cause === 'raid' ? 'killed by outlaws on the road' : entry.cause}). ${entry.heir} takes up the ledger, the stall and the debt.`;
+    case 'player:freed':
+      return `${you()} comes home, let go by the outlaws.`;
+    case 'player:refused':
+      return `${you()} can't ${entry.command.replace('-', ' ')}: ${entry.why}.`;
+    case 'player:forced-loan':
+      return `Lord Aldric "borrows" ${formatMoney(sim, entry.bits)} from ${you()}.`;
     case 'merchant:forced-loan':
       return `Lord Aldric "borrows" ${formatMoney(sim, entry.bits)} from ${trader(entry.who)}. Nobody expects to see it again.`;
     default:
@@ -456,7 +511,7 @@ function encounterCore(e, { place, person, bandName, segRoad, amount, sim }) {
   const w = e.kind === 'wayfarer' ? getWayfarer(sim, e.who) : null;
   const r = e.kind === 'rider' ? getRider(sim, e.who) : null;
   const lordly = e.kind === 'lord';
-  const name = m ? m.name : w ? `${w.name} the ${tradeName(sim, w)}` : r ? `${r.name} of the lord's post` : lordly ? 'Lord Aldric' : e.who;
+  const name = m ? m.name : w ? `${w.name} the ${tradeName(sim, w)}` : r ? `${r.name} of the lord's post` : lordly ? 'Lord Aldric' : e.kind === 'courier' ? `${sim.state.player?.family ?? 'the family'}'s courier` : e.who;
   const party = m ? `${m.name}'s caravan` : lordly ? "Lord Aldric's party" : name;
   const goods = Object.entries(e.goods ?? {}).filter(([, q]) => q > 0.05).map(([gid, q]) => amount(q, gid));
   const took = [goods.join(' and '), e.bits ? formatMoney(sim, e.bits) : ''].filter(Boolean).join(' and ');
@@ -477,7 +532,7 @@ function encounterCore(e, { place, person, bandName, segRoad, amount, sim }) {
     case 'murdered':
       return `${name} is found dead on ${road}, robbed by ${band} of ${took || 'everything'}.`;
     case 'robbed':
-      if (e.kind === 'rider') return `${Band} waylay ${name} on ${road} and take the rider's letters.`;
+      if (e.kind === 'rider' || e.kind === 'courier') return `${Band} waylay ${name} on ${road} and take the rider's letters.`;
       return `${Band} fall on ${party} on ${road}${e.night ? ' in the dark' : ''}.${e.response === 'fought' || e.response === 'refused' || e.response === 'woke' ? ' They fight and lose.' : e.response === 'fled' ? ' They run, and are caught.' : ''}` +
         `${took ? ` ${took.charAt(0).toUpperCase() + took.slice(1)} ${took.includes(' and ') || /s\b/.test(took) ? 'are' : 'is'} taken.` : ''}${hands}${outlaws}` +
         guardsText(e, sim) + (e.captured ? (lordly ? ' Lord Aldric himself is dragged off into the hills, to be held for a great ransom.' : ` ${m.name} is dragged off to be held for ransom.`) : '');

@@ -5,6 +5,7 @@
 
 import { COIN, ECONOMY } from './economy.js';
 import { MERCS } from './mercs.js';
+import { PLAYER } from './player.js';
 
 export const WORLD = {
   id: 'copper-road-lab',
@@ -112,6 +113,7 @@ export const WORLD = {
   economy: ECONOMY,
   coin: COIN,
   mercs: MERCS,
+  player: PLAYER,
 
   // Merchants: the region's trading houses, each with a wagon or two, a purse and a temper.
   merchants: {
@@ -197,7 +199,7 @@ export const WORLD = {
     recruit: { chance: 0.005, hungerWeight: 3, povertyWeight: 2, poorBelow: 8, newBandHunger: 0.35, lure: 0.4 },
     // Lookouts: chance a band spots a traveller on its road, by how visible they are.
     spot: 0.8,
-    visibility: { merchant: 1, wayfarer: 0.5, peddler: 0.75, rider: 0.6, lord: 1.3 },
+    visibility: { merchant: 1, wayfarer: 0.5, peddler: 0.75, rider: 0.6, lord: 1.3, courier: 0.6 },
     noticeChance: 0.35, // chance a traveller who isn't attacked notices the band's signs
     takeMemory: 0.9, // lookouts' running estimate of each road's takings fades by this a day
     fearMemory: 0.93, // …and so does the fear a bloody road leaves

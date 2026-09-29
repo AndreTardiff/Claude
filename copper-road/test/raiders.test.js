@@ -174,7 +174,7 @@ test('a merchant taken on the road is held for ransom, and the house pays to get
     for (let d = 1; d < 120; d++) {
       const seen = sim.state.log.length;
       sim.advanceTo(at(d));
-      const e = sim.state.log.slice(seen).find((x) => x.type === 'raid:encounter' && x.captured);
+      const e = sim.state.log.slice(seen).find((x) => x.type === 'raid:encounter' && x.kind === 'merchant' && x.captured);
       if (!e) continue;
       const m = getMerchant(sim, e.who);
       assert.ok(m.trip === null, "the caravan's journey ends where they were taken");
