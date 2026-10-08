@@ -17,7 +17,8 @@ Read this first when resuming in a fresh session. It's updated at every checkpoi
 | E: raiders, road news, weather, camps | done |
 | F: mercenaries, experience, encounters, standing orders, the lord's travels | done |
 | G: the player (located, trades, dispatches, letters, travels, debt) | done |
-| **H: canvas client (world map, ledger panels, inspector); first, T2 work: make the player's edges count (AT-16)** | **next** |
+| **G+: refine the world against the player (spec §20.1)** | **next** |
+| H: canvas client (small slice first) | after G+ |
 
 ## Step G plan (checkpoints)
 
@@ -80,7 +81,25 @@ Each checkpoint ends with all tests green, `npm run reference` rerun, this file 
       parts, "what they know" beside the truth, ledger); rider inspector; Merchant houses panel; AT-25 (winter:
       fewer ventures, more per venture); spec v0.2.4; site progress entry.
 
-## Next
+## Next: step G+ (spec §20.1), decided with Andre, October 2026
+
+Refine the simulation before building the client, but only the parts the player feels, and measure each change with the
+player bots (`src/bots/trader.js`, `test/player-bots.test.js`) and the lab's ledger panel. No new world systems.
+Checkpoints, each ending tests green, reference regenerated, this file updated, pushed:
+- [ ] **G+1 Houses with habits and blind spots.** A character per house (habit: favourite goods/roads and slow to change;
+      pessimist/optimist; follower; hoarder) that bends `tradeCandidates` scoring and how fast and how much they trust news.
+      The inspector names the bias. Measure: AT-16 (smart bot vs median house), houses' own profits still sane, books balance.
+- [ ] **G+2 News that ages.** Make fresh word clearly valuable: houses read news later and act on stale lists; arriving to
+      find the gap closed is logged ("beaten to it"). Measure: AT-18 margin, value of a courier in bot runs.
+- [ ] **G+3 Bands weigh targets with more variety.** Desperation, a leader's pride, a prize worth the gamble: guarded
+      caravans are sometimes attacked; signs of a band's mood travel as news. Measure: share of encounters with guards;
+      orders change outcomes.
+- [ ] **G+4 Rivals react.** Houses crowd a paying route (margins close), the last into a glutted town pays for it, houses
+      follow the player's visible success. Measure: AT-17 holds, route margins fall with crowding.
+- [ ] **Exit:** AT-16 passes (turn the `todo` into a real test), AT-17/18 still pass. Spec and site updated. Then H (small slice).
+Pacing (season length, trip times) is measured by play-testing, not changed without numbers.
+
+## Earlier steps
 
 **Step E: raiders** (Andre: go E with my suggestions: named merchants are captured and ransomed rather than
 killed outright; nights get eventful plus a lab toggle to fast-forward quiet nights). Checkpoints:
