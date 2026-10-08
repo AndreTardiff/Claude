@@ -151,6 +151,11 @@ function retell(sim, rec) {
     const wobble = 1 + (rng.float() * 2 - 0.8) * noise * 3;
     return { ...rec, renown: round2(Math.max(0, rec.renown * wobble)), source: 'rumour', confidence: Math.round(rec.confidence * sim.data.knowledge.rumourTrust) };
   }
+  if (rec.deal) {
+    // Talk of a good sale: the profit grows in the telling.
+    const wobble = 1 + (rng.float() * 2 - 0.7) * noise * 3;
+    return { ...rec, profit: round2(rec.profit * wobble), source: 'rumour', confidence: Math.round(rec.confidence * sim.data.knowledge.rumourTrust) };
+  }
   if (rec.road) {
     // A road story grows or shrinks in the telling.
     const wobble = 1 + (rng.float() * 2 - 1) * noise * 3;

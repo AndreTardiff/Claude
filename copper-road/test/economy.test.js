@@ -205,6 +205,10 @@ test('goods are conserved: every change in stock is accounted for, caravans and 
       }
     }
   }
+  // …and what has moved since the last settlement (the lord's midnight feasts, say), booked into the day just begun.
+  for (const [sid, road] of Object.entries(sim.state.economy.road)) {
+    for (const gid of ix.goodIds) flow[sid][gid] += (road.in[gid] ?? 0) - (road.out[gid] ?? 0) - (road.used?.[gid] ?? 0);
+  }
   for (const sid of ix.markets) {
     if (ix.isOutside(sid)) continue;
     for (const gid of ix.goodIds) {

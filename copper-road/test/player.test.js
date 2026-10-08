@@ -142,6 +142,52 @@ test('the money-changer: pay each season, or he takes the stall', () => {
   assert.ok(netWorth(fresh, { gross: true }) > 0);
 });
 
+test('ruined: bonded to the richest house for a season, paid a wage, then free with half the debt', () => {
+  const sim = new Simulation({ seed: 3 });
+  sim.advanceTo(at(1));
+  const st = P(sim);
+  // A note far beyond anything the family owns (set by hand: the changer would never lend it).
+  st.debt.principal = toBits(sim, 5000);
+  for (let d = 2; d <= 60 && !st.bonded; d++) sim.advanceTo(at(d));
+  assert.ok(st.bonded, 'two missed dues, the seizure, and then the bond');
+  const house = sim.state.merchants.byId[st.bonded.house];
+  assert.ok(house?.active, 'to a trading house');
+  assert.match(describe(sim.state.log.find((e) => e.type === 'player:bonded'), sim), new RegExp(`house of ${house.house}`));
+  assert.equal(st.wagons, 1, 'the family wagon is not the changer\'s to take');
+  const owed = st.debt.principal;
+  // While bonded you can't trade for yourself.
+  const seen = sim.state.log.length;
+  sim.command('player:buy', { good: 'grain', qty: 1 });
+  assert.ok(sim.state.log.slice(seen).some((e) => e.type === 'player:refused' && e.why === 'bonded'));
+  assert.ok(!sim.state.log.slice(seen).some((e) => e.type === 'player:bought'));
+  sim.advanceTo(st.bonded.until + DAY);
+  assert.equal(st.bonded, null, 'the bond is served');
+  const freed = sim.state.log.find((e) => e.type === 'player:released');
+  assert.ok(freed.kept > 0, 'with something kept of the wages to start again');
+  assert.ok(freed.owed <= owed / 2, 'and half the debt (less what the wages paid) written off');
+  assert.match(describe(freed, sim), /wages kept/);
+  assert.equal(booksBalance(sim), moneySupply(sim));
+});
+
+test('a caravan that comes home keeps what its load cost, and a refused command does nothing', () => {
+  const sim = new Simulation({ seed: 5 });
+  sim.advanceTo(at(1));
+  const st = P(sim);
+  // Buy in Kingscross, ride to Copperford and straight back with the load unsold.
+  sim.command('player:buy', { good: 'salt', qty: 4 });
+  const cost = st.stores.kingscross.salt.cost;
+  sim.command('player:dispatch', { to: 'copperford', good: 'salt', qty: 4, sell: 'none', then: 'home', ride: true });
+  // On the road, nothing can be done from the saddle.
+  const seen = sim.state.log.length;
+  sim.command('player:buy', { good: 'grain', qty: 1 });
+  assert.ok(sim.state.log.slice(seen).some((e) => e.type === 'player:refused' && e.why === 'on the road'));
+  assert.ok(!sim.state.log.slice(seen).some((e) => e.type === 'player:bought'));
+  for (let d = 2; d <= 20 && !sim.state.log.some((e) => e.type === 'player:caravan-home'); d++) sim.advanceTo(at(d));
+  const back = st.stores.kingscross.salt;
+  assert.ok(back, 'the salt is back in the stall');
+  assert.ok(Math.abs(back.cost - cost) <= 1, `at what it cost (${back.cost} against ${cost} bits)`);
+});
+
 test('ride through a merciless band and you may die: your heir takes up the ledger and the debt', () => {
   for (let seed = 1; seed <= 40; seed++) {
     const sim = new Simulation({ seed });

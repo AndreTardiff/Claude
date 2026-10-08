@@ -177,6 +177,10 @@ export function describe(entry, sim) {
       return entry.good
         ? `${trader(entry.who)} takes the unsold ${lower(entry.good)} on to ${place(entry.to)}.`
         : `Finding no trade worth the road in ${place(entry.from)}, ${trader(entry.who)} moves on to ${place(entry.to)} with empty wagons.`;
+    case 'merchant:habit':
+      return entry.now
+        ? `Stung once too often, ${trader(entry.who)} gives up carrying ${lower(entry.was.good)} to ${place(entry.was.to)}: from now on it's ${lower(entry.now.good)} for ${place(entry.now.to)}, the way it's always been done.`
+        : `Stung once too often, ${trader(entry.who)} gives up carrying ${lower(entry.was.good)} to ${place(entry.was.to)}, and looks for a new habit.`;
     case 'merchant:ruined':
       return `The house of ${house(entry.who)} is ruined: ${trader(entry.who)} pays off the last of the crew and goes home to ${place(getMerchant(sim, entry.who)?.home)}.`;
     case 'merchant:founded':
@@ -401,12 +405,16 @@ export function describe(entry, sim) {
       return `${you()} pays the money-changer ${formatMoney(sim, entry.bits)}; ${formatMoney(sim, entry.owed)} still owed.`;
     case 'player:missed':
       return `${you()} can't meet the money-changer's due (${formatMoney(sim, entry.due)}); ${sim.data.player.changer.name} makes a note of it.`;
-    case 'player:seized':
-      return `${sim.data.player.changer.name}'s man, ${entry.collector}, empties the family's strongbox and sells off the stall: ${formatMoney(sim, entry.bits)} taken, ${formatMoney(sim, entry.owed)} still owed.`;
+    case 'player:seized': {
+      const yard = entry.wagons ? ` and ${entry.wagons === 1 ? 'a wagon' : `${entry.wagons} wagons`} from the yard` : '';
+      return entry.bits > 0
+        ? `${sim.data.player.changer.name}'s man, ${entry.collector}, empties the family's strongbox and sells off the stall${yard}: ${formatMoney(sim, entry.bits)} taken, ${formatMoney(sim, entry.owed)} still owed.`
+        : `${sim.data.player.changer.name}'s man, ${entry.collector}, finds nothing in Kingscross worth the taking: ${formatMoney(sim, entry.owed)} still owed.`;
+    }
     case 'player:bonded':
-      return `Ruined, ${you()} is bound to work off the debt as a factor for a rival house.`;
+      return `Ruined, ${you()} is bound to work off the debt as a factor for ${entry.house ? `the house of ${house(entry.house)}` : 'a rival house'}.`;
     case 'player:released':
-      return `${you()}'s bond is served; half the debt is written off, and the stall is theirs again.`;
+      return `${you()}'s bond is served; half the debt is written off, and the stall is theirs again${entry.kept > 0 ? `, with ${formatMoney(sim, entry.kept)} of wages kept` : ''}.`;
     case 'player:borrowed':
       return `${you()} borrows ${formatMoney(sim, entry.bits)} from the money-changer (${formatMoney(sim, entry.owed)} owed now).`;
     case 'player:repaid':

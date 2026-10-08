@@ -58,6 +58,10 @@ and the home of **Caravans of the Copper Road**, a living-world merchant simulat
   with `player: true` and `account: 'player'` (left out of `activeMerchants`). Bots (`src/bots/`) play by commands only.
 - Travellers judge roads by what they believe (`road:<segment>` knowledge records), never by where the bands are;
   only the lab sees the truth.
+- Houses have characters (G+1, `merchants.characters` in data/world.js): they bend `tradeCandidates` (each candidate
+  names its `bias`) and how often a house reads the news. Good sales are talked of as `deal:<good>:<town>` records.
+- Measure world changes against the player with `npm run measure` (bots in `src/bots/trader.js`); AT-16 compares
+  trading profit (player vs median founding house), not net worth.
 
 ## Lab charts
 - Load the `dataviz` skill before changing chart code. Chart colours live in `copper-road/lab/lab.css`

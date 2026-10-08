@@ -35,7 +35,7 @@ import { residentsAt } from '../economy/people.js';
 import { finishLeg, newTrip, planJourney, reroute, startLeg } from '../world/journey.js';
 import { pathKm } from '../world/routes.js';
 import { holderOf, learn, snapshot, swapBetween, swapNews } from './knowledge.js';
-import { buyProvisions, getMerchant, sellCargo, sellable, travel } from './merchants.js';
+import { accountOf, activeMerchants, buyProvisions, getMerchant, sellCargo, sellable, travel } from './merchants.js';
 import { hireGuards } from './mercs.js';
 import { ordersFor } from './orders.js';
 import { afterLeg, onLegStart } from './raiders.js';
@@ -96,7 +96,10 @@ export const player = {
     // The changer's household lives on the interest.
     const spare = balance(sim, 'changer') - toBits(sim, cfg.changer.spendAbove);
     if (spare > 0) transfer(sim, 'changer', `purse:${st.home}`, spare / 10);
-    if (st.bonded && sim.now >= st.bonded.until) release(sim);
+    if (st.bonded) {
+      if (sim.now >= st.bonded.until) release(sim);
+      else bondedDay(sim);
+    }
     for (const f of Object.values(st.factors)) factorDay(sim, f);
   },
 
@@ -147,9 +150,10 @@ function entry(sim, type, fields) {
   if (st.ledger.length > 80) st.ledger.shift();
 }
 
+// Logs why a command can't be done; true, so a guard reads `if (busy(sim, kind)) return;`.
 function refuse(sim, command, why) {
   sim.log('player:refused', { command, why });
-  return false;
+  return true;
 }
 
 // Bonded, taken, or on the road: some things can't be done from here.
@@ -174,6 +178,14 @@ function addStore(st, sid, gid, qty, cost) {
   const s = store(st, sid);
   const have = s[gid] ?? { qty: 0, cost: 0 };
   s[gid] = { qty: round3(have.qty + qty), cost: have.cost + Math.round(cost) };
+}
+
+// A caravan's load into your stores where it stands, keeping what it cost.
+function stow(sim, m) {
+  const st = sim.state.player;
+  const v = m.venture;
+  for (const [gid, q] of Object.entries(m.cargo)) addStore(st, m.at, gid, q, v?.good === gid && v.qty > 0 ? Math.round((v.bought * q) / v.qty) : 0);
+  m.cargo = {};
 }
 
 // Take from a store; returns the cost basis of what was taken.
@@ -262,8 +274,7 @@ function onDispatch(sim, { to, good = null, qty = 0, wagons = null, road = 'bala
   // A caravan of yours waiting here can be loaded and sent on; at home, wagons in the yard too.
   const waiting = caravans(sim).find((c) => !c.trip && !c.captive && c.at === from && c.wagons > 0);
   // Unload what it carries into your stores here, keeping what it cost.
-  if (waiting) for (const [gid, q] of Object.entries(waiting.cargo)) addStore(st, from, gid, q, waiting.venture?.good === gid && waiting.venture.qty > 0 ? Math.round((waiting.venture.bought * q) / waiting.venture.qty) : 0);
-  if (waiting) waiting.cargo = {};
+  if (waiting) stow(sim, waiting);
   qty = good ? Math.min(qty, st.stores[from]?.[good]?.qty ?? 0) : 0;
   const need = Math.max(1, Math.ceil(qty / cfg.wagonCapacity));
   const spare = (waiting?.wagons ?? 0) + (from === st.home ? idleWagons(sim) : 0);
@@ -281,10 +292,12 @@ function onDispatch(sim, { to, good = null, qty = 0, wagons = null, road = 'bala
   if (qty > 0) m.cargo[good] = qty;
   // The caravan knows what you know.
   copyKnowledge(sim, PLAYER, m.id);
-  const crew = wagons * cfg.crewPerWagon;
+  // As for the houses: crew for the loaded wagons (the empty ones are roped behind), and
+  // guards as the danger to the load warrants (none for empty wagons) unless you say how many.
+  const crew = need * cfg.crewPerWagon;
   const days = plan.hours / 24;
   const hired = guards === 'auto'
-    ? hireGuards(sim, m, { exposure: plan.exposure, days, wagons, caution, account: PLAYER, tripNo: m.tripNo + 1, from })
+    ? hireGuards(sim, m, { exposure: plan.exposure, days, wagons: qty > 0 ? need : 0, caution, account: PLAYER, tripNo: m.tripNo + 1, from })
     : hireGuards(sim, m, { want: Math.max(0, Math.min(4, guards | 0)), exposure: plan.exposure, days, wagons, caution, account: PLAYER, tripNo: m.tripNo + 1, from });
   const food = buyProvisions(sim, m, from, days, crew + hired.length);
   m.venture = qty > 0
@@ -413,8 +426,7 @@ export function playerCaravanIdle(sim, m) {
   const ins = m.instructions ?? {};
   if (ins.then === 'dissolve' || (m.at === st.home && ins.then !== 'wait-here')) return dissolve(sim, m);
   if (ins.then === 'store') {
-    for (const [gid, qty] of Object.entries(m.cargo)) addStore(st, m.at, gid, qty, 0);
-    m.cargo = {};
+    stow(sim, m);
     ins.then = 'wait';
   }
   if (ins.then === 'home') {
@@ -428,8 +440,7 @@ export function playerCaravanIdle(sim, m) {
 // Home again: the wagons go back in the yard, anything unsold into the stall.
 function dissolve(sim, m) {
   const st = sim.state.player;
-  for (const [gid, qty] of Object.entries(m.cargo)) addStore(st, m.at, gid, qty, 0);
-  m.cargo = {};
+  stow(sim, m);
   m.active = false;
   st.caravans = st.caravans.filter((id) => id !== m.id);
   if (st.at === m.at) swapBetween(sim, PLAYER, m.id);
@@ -440,8 +451,11 @@ function goTo(sim, m, dest) {
   const cfg = sim.data.merchants;
   const plan = planJourney(sim, m.at, dest, { speedKmh: m.speedKmh ?? cfg.speedKmh, caution: (1000 - m.boldness) / 1000, holder: m.id });
   if (!plan) return false;
-  const crew = m.wagons * cfg.crewPerWagon;
-  const hired = m.wagons ? hireGuards(sim, m, { exposure: plan.exposure, days: plan.hours / 24, wagons: m.wagons, caution: (1000 - m.boldness) / 1000, account: PLAYER, tripNo: m.tripNo + 1, from: m.at }) : [];
+  // Crew for the loaded wagons, guards for the load (as in dispatch).
+  const qty = Object.values(m.cargo).reduce((a, q) => a + q, 0);
+  const loaded = qty > 0 ? Math.min(m.wagons, Math.ceil(qty / cfg.wagonCapacity)) : 0;
+  const crew = m.wagons ? Math.max(1, loaded) * cfg.crewPerWagon : 0;
+  const hired = loaded ? hireGuards(sim, m, { exposure: plan.exposure, days: plan.hours / 24, wagons: loaded, caution: (1000 - m.boldness) / 1000, account: PLAYER, tripNo: m.tripNo + 1, from: m.at }) : [];
   if (crew) buyProvisions(sim, m, m.at, plan.hours / 24, crew + hired.length);
   travel(sim, m, dest, plan, crew, hired);
   return true;
@@ -697,7 +711,9 @@ function payChanger(sim) {
   if (d.missed >= cfg.strikes) seize(sim);
 }
 
-// Default: the changer takes the coin and sells off the stall's stock at Kingscross.
+// Default: the changer takes the coin, sells off the stall's stock at Kingscross, and
+// sells the wagons standing in the yard back to the wheelwrights, all but one: a
+// carter's own wagon is his living, and not the changer's to take.
 function seize(sim) {
   const st = sim.state.player;
   const d = st.debt;
@@ -711,29 +727,58 @@ function seize(sim) {
     unload(sim, home, gid, qty);
     taken += transfer(sim, traderAccount(sim, home), 'changer', bits);
   }
+  let wagons = 0;
+  while (taken < d.principal && st.wagons > 1 && idleWagons(sim) > 0) {
+    const got = transfer(sim, `purse:${home}`, 'changer', toBits(sim, sim.data.merchants.wagonCost * 0.5));
+    if (!got) break;
+    taken += got;
+    st.wagons -= 1;
+    wagons += 1;
+  }
   d.principal = Math.max(0, d.principal - taken);
   d.missed = 0;
   if (!d.collector) d.collector = sim.rng('player').pick(['Brannoc Slye', 'Wat Grimsby', 'Idris Cole']);
-  sim.log('player:seized', { bits: taken, owed: d.principal, collector: d.collector });
-  entry(sim, 'seized', { bits: taken, owed: d.principal });
+  sim.log('player:seized', { bits: taken, owed: d.principal, collector: d.collector, wagons });
+  entry(sim, 'seized', { bits: taken, owed: d.principal, wagons });
   // Nothing left and still in debt: bonded to a rival house for a season.
   if (d.principal > 0 && netWorth(sim) < 0) bond(sim);
 }
 
+// Bankrupt: a season as a bonded factor for the richest rival house (spec §15).
 function bond(sim) {
   const st = sim.state.player;
-  st.bonded = { since: sim.now, until: sim.now + sim.data.player.bondedDays * DAY, owed: st.debt.principal };
-  sim.log('player:bonded', { owed: st.debt.principal, days: sim.data.player.bondedDays });
-  entry(sim, 'bonded', { owed: st.debt.principal });
+  const cfg = sim.data.player.bond;
+  let house = null;
+  for (const m of activeMerchants(sim)) if (!house || balance(sim, accountOf(m)) > balance(sim, accountOf(house))) house = m;
+  st.bonded = { since: sim.now, until: sim.now + cfg.days * DAY, owed: st.debt.principal, house: house?.id ?? null, kept: 0 };
+  sim.log('player:bonded', { owed: st.debt.principal, days: cfg.days, house: house?.id ?? null });
+  entry(sim, 'bonded', { owed: st.debt.principal, house: house?.id ?? null });
 }
 
-// Bond served: half the debt is written off (a debt is a promise, not coin), and you start again from the stall.
+// The house pays a bonded factor's wage; the changer takes his share against the debt,
+// and the rest is the player's to start again with.
+function bondedDay(sim) {
+  const st = sim.state.player;
+  const cfg = sim.data.player.bond;
+  const house = getMerchant(sim, st.bonded.house);
+  if (!house?.active) return; // the house has gone under: the bond runs on, unpaid
+  const wage = transfer(sim, accountOf(house), PLAYER, toBits(sim, cfg.wage));
+  const share = transfer(sim, PLAYER, 'changer', Math.min(Math.round(wage * cfg.toChanger), st.debt.principal));
+  st.debt.principal -= share;
+  st.debt.paid += share;
+  st.bonded.kept += wage - share;
+}
+
+// Bond served: half of what's still owed is written off (a debt is a promise, not coin), and you
+// start again from the stall, with the family wagon and what you kept of your wages.
 function release(sim) {
   const st = sim.state.player;
+  const kept = st.bonded.kept ?? 0;
   st.debt.principal = Math.round(st.debt.principal / 2);
+  st.debt.missed = 0;
   st.bonded = null;
-  sim.log('player:released', { owed: st.debt.principal });
-  entry(sim, 'released', { owed: st.debt.principal });
+  sim.log('player:released', { owed: st.debt.principal, kept });
+  entry(sim, 'released', { owed: st.debt.principal, kept });
 }
 
 function onBorrow(sim, { marks }) {

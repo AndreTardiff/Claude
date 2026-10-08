@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Simulation } from '../src/sim/simulation.js';
-import { botDay } from '../src/bots/trader.js';
+import { botDay, playerTradeProfit } from '../src/bots/trader.js';
 import { netWorth } from '../src/systems/player.js';
 import { booksBalance, moneySupply } from '../src/economy/money.js';
 
@@ -18,18 +18,21 @@ function play(seed, days, policy, setup = null) {
     sim.runDays(1);
     botDay(sim, policy);
   }
-  return { sim, gain: (netWorth(sim) - start) / MARK, starters };
+  return { sim, gain: (netWorth(sim) - start) / MARK, trade: playerTradeProfit(sim) / MARK, starters };
 }
 
 // AT-16 (skill gap): a good player bot should out-earn the median AI merchant by a meaningful margin.
-// Not there yet (see docs/HANDOFF.md, step G findings): the smart bot plays the houses' own game
-// with a little more judgement, from a smaller stake and a debt. Kept as a measurement.
-test('AT-16: a smart player bot against the median trading house, over a year', { todo: 'the skill gap is not yet meaningful' }, () => {
+// Earnings are trading profit on both sides (ventures and sales over cost, less empty-wagon
+// overheads), not net worth, which the debt, the ransoms and the lord's "loans" from the rich
+// swing far more than skill does. After step G+1 the bot is sound (it ends every year ahead,
+// with three wagons and the note paid) and a little ahead of the median house, 20% ahead in
+// roughly half the worlds (docs/HANDOFF.md). Kept as a measurement until G+2..G+4.
+test('AT-16: a smart player bot against the median trading house, over a year', { todo: 'a little ahead of the median house, not yet by a meaningful margin' }, () => {
   const rows = [];
   for (const seed of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) {
-    const { sim, gain, starters } = play(seed, 360, { kind: 'smart' });
+    const { sim, gain, trade, starters } = play(seed, 360, { kind: 'smart' });
     const ai = Object.values(sim.state.merchants.byId).filter((m) => !m.player && starters.has(m.id)).map((m) => (m.profit - m.overheads) / MARK).sort((a, b) => a - b);
-    rows.push({ seed, bot: Math.round(gain), median: Math.round(ai[Math.floor(ai.length / 2)]) });
+    rows.push({ seed, bot: Math.round(trade), worth: Math.round(gain), median: Math.round(ai[Math.floor(ai.length / 2)]) });
     assert.equal(booksBalance(sim), moneySupply(sim));
   }
   const ahead = rows.filter((r) => r.bot > r.median * 1.2).length;

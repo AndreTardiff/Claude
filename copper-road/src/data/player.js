@@ -42,6 +42,8 @@ export const PLAYER = {
   fee: 0.03, // what a player pays over the price for their own purchases (the market fee is the lord's)
   // Riding with a caravan that loses a fight: the chance the player is killed (else they may be taken).
   deathChance: 0.15,
-  bondedDays: 30, // bankrupt: this long working off the debt for a rival house
+  // Bankrupt: this long working off the debt as a factor for the richest rival house, for a
+  // wage (marks a day); the changer takes his share of it, and the rest starts you again.
+  bond: { days: 30, wage: 2, toChanger: 0.5 },
   stableFee: 0.2, // marks a day a wagon standing idle away from home costs
 };

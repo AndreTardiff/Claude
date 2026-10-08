@@ -6,7 +6,8 @@
   "scripts": {
     "test": "node --test \"copper-road/test/*.test.js\"",
     "sim": "node copper-road/tools/run.js",
-    "reference": "node copper-road/tools/reference.js"
+    "reference": "node copper-road/tools/reference.js",
+    "measure": "node copper-road/tools/measure.js"
   },
   "engines": {
     "node": ">=20"

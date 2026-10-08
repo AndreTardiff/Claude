@@ -131,9 +131,9 @@ export const WORLD = {
     threshold: [4, 12], // least profit a day (marks) per loaded wagon worth setting out for
     minLoad: 5, // units: smaller loads aren't worth hitching a wagon for
     keepBack: 0.5, // a market's traders won't sell below this share of the stock the town wants
-    reversion: 0.08, // merchants expect a town's shortage or glut to ease by this much a day (hyperbolically)
+    reversion: 0.05, // merchants expect a town's shortage or glut to ease by this much a day (hyperbolically)
     orderTrust: 0.85, // how much of a lord's order a merchant counts on filling before rivals do
-    stalePerDay: 0.015, // …and discount each day of a price list's age (by arrival) for the uncertainty
+    stalePerDay: 0.01, // …and discount each day of a price list's age (by arrival) for the uncertainty
     maxStale: 0.4, // …never more than this
     riskWeight: 1, // risk cost = exposure × revenue × riskWeight × caution
     idleDays: 3, // days without a good trade before moving on empty
@@ -150,6 +150,30 @@ export const WORLD = {
     foundPurseAbove: 20, // marks per head a town must hold beyond that capital to back a new house
     forcedLoanAbove: 1000, // marks: the lord starts "borrowing" from a house this rich…
     forcedLoanShare: 0.2, // …this share of the excess, each season
+    // Characters (step G+1, spec §20.1): each house has one, and it bends how they weigh a
+    // trade and how they read the news. Public knowledge: everyone on the road knows the
+    // Vells are creatures of habit. `revenue` scales what they expect a load to fetch;
+    // `risk` the danger they price in; `threshold` the least they'll set out for;
+    // `trust` (gullible) or `skeptic` how they weigh word of mouth; `stale` how hard old news counts.
+    characters: {
+      habit: {
+        name: 'creature of habit',
+        favourite: 0.2, // they expect their usual trade to fetch this much more than it does…
+        unfamiliar: 0.1, // …and anything they've never carried this much less
+        readEvery: 3, // days between bothering with the inn's board (they trust their own lists)
+        changeAfter: 2, // trips on the usual trade that sting, running, before they give it up for whatever paid best…
+        stungBelow: 0.5, // …a sting being a loss, or a profit under this share of what they hoped
+      },
+      optimist: { name: 'optimist', revenue: 1.15, risk: 0.6, trust: 0.85, threshold: 0.8, expandAt: 1.5 },
+      pessimist: { name: 'pessimist', revenue: 0.9, risk: 1.3, stale: 1.4, skeptic: true, threshold: 0.85 }, // small, sure profits
+      follower: {
+        name: 'follower',
+        follow: 0.35, // a trade they've heard made someone money looks this much better…
+        followDays: 14, // …if the word is no older than this
+        trust: 0.85,
+      },
+      hoarder: { name: 'hoarder', stake: 0.45, threshold: 1.3, spendShare: 0.25, expandAt: 3.5 },
+    },
   },
 
   // Raiders (step E): bands of outlaws with hideouts near the wild roads. They

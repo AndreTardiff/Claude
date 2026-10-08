@@ -30,7 +30,7 @@ export function createHousesPanel(root, { onSelect }) {
         : m.trip ? `${what ? `${esc(what)} to` : 'empty to'} ${esc(placeName(sim, m.trip.dest))}`
           : what ? `selling ${esc(what)} in ${esc(placeName(sim, m.at))}` : `in ${esc(placeName(sim, m.at))}`;
       return `<tr>
-        <td><button class="linkish" data-merchant="${esc(m.id)}">${esc(m.name)}</button> <span class="dim">${esc(placeName(sim, m.home))}</span></td>
+        <td><button class="linkish" data-merchant="${esc(m.id)}">${esc(m.name)}</button> <span class="dim">${esc(placeName(sim, m.home))}${m.character ? ` · ${esc(sim.data.merchants.characters?.[m.character.kind]?.name ?? m.character.kind)}` : ''}</span></td>
         <td>${doing}</td>
         <td class="num">${m.wagons}</td>
         <td class="num">${moneyBits(balance(sim, `merchant:${m.id}`))}</td>

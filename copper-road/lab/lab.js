@@ -312,6 +312,28 @@ function wayfarerHtml(id) {
 }
 
 const temperWord = (b) => (b > 700 ? 'bold' : b < 300 ? 'wary' : 'steady');
+
+// A house's character (step G+1), in words: what it is, and how it bends the house's judgement.
+function characterText(m) {
+  const kind = m.character?.kind;
+  const def = kind ? sim.data.merchants.characters?.[kind] : null;
+  if (!def) return null;
+  const pct = (x) => `${Math.round(Math.abs(x - 1) * 100)}%`;
+  const lower = (gid) => goodOf(sim, gid).name.toLowerCase();
+  switch (kind) {
+    case 'habit': {
+      const fav = m.character.favourite;
+      const keeps = fav ? `keeps to ${lower(fav.good)} for ${place(fav.to)}, and counts on ${pct(1 + def.favourite)} more from it` : 'no favourite trade yet (the first that pays will be it)';
+      return `${def.name}: ${keeps}; expects ${pct(1 - def.unfamiliar)} less from goods it has never carried; reads the inn's board only every ${def.readEvery} days`;
+    }
+    case 'optimist': return `${def.name}: counts on ${pct(def.revenue)} more from every load, minds the road less and takes hearsay at its word`;
+    case 'pessimist': return `${def.name}: expects ${pct(def.revenue)} less from every load, fears the road more, and doubts old news and hearsay`;
+    case 'follower': return `${def.name}: counts on ${pct(1 + def.follow)} more from a trade others are said to have done well by lately`;
+    case 'hoarder': return `${def.name}: never stakes more than ${Math.round(def.stake * 100)}% of the purse on one load, and spends little at home`;
+    default: return def.name;
+  }
+}
+const BIAS_WORD = { habit: 'the usual trade', unfamiliar: 'never carried it', 'heard it paid': 'heard it paid', optimism: 'optimism', pessimism: 'pessimism' };
 const sourceWord = { seen: 'seen', board: 'posted board', post: 'letter', rumour: 'rumour' };
 const ageWord = (d) => (d < 0.5 ? 'today' : d < 1.5 ? 'a day old' : `${Math.round(d)} days old`);
 const goodUnits = (gid) => goodOf(sim, gid).units;
@@ -341,7 +363,7 @@ function merchantHtml(id) {
   if (r) {
     const rows = r.candidates.map((c, i) => `
       <tr class="${i === r.choice ? 'chosen' : ''}">
-        <td>${qty(c.qty)} ${esc(goodUnits(c.good))} of ${esc(goodOf(sim, c.good).name.toLowerCase())} to ${esc(place(c.to))}${i === r.choice ? ' <span class="tag">chosen</span>' : ''}
+        <td>${qty(c.qty)} ${esc(goodUnits(c.good))} of ${esc(goodOf(sim, c.good).name.toLowerCase())} to ${esc(place(c.to))}${i === r.choice ? ' <span class="tag">chosen</span>' : ''}${c.bias ? ` <span class="tag bias">${esc(BIAS_WORD[c.bias] ?? c.bias)}</span>` : ''}
           <br><span class="dim">${esc(sourceWord[c.source] ?? c.source)}, ${ageWord(c.ageDays)} · ${c.days.toFixed(1)} days on the road</span></td>
         <td class="num">${money(c.revenue)}</td>
         <td class="num">${money(c.cost)}</td>
@@ -355,7 +377,7 @@ function merchantHtml(id) {
         <thead><tr><th>Trade</th><th class="num">Takings</th><th class="num">Buying</th><th class="num">Carrying</th><th class="num">Risk</th><th class="num">A day</th></tr></thead>
         <tbody>${rows}</tbody>
       </table></div>` : ''}
-      <p class="formula">Takings: what the load should fetch by their price list, with the market expected to recover by arrival, no more than the town was said to have in coin, less a share for old news and hearsay. Worth the road at ${m.threshold} marks a day for each loaded wagon.</p>
+      <p class="formula">Takings: what the load should fetch by their price list, with the market expected to recover by arrival, no more than the town was said to have in coin, less a share for old news and hearsay${m.character ? ', bent by the house\'s character (tagged)' : ''}. Worth the road at ${m.threshold} marks a day for each loaded wagon.</p>
       ${r.note ? `<p>${esc(r.note)}.</p>` : ''}`;
   }
 
@@ -395,6 +417,7 @@ function merchantHtml(id) {
     <dl class="facts">
       <dt>Wagons</dt><dd>${m.wagons} (${m.capacity} units)</dd>
       <dt>Temper</dt><dd>${temperWord(m.boldness)} (${m.boldness}/1000 bold)</dd>
+      ${characterText(m) ? `<dt>Character</dt><dd>${esc(characterText(m))}</dd>` : ''}
       <dt>Purse</dt><dd>${moneyBits(balance(sim, `merchant:${m.id}`))}</dd>
       <dt>Ventures</dt><dd>${m.trades}, ${m.losses} at a loss · ${moneyBits(m.profit)} profit</dd>
       <dt>Spent at home</dt><dd>${moneyBits(m.spent)}${m.loaned ? ` · "lent" the lord ${moneyBits(m.loaned)}` : ''}</dd>

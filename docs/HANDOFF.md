@@ -17,7 +17,7 @@ Read this first when resuming in a fresh session. It's updated at every checkpoi
 | E: raiders, road news, weather, camps | done |
 | F: mercenaries, experience, encounters, standing orders, the lord's travels | done |
 | G: the player (located, trades, dispatches, letters, travels, debt) | done |
-| **G+: refine the world against the player (spec §20.1)** | **next** |
+| **G+: refine the world against the player (spec §20.1)** | **in progress: G+1 done, G+2 next** |
 | H: canvas client (small slice first) | after G+ |
 
 ## Step G plan (checkpoints)
@@ -85,10 +85,45 @@ Each checkpoint ends with all tests green, `npm run reference` rerun, this file 
 
 Refine the simulation before building the client, but only the parts the player feels, and measure each change with the
 player bots (`src/bots/trader.js`, `test/player-bots.test.js`) and the lab's ledger panel. No new world systems.
+Measure with `npm run measure -- --seeds 1-10 [--set '<json overrides>']` (`copper-road/tools/measure.js`): how well
+the houses guess, crowding, famine, each character's founding houses, and AT-16's rows for the smart bot.
 Checkpoints, each ending tests green, reference regenerated, this file updated, pushed:
-- [ ] **G+1 Houses with habits and blind spots.** A character per house (habit: favourite goods/roads and slow to change;
-      pessimist/optimist; follower; hoarder) that bends `tradeCandidates` scoring and how fast and how much they trust news.
-      The inspector names the bias. Measure: AT-16 (smart bot vs median house), houses' own profits still sane, books balance.
+- [x] **G+1 Houses with habits and blind spots.** *(done: characters in `src/systems/merchants.js` and
+      `merchants.characters` in `src/data/world.js`; `test/characters.test.js`; lab houses panel and inspector;
+      `tools/measure.js`; spec v0.2.11 §10.3)*
+      - Characters, one of each among the founders, new houses take the scarcest:
+        - **creature of habit:** keeps to the first trade that paid, +20%; −10% for goods never carried; reads the
+          board every 3rd day; drops the habit after two stings running (a loss, or under half the hope);
+        - **optimist:** +15%, risk 0.6×, gullible, lower bar, expands sooner;
+        - **pessimist:** −10%, risk 1.3×, skeptic, stale news counts 1.4×, but a lower bar, so it takes small sure
+          profits instead of starving idle;
+        - **follower:** +35% for a trade with fresh word it paid; good sales are told at the inn as
+          `deal:<good>:<town>` records that spread as rumour;
+        - **hoarder:** stakes ≤ 45%, lives meanly, expands late.
+      - Each candidate carries `bias`; the inspector names the character and tags the bent trades.
+      - **Calibration:** houses hoped for 81 marks a sale and made 174. `reversion` 0.08 → 0.05 and `stalePerDay`
+        0.015 → 0.01; now they hope ~90 and make ~135, trade more, and fewer starve.
+      - **Fixed while measuring:**
+        - a caravan coming home put its load in the stall at cost 0 (`stow()` keeps the basis);
+        - `refuse()` returned false, so `busy()` never blocked a command;
+        - player caravans crewed and guarded empty wagons (now: loaded wagons only, as for houses);
+        - the bankrupt loop. The changer now sells spare wagons (never the last), and a bonded player works for
+          the richest house at 2 marks a day: half to the changer, half kept;
+        - the conservation test now counts the open day's tallies (the lord's midnight feasts);
+        - the fence test uses worlds where loot is taken.
+      - **The bot** (several failure modes fixed, see spec §20.1): moves on once when idle, then home; sells to make
+        the changer's due; grows to 3 wagons like a house, then repays the note; ranks loads with half the best
+        back-haul at the far end.
+      - **Findings:** every one of 20 years ends ahead (+850 to +2,750 worth), with 3 wagons and the note paid. On
+        trading profit the bot is a little ahead of the median house: ~1.14× in the median world, 20% ahead in 9 of
+        20 (AT-16 stays `todo`, now on trading profit). The lord's "loans" take 0 to 3,200 marks a year from a flush
+        bot. Characters (20 worlds of founders) show risk and return:
+        - optimists and followers earn most (medians ~3,200 and ~3,500) and are ruined most (7 of 20 each);
+        - hoarders and pessimists earn less (~2,300, ~2,100) and rarely fail (2 and 3);
+        - habit houses earn like the careful and fail like the bold (6): stale news, narrow choices.
+
+        A habit rarely breaks, because habits form around trades that work. The bot's worst years (seeds 8, 17, 19)
+        are where G+2 should start: which trades did it lose, and to whom?
 - [ ] **G+2 News that ages.** Make fresh word clearly valuable: houses read news later and act on stale lists; arriving to
       find the gap closed is logged ("beaten to it"). Measure: AT-18 margin, value of a courier in bot runs.
 - [ ] **G+3 Bands weigh targets with more variety.** Desperation, a leader's pride, a prize worth the gamble: guarded

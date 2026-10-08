@@ -159,7 +159,8 @@ export function createPlayerPanel(root, { getSim, onChange, onSelectMerc }) {
     const d = st.debt;
     const cfg = sim.data.player.debt;
     const due = Math.round(d.principal * (cfg.rate + cfg.installment));
-    const where = st.bonded ? `<span class="bad">bonded to a rival house</span> until ${esc(sim.cal.format(st.bonded.until).stamp)}`
+    const master = st.bonded?.house ? sim.state.merchants.byId[st.bonded.house]?.house : null;
+    const where = st.bonded ? `<span class="bad">bonded to ${master ? `the house of ${esc(master)}` : 'a rival house'}</span> until ${esc(sim.cal.format(st.bonded.until).stamp)}`
       : st.at ? `in <strong>${esc(place(st.at))}</strong>` : st.with ? 'on the road with your caravan' : 'held by outlaws';
     const cars = caravans(sim).map((m) => {
       const load = Object.entries(m.cargo).map(([gid, q]) => `${qty(q)} ${esc(goodOf(sim, gid).units)}`).join(', ') || 'empty';
