@@ -17,12 +17,13 @@ export const MERCS = {
   maxStat: 10,
 
   // Deed points a rank needs. A hard fight survived is worth 2–4, a toll or a sight of a band ½.
+  // (Raised a quarter in step G+3, when bolder bands made fights commoner: growth stays slow.)
   ranks: [
     { id: 'green', name: 'Green', deeds: 0 },
-    { id: 'blooded', name: 'Blooded', deeds: 5 },
-    { id: 'seasoned', name: 'Seasoned', deeds: 16 },
-    { id: 'veteran', name: 'Veteran', deeds: 36 },
-    { id: 'captain', name: 'Captain', deeds: 70 },
+    { id: 'blooded', name: 'Blooded', deeds: 6 },
+    { id: 'seasoned', name: 'Seasoned', deeds: 20 },
+    { id: 'veteran', name: 'Veteran', deeds: 45 },
+    { id: 'captain', name: 'Captain', deeds: 88 },
   ],
 
   wage: { base: 0.9, perRank: 0.35, perFame: 0.04, fameMax: 1 }, // marks a day on the road, paid where the trip ends
@@ -34,7 +35,7 @@ export const MERCS = {
   spendAbove: 40, // marks: a sellsword with more than this lives well (a tenth of the excess a day)
   awayDays: 4, // days a sellsword waits for work away from home before walking back
   walkHomeDays: 2,
-  retire: { brokeDays: 40, deeds: 90 }, // give up the sword: broke and idle this long, or old in deeds and rich
+  retire: { brokeDays: 40, deeds: 110 }, // give up the sword: broke and idle this long, or old in deeds and rich
 
   // Hiring: merchants hire guards for the danger they believe is on the road.
   hire: {

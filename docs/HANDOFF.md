@@ -17,7 +17,7 @@ Read this first when resuming in a fresh session. It's updated at every checkpoi
 | E: raiders, road news, weather, camps | done |
 | F: mercenaries, experience, encounters, standing orders, the lord's travels | done |
 | G: the player (located, trades, dispatches, letters, travels, debt) | done |
-| **G+: refine the world against the player (spec §20.1)** | **in progress: G+1 and G+2 done, G+3 next** |
+| **G+: refine the world against the player (spec §20.1)** | **in progress: G+1–G+3 done; paused before G+4 (Andre)** |
 | H: canvas client (small slice first) | after G+ |
 
 ## Step G plan (checkpoints)
@@ -155,9 +155,39 @@ Checkpoints, each ending tests green, reference regenerated, this file updated, 
       - **Where G+3 and G+4 should look:** the houses got better too (they now read departures). The player's edge
         is information plus back-hauls; what's left is risk (G+3: bands that sometimes attack guarded caravans) and
         rivals reacting (G+4).
-- [ ] **G+3 Bands weigh targets with more variety.** Desperation, a leader's pride, a prize worth the gamble: guarded
-      caravans are sometimes attacked; signs of a band's mood travel as news. Measure: share of encounters with guards;
-      orders change outcomes.
+- [x] **G+3 Bands weigh targets with more variety.** *(done: `nerveOf`, `bandNews`, `overthrow` in
+      `src/systems/raiders.js`; `bandMood` in `knowledge.js`; `test/bands-nerve.test.js`; spec v0.2.13 §11.2)*
+      - **Nerve:** the worst odds a band takes on start at 45%:
+        - hunger loosens them gradually (+35% at full hunger; desperate still takes anything);
+        - a rich load adds up to +15%;
+        - a proud leader facing guards adds up to +18%, and attacks rather than demanding a toll;
+        - a beating takes up to 25% off (`band.shaken`, fading); everything bounded to 20–72%.
+      - **Leaders:** each has a pride. After a bad beating a member may throw the leader down (`raid:leader`), and
+        the chronicle gives the motive when guards are taken on.
+      - **Band mood is news** (`band:<hideout>` records): from the fence's tavern every 3 days and from anyone who
+        meets the band. It is retold and spreads. `believedDanger` multiplies by the mood:
+        - starving +60%, hungry +25%, a proud leader +25%;
+        - lately beaten −30%, gone −50%;
+        - fading over 15 days.
+      - **Lab:** the band inspector shows nerve and what each town says of the band; the ledger lists "What's said
+        of the bands". Bot option `orders` (standing orders for its caravans).
+      - **Measured** (10 world-years):
+        - guarded caravans set on 3.5 → 6.3 a year (23% → 32% of caravan encounters); stare-downs 11.3 → 8.6;
+        - hands killed 5.9 → 8.8, outlaws 5.9 → 11.1, merchants taken 1.0 → 2.9;
+        - "fight" orders lose something 61% → 31%;
+        - optimists ruined in 6 of 10 worlds (they price danger low).
+      - **Orders for the player** (20 worlds): fight / tolls / run change fights won, ransoms and deaths, but not
+        the year's worth. The careful bot meets bands only ~3 times a year.
+      - **Knock-ons:**
+        - rank thresholds raised a quarter (6/20/45/88) to keep sellsword growth slow (guards fought ~25% more);
+        - AT-18 now compares earnings (trade less news) over 40 worlds: the network's net gain is +370 ± 210 a year,
+          positive but modest;
+        - the AT-09 and AT-21 tests no longer assume what's in the log or the pouch beyond what they check.
+      - **AT-16:** the plain bot (20 worlds) is 20% ahead in 10, median world 1.26× the median house. The test's
+        network player, net of news costs, is 20% ahead in 3 of 10. Still `todo`.
+      - **Paused here at Andre's request.** Suggested: the outside review (spec, HANDOFF, the lab,
+        `npm run measure`) either now, to settle how AT-16 should be measured and whether the lord's "loans"
+        punish a successful player too hard, or at the G+ exit before H.
 - [ ] **G+4 Rivals react.** Houses crowd a paying route (margins close), the last into a glutted town pays for it, houses
       follow the player's visible success. Measure: AT-17 holds, route margins fall with crowding.
 - [ ] **Exit:** AT-16 passes (turn the `todo` into a real test), AT-17/18 still pass. Spec and site updated. Then H (small slice).

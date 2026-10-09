@@ -1,7 +1,7 @@
 # Caravans of the Copper Road
-## Simulation Prototype Design Specification — v0.2.12
+## Simulation Prototype Design Specification — v0.2.13
 
-*v0.2.12 adds: news that ages, as built in step G+2 (§5.5): departures are news, caravans are beaten to markets, letters follow you, and the value of information measured; factors on new terms, and AT-18 as a test of a network of factors (§4.3, §21). v0.2.11 added: the trading houses' characters and the first G+ measurements (§10.3, §20.1), bankruptcy as built (§4.3), and a sounder player bot (§21). v0.2.10 added: step G+ (§20.1), refining the world against the player before the client is built. v0.2.9 added: the player as built in step G (§4.3), with the first T2 findings (§21). v0.2.8 added: standing orders, fame and infamy as news, and Lord Aldric's travels, as built in step F (§12.3, §13.1, §15.2.2). v0.2.7 added: sellswords, gear that remembers, and deed-earned ranks, as built in step F (§12.1–§12.3). v0.2.6 added: raiders as built in step E (§11.1), the camps experiment (§17.2), and nights (§17.3). v0.2.5 added: Lord Aldric as an engaged character (§15.2.1), and the Crown's due as a share of his income (§8.6). v0.2.4 added: knowledge and the lord's post as built in step D1 (§5.4), merchants, caravans, the ships' coin and peddlers as built in steps D2–D3 (§10.1, §10.2). v0.2.3 added: coin and famine as built in step C (§8.6, §8.7) and map tooltips. v0.2.2 added step B's economy as built (§8.5), traveller livelihoods (§10.1), the living map from camps to towns (§17.2) and winter's rewards (§16). v0.2.1 added the player's starting situation, Lord Aldric and drifting names (§15.1, §15.2, §17.1). Supersedes v0.1 ([original document](copper-road-spec-v0.1.docx)). Status: prototype design authority. Target: a headless simulation core with a browser prototype (HTML5 canvas). Godot is a later option if we decide to go big.*
+*v0.2.13 adds: bands that weigh their targets, as built in step G+3 (§11.2): nerve, proud leaders and usurpers, and a band's mood as news. v0.2.12 added: news that ages, as built in step G+2 (§5.5): departures are news, caravans are beaten to markets, letters follow you, and the value of information measured; factors on new terms, and AT-18 as a test of a network of factors (§4.3, §21). v0.2.11 added: the trading houses' characters and the first G+ measurements (§10.3, §20.1), bankruptcy as built (§4.3), and a sounder player bot (§21). v0.2.10 added: step G+ (§20.1), refining the world against the player before the client is built. v0.2.9 added: the player as built in step G (§4.3), with the first T2 findings (§21). v0.2.8 added: standing orders, fame and infamy as news, and Lord Aldric's travels, as built in step F (§12.3, §13.1, §15.2.2). v0.2.7 added: sellswords, gear that remembers, and deed-earned ranks, as built in step F (§12.1–§12.3). v0.2.6 added: raiders as built in step E (§11.1), the camps experiment (§17.2), and nights (§17.3). v0.2.5 added: Lord Aldric as an engaged character (§15.2.1), and the Crown's due as a share of his income (§8.6). v0.2.4 added: knowledge and the lord's post as built in step D1 (§5.4), merchants, caravans, the ships' coin and peddlers as built in steps D2–D3 (§10.1, §10.2). v0.2.3 added: coin and famine as built in step C (§8.6, §8.7) and map tooltips. v0.2.2 added step B's economy as built (§8.5), traveller livelihoods (§10.1), the living map from camps to towns (§17.2) and winter's rewards (§16). v0.2.1 added the player's starting situation, Lord Aldric and drifting names (§15.1, §15.2, §17.1). Supersedes v0.1 ([original document](copper-road-spec-v0.1.docx)). Status: prototype design authority. Target: a headless simulation core with a browser prototype (HTML5 canvas). Godot is a later option if we decide to go big.*
 
 > **What changed in v0.2, in one breath.** The player is now a *person in one place* who learns about the world through letters that travel at road speed. There are two theses to prove, not one: the world must be worth watching, *and* the player's choices must be hard and meaningful. The closed three-town economy is opened with seasons, an Outside port, a copper mint, and money sinks that grow with a merchant's wealth. Every citizen does economic work, and the player's home town gets full Ultima VII-style daily schedules. Raiders fence, starve, recruit and bury treasure. Caravans leave with standing orders. Style modules (place names earned by history, ledger UI, songs, the Wending Fair) are scheduled in, each tied to a prototype question.
 
@@ -434,6 +434,53 @@ Hired hands who die are townspeople from where the caravan set out. Merchants wh
 
 **Result.** Over 300–400 days, one or two bands of 4–20 hold the hills most of the time; 12–23 encounters per 100 days, a few town raids, occasional ransoms and a handful of deaths. Merchants shift to safer roads when raids become known. Gate E: in a replayed world, a grain caravan robbed on the road leaves its destination measurably shorter of grain and dearer than the same world where it got through.
 
+### 11.2 Bands that weigh their targets, as built in step G+3
+Before this step a band let any party pass whose odds of beating it were better than 45%, unless it was starving. Hiring guards was close to a sure thing, standing orders rarely changed an outcome, and sellswords fought about one fight in three of the times they met a band.
+
+**Nerve.** The worst odds a band will take on now move with its situation:
+- They start at 45% (62% for a lord worth a great ransom).
+- **Hunger** loosens them, a little at a time: up to +35% at full hunger. A desperate band still takes any chance.
+- **A prize worth the gamble:** a rich load adds up to +15% (half of that for a load worth 400 marks).
+- **A proud leader facing guards** adds up to +18%: they want a name, and they attack rather than ask for a toll.
+- **A beating** takes up to 25% off: every outlaw killed shakes them, and it fades over a couple of weeks.
+- Everything together stays between 20% and 72%.
+
+**Leaders.** Each band's leader has a pride. After a bad beating, one of them may throw the leader down: a usurper, usually prouder than the one before. The chronicle says so: *"After the beating, Sabine Heath throws down Brannoc Birch and takes the lead of the Fen band: a proud one, out to make a name."* When a band takes on a guarded party, the chronicle says why: *"Their leader wanted a name, guards or no guards."*
+
+**A band's mood is news** (a `band:<hideout>` record). Every few days the band's fence's tavern gets a look at them (lean or flush, cocky or licking their wounds), and anyone they meet learns the same. The word spreads and is retold, and their numbers grow in the telling. Travellers reckon the band's roads by what they've heard:
+
+| What's said of the band | Its roads' danger |
+|---|---|
+| Starving | +60% |
+| Hungry | +25% |
+| A proud leader | +25% |
+| Lately beaten | −30% |
+| Broken up, gone | −50% |
+
+The word fades over about two weeks. Believed danger steers routes, the risk merchants price in, and how many guards they hire, so a starving band's road empties of the careful and fills with guards. The lab's band inspector shows the band's nerve and what each town says of it. The player's ledger lists what's said of the bands.
+
+**Result** (10 world-years, the smart bot playing):
+
+| | Before | After |
+|---|---|---|
+| Guarded caravans set on, a year | 3.5 (23% of caravan encounters) | 6.3 (32%) |
+| Guards staring a band down | 11.3 | 8.6 |
+| Hired hands killed / outlaws killed, a year | 5.9 / 5.9 | 8.8 / 11.1 |
+| Merchants taken for ransom, a year | 1.0 | 2.9 |
+| A caravan under "fight" orders losing something, when met | 61% | 31% |
+
+Bands burn out faster (fewer survive the year), and new leaders rise: seven usurpers in ten years. Characters now pay for their blind spots. Optimists, who price danger at 0.6, were ruined in 6 of 10 worlds; no hoarder was.
+
+For the player, standing orders change how each meeting ends, but not yet the year's sum (20 worlds):
+
+| Orders | Fought off a year | Taken for ransom | Killed | Worth gained |
+|---|---|---|---|---|
+| Fight | 1.3 | 0.50 | 0.20 | +1,690 |
+| Pay tolls | 0.9 | 0.25 | 0.20 | +1,716 |
+| Run | 0.3 | 0.25 | 0.10 | +1,693 |
+
+A careful player who hires guards meets a band about three times a year, so orders matter in the moment, not in the ledger's total.
+
 ## 12. Mercenaries
 As in v0.1 (experience ledger; a few explicit traits such as Forestwise, Ambush Veteran, Night Fighter, Trusted Pair, Spear Wary), plus:
 - **Loyalty to the employer**, shaped by pay, survival and how the player's standing orders treated them ("You told us to die for the medicine").
@@ -445,7 +492,7 @@ Andre's direction (September 2026): mercenaries carry gear and level up, RPG-sty
 - **People.** Sellswords are named residents of the towns (profession *sellsword*), on top of each town's founding population. Five stats from 1 to 10: strength, agility, discipline, awareness, nerve. Each has a purse, a favourite weapon, and a ledger: kilometres walked by terrain, run-ins, fights won and lost (by terrain), ambushes, nights, kills, wounds, companions, and bands stared down. While waiting for work they earn a little at odd jobs, pay for bed and board, mend their gear and buy better. If they're broke long enough, they give up the sword. When fewer than ten are left, an idle labourer takes one up.
 - **Hiring.** Merchants hire guards for the danger they *believe* is on the road: more for more exposure, more wagons and a more timid temper, and never more than a quarter of the purse in wages. Sellswords waiting in town make a merchant bolder about the road (T2: guards cost wages but open the short, dangerous way). Guards are paid their own day rate (more for rank) where the trip ends.
 - **In the fight.** A carter counts 1; a green sellsword with a spear and a quilted coat about 1.5; a Veteran in mail with a storied sword about 3. The band's lookouts see the guards, so a well-guarded caravan is often just let by, and staring a band down is a small deed. In an attack from cover, a guard may see it coming (awareness, terrain sense, a bow). If none does, the guards fight surprised. Guards stand in front: a blow meant for a hand may fall on a guard, whose armour may turn it. Otherwise they are wounded (light or bad) or killed. In a won fight, guards cut down outlaws. The after-action report names the factors: who saw it coming, which traits and named pieces were in play, who fell.
-- **Ranks (deed points).** A fight won 3, a fight lost and survived 2, a toll or run-in ½, a kill 1, a wound 1, a band stared down 0.3. The ranks are Green, then Blooded at 5, Seasoned at 16, Veteran at 36 and Captain at 70. Each deed also *trains* stats: fighting trains strength and agility, night trains awareness and nerve, an ambush trains awareness and nerve, standing beside others trains discipline, and a wound trains nerve. **A rank raises the stat trained most, by one**, so two Veterans end up different people. In test runs a guard reaches Blooded in their first year, if at all.
+- **Ranks (deed points).** A fight won 3, a fight lost and survived 2, a toll or run-in ½, a kill 1, a wound 1, a band stared down 0.3. The ranks are Green, then Blooded at 6, Seasoned at 20, Veteran at 45 and Captain at 88 (raised a quarter in step G+3, when bolder bands made fights commoner, so growth stays as slow as intended). Each deed also *trains* stats: fighting trains strength and agility, night trains awareness and nerve, an ambush trains awareness and nerve, standing beside others trains discipline, and a wound trains nerve. **A rank raises the stat trained most, by one**, so two Veterans end up different people. In test runs a guard reaches Blooded in their first year, if at all.
 - **Traits** (few, explicit, thresholds on the ledger): Forestwise, Goat-footed and Fenwise (two fights on that terrain, or long travel there and one fight: stronger there and quicker to see an ambush), Ambush Veteran (3 ambushes: not shaken by surprise), Night Fighter (2 night fights), Knows the Outlaw Ways (6 run-ins), Trusted Pair (3 fights beside the same guard: better together), Scarred (a bad wound: a little weaker, much harder to kill). AT-10 is automated: across 100 seeded forest ambushes, a Forestwise guard wins a few more and sees more ambushes coming, never all.
 
 ### 12.2 Gear that remembers
@@ -661,7 +708,7 @@ Simulation state is separate from rendering. The simulation is data-driven: good
 
 The browser page on the site grows with the project: A–G show headless charts and logs; H onward is playable.
 
-**Status (September 2026):** A to G are complete. D added knowledge records and the lord's post (§5.4), merchant houses and caravans, the ships' coin and peddlers (§10). Between D and E, Lord Aldric became an engaged character who spends his treasury (§15.2.1). E added raider bands, road news, encounters and ransom, the raiders' economy, the lord's patrols, surprise weather, camps and waystations, and news round the night's fires (§11.1, §17.2). F added sellswords, gear that remembers, and deed-earned ranks and traits (§12.1–§12.2), fame and infamy as news (§12.3), standing orders (§13.1), and Lord Aldric judging by what he hears and riding out into his lands (§15.2.2). G added the player: a stall, a debt, caravans, couriers, factors, death and heirs (§4.3); the lab has a panel to play it. G+ (§20.1) refines the world against the player before H (the canvas client). G+1, the houses' characters (§10.3), and G+2, news that ages (§5.5), are done; G+3 (bands that weigh their targets) is next.
+**Status (September 2026):** A to G are complete. D added knowledge records and the lord's post (§5.4), merchant houses and caravans, the ships' coin and peddlers (§10). Between D and E, Lord Aldric became an engaged character who spends his treasury (§15.2.1). E added raider bands, road news, encounters and ransom, the raiders' economy, the lord's patrols, surprise weather, camps and waystations, and news round the night's fires (§11.1, §17.2). F added sellswords, gear that remembers, and deed-earned ranks and traits (§12.1–§12.2), fame and infamy as news (§12.3), standing orders (§13.1), and Lord Aldric judging by what he hears and riding out into his lands (§15.2.2). G added the player: a stall, a debt, caravans, couriers, factors, death and heirs (§4.3); the lab has a panel to play it. G+ (§20.1) refines the world against the player before H (the canvas client). G+1, the houses' characters (§10.3), G+2, news that ages (§5.5), and G+3, bands that weigh their targets (§11.2), are done; G+4 (rivals react) is next.
 
 ### 20.1 Step G+: refine the world against the player (decided October 2026)
 **Decision (Andre and Claude):** refine the simulation before building the game screen, but refine the parts the player feels, and measure every change with the player (the bots and the lab's ledger panel), not in isolation. The first player bot showed why: steps D–F made a deep, stable world, and none of it gave a skilled player an edge (AT-16). Most of what's wrong with the game lives in the world's rules, and only the player's seat shows which rules.
@@ -695,6 +742,15 @@ Now the smart bot ends every one of 20 test years ahead (+850 to +2,750 marks of
 - Fixed while measuring: an heir was left with no wagon when the parent died on the road (the caravan waited at the far town forever; now the crew bring it home). The bot never roamed again once a single empty move had ended at home. It also forgot goods it had stored in other towns.
 - AT-16 stays a measurement. The houses got better too: hearing who is on the road, they crowd half as much and lose less. The player with a network is about level with the median house (20% ahead in about a third of the worlds). G+3 and G+4 remain.
 
+**G+3 results (October 2026).** Bands that weigh their targets are built (§11.2).
+- Guarded caravans are set on about twice as often, with a reason the chronicle gives. Leaders rise and fall, and a band's mood steers routes and guard hiring.
+- The roads are bloodier. Characters now pay for their blind spots: optimists, who price danger low, were ruined in 6 of 10 worlds.
+- Standing orders change how a meeting ends (fights won, ransoms, deaths), but a careful player meets bands only about three times a year, so not the year's total.
+- Two knock-ons:
+  - Sellswords fought more and rose faster, so the rank thresholds went up a quarter to keep growth slow.
+  - The factor network's gain, net of wages, is now real but modest (earnings +370 ± 210 marks a year over 40 worlds). AT-18 measures earnings over 40 worlds instead of net worth over 30.
+- AT-16. The bot without a network is 20% ahead of the median house in 10 of 20 worlds; median world 1.26× (it was 0.89–1.01× after G+2), because the houses suffer more from the bolder bands than a careful player does. The test's network player, whose earnings carry its news costs, is 20% ahead in 3 of its 10 worlds. Still a measurement.
+
 ## 21. Acceptance tests
 **AT-01 to AT-15 are kept from v0.1** (autonomy, price response, merchant response, physical trade, disruption, competition, risk sensitivity, day cycle, persistent death, contextual experience, combat explanation, player parity, debug legibility, performance, interest test).
 
@@ -703,7 +759,7 @@ New tests:
 |---|---|---|
 | AT-16 | Skill gap | A scripted "good" player bot out-earns the median AI merchant by a meaningful margin over 1 year across 20 seeds (earnings: trading profit on both sides, since step G+1) |
 | AT-17 | No dominant strategy | No single fixed route/good policy is the best one in more than ~40% of seeds |
-| AT-18 | Information value | A player with factors in the other markets out-earns an identical player without them, net of their wages (step G+2: one factor alone is about break-even) |
+| AT-18 | Information value | A player with factors in the other markets out-earns an identical player without them, net of their wages (step G+2: one factor alone is about break-even; measured on earnings over 40 worlds since G+3) |
 | AT-19 | Money stability | Over 5 simulated years without a player, total coin stays within bounds and no town goes permanently broke |
 | AT-20 | Rubber band | A deliberately dominant merchant's share of wealth plateaus through the levy and forced loans, with no hard cap |
 | AT-21 | Letter interception | Stolen letters measurably change a victim's decisions |

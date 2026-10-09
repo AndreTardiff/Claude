@@ -156,8 +156,9 @@ test('AT-21: letters taken from the post never reach the next inn', () => {
       sim.advanceTo(at(0) + h * 60);
       const e = sim.state.log.slice(seen).find((x) => x.type === 'raid:encounter' && x.kind === 'rider' && x.outcome === 'robbed');
       if (!e) continue;
+      // The letters are gone (what the rider knows of roads, names and the band they met isn't letters).
       const pouch = sim.state.knowledge.holders[e.who];
-      assert.equal(Object.keys(pouch).filter((k) => !k.startsWith('road:') && !k.startsWith('fame:')).length, 0, 'the pouch is empty');
+      assert.equal(Object.keys(pouch).filter((k) => !k.startsWith('road:') && !k.startsWith('fame:') && !k.startsWith('band:')).length, 0, 'the pouch is empty');
       const band = getBand(sim, e.band);
       assert.ok(Object.keys(sim.state.knowledge.holders[band.id]).some((k) => !k.startsWith('road:') && !k.startsWith('fame:')), 'the band has the letters');
       return;

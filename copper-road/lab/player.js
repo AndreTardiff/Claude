@@ -6,7 +6,7 @@
 import { balance, describe, economyIndex, quote } from '../src/index.js';
 import { botDay } from '../src/bots/trader.js';
 import { caravans, netWorth } from '../src/systems/player.js';
-import { esc, goodOf, money, moneyBits, placeName, qty } from './format.js';
+import { bandTalk, esc, goodOf, money, moneyBits, placeName, qty } from './format.js';
 
 const ROADS = [['balanced', 'balanced'], ['fast', 'fastest'], ['safe', 'safest']];
 const sourceWord = { seen: 'seen', board: 'posted board', post: 'letter', rumour: 'rumour' };
@@ -181,6 +181,10 @@ export function createPlayerPanel(root, { getSim, onChange, onSelectMerc }) {
     const mine = new Set(st.caravans);
     const onRoad = Object.values(sim.state.knowledge?.holders.player ?? {}).filter((r) => r.bound && r.eta > sim.now - 5 * 1440).sort((a, b) => b.eta - a.eta || (a.who < b.who ? -1 : 1));
     const bound = onRoad.map((r) => `<li>${mine.has(r.who) ? '<span class="tag">yours</span> ' : ''}${esc(sim.state.merchants.byId[r.who]?.name ?? r.who)}: ${qty(r.qty)} ${esc(goodOf(sim, r.good).units)}${goodOf(sim, r.good).units.toLowerCase() === goodOf(sim, r.good).name.toLowerCase() ? '' : ` of ${esc(goodOf(sim, r.good).name.toLowerCase())}`}, ${esc(place(r.from))} → <strong>${esc(place(r.to))}</strong>, ${r.eta > sim.now ? `due ${esc(sim.cal.format(r.eta).stamp)}` : `should be there by now (${esc(sim.cal.format(r.eta).stamp)})`} <span class="dim">(${esc(sourceWord[r.source] ?? r.source)}, word ${ageWord((sim.now - r.t) / 1440)})</span></li>`).join('');
+    // What you've heard of the bands in the hills (step G+3): reckon the roads by it.
+    const hideoutName = (hid) => sim.data.raiders?.hideouts.find((h) => h.id === hid)?.band ?? hid;
+    const bands = Object.values(sim.state.knowledge?.holders.player ?? {}).filter((r) => r.bandNews).sort((a, b) => b.t - a.t)
+      .map((r) => `<li>${esc(hideoutName(r.hideout))}: ${esc(bandTalk(r))} <span class="dim">(${esc(sourceWord[r.source] ?? r.source)}, ${ageWord((sim.now - r.t) / 1440)})</span></li>`).join('');
     const factors = Object.values(st.factors).map((fc) => `<li>${esc(sim.state.residents.byId[fc.resident]?.name ?? fc.resident)} in ${esc(place(fc.at))}: ${fc.reports} letters sent, ${moneyBits(fc.sold)} of your goods sold${fc.skimmed ? ` <span class="dim">(and ${moneyBits(fc.skimmed)} skimmed: only the lab knows)</span>` : ''} <button type="button" data-act="dismiss" data-at="${esc(fc.at)}">Dismiss</button></li>`).join('');
     const ledger = sim.state.log.filter((e) => e.type.startsWith('player:') && e.type !== 'player:refused' || (e.type === 'raid:encounter' && e.player)).slice(-8).reverse()
       .map((e) => `<li><time>${esc(sim.cal.format(e.t).stamp)}</time> ${esc(describe(e, sim))}</li>`).join('');
@@ -198,6 +202,7 @@ export function createPlayerPanel(root, { getSim, onChange, onSelectMerc }) {
       <h4>What you know <span class="sub">${esc(goodOf(sim, g).name.toLowerCase())}, by your price lists (the truth in grey, for the lab)</span></h4>
       <div class="table-wrap"><table><thead><tr><th>Market</th><th>Word</th><th class="num">You think</th><th class="num">Truly</th></tr></thead><tbody>${known}</tbody></table></div>
       ${bound ? `<h4>Loads on the road, by what you've heard</h4><ul class="plain">${bound}</ul>` : ''}
+      ${bands ? `<h4>What's said of the bands</h4><ul class="plain">${bands}</ul>` : ''}
       ${factors ? `<h4>Your factors</h4><ul class="plain">${factors}</ul>` : ''}
       ${ledger ? `<h4>Your ledger, lately</h4><ul class="plain">${ledger}</ul>` : ''}`;
     if (html === last) return;

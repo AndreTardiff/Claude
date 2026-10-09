@@ -42,3 +42,13 @@ export function goodOf(sim, gid) {
 }
 
 export const placeName = (sim, id) => sim.graph.nodes.get(id)?.name ?? id;
+
+/** What's said of a band (step G+3), in words: "starving, proud leader, lately beaten, about 6 strong". */
+export function bandTalk(rec) {
+  if (rec.mood === 'gone') return 'broken up, gone from the hills';
+  const parts = [rec.mood];
+  if (rec.proud) parts.push('a proud leader');
+  if (rec.shaken) parts.push('lately beaten');
+  parts.push(`about ${rec.members} strong`);
+  return parts.join(', ');
+}

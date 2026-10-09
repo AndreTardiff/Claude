@@ -140,10 +140,11 @@ test('AT-09: a dead smith stays dead, tool output drops, and an apprentice takes
   assert.ok(made(sim) < made(baseline) * 0.8, `tool output ${made(baseline)} → ${made(sim)}`);
 
   sim.advanceTo(at(7));
-  const heir = smiths().find((r) => r.learning);
-  assert.ok(heir, 'someone takes up the trade after a few days');
-  const log = sim.state.log.find((e) => e.type === 'resident:succeeded');
-  assert.equal(log.predecessor, victim.id);
+  // Someone takes up the dead smith's trade after a few days (other trades may change hands too).
+  const log = sim.state.log.find((e) => e.type === 'resident:succeeded' && e.predecessor === victim.id);
+  assert.ok(log, 'the smith is succeeded');
+  const heir = smiths().find((r) => r.id === log.who);
+  assert.ok(heir?.learning, 'by an apprentice');
   const skill = heir.skill;
   sim.advanceTo(at(12));
   assert.ok(heir.skill > skill, 'apprentices learn on the job');

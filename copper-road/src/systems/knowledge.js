@@ -117,10 +117,43 @@ export function reportRoad(sim, holder, segId, { danger, what, band = null, unti
 export function believedDanger(sim, holder, segId) {
   const base = sim.graph.segments.get(segId).danger;
   const rec = holder ? sim.state.knowledge?.holders[holder]?.[roadKey(segId)] : null;
-  if (!rec) return base;
-  const age = (sim.now - rec.t) / DAY;
-  const fade = 1 / (1 + age / sim.data.knowledge.roadMemoryDays);
-  return base + (rec.danger - base) * fade * (0.5 + 0.5 * rec.confidence / 1000);
+  let danger = base;
+  if (rec) {
+    const age = (sim.now - rec.t) / DAY;
+    const fade = 1 / (1 + age / sim.data.knowledge.roadMemoryDays);
+    danger = base + (rec.danger - base) * fade * (0.5 + 0.5 * rec.confidence / 1000);
+  }
+  return danger * bandMood(sim, holder, segId);
+}
+
+// Which hideout's band watches each road (world data; fixed for a run).
+const watchers = new WeakMap();
+function watcherOf(sim, segId) {
+  const hideouts = sim.data.raiders?.hideouts;
+  if (!hideouts) return null;
+  if (!watchers.has(hideouts)) {
+    const map = new Map();
+    for (const h of hideouts) for (const seg of h.watches) map.set(seg, h.id);
+    watchers.set(hideouts, map);
+  }
+  return watchers.get(hideouts).get(segId) ?? null;
+}
+
+/**
+ * How much worse (or better) a holder reckons a road for what they've heard of the band in
+ * the hills above it (step G+3): starving or proud, worse; lately beaten, or gone, better.
+ * The word counts for less as it ages.
+ */
+export function bandMood(sim, holder, segId) {
+  const hideout = holder ? watcherOf(sim, segId) : null;
+  const rec = hideout ? sim.state.knowledge?.holders[holder]?.[`band:${hideout}`] : null;
+  if (!rec) return 1;
+  const M = sim.data.raiders.mood;
+  const fade = 1 / (1 + (sim.now - rec.t) / DAY / M.memoryDays);
+  const weight = fade * (0.5 + 0.5 * rec.confidence / 1000);
+  let f = rec.mood === 'gone' ? M.gone : (rec.mood === 'starving' ? M.starving : rec.mood === 'hungry' ? M.hungry : 0) + (rec.proud ? M.proud : 0) + (rec.shaken ? M.shaken : 0);
+  f = Math.max(-0.8, f);
+  return 1 + f * weight;
 }
 
 /** Has the holder heard that a road is shut (a flood, a rockfall), and not yet that it's open? */
@@ -155,6 +188,11 @@ function retell(sim, rec) {
     // Talk of a good sale: the profit grows in the telling.
     const wobble = 1 + (rng.float() * 2 - 0.7) * noise * 3;
     return { ...rec, profit: round2(rec.profit * wobble), source: 'rumour', confidence: Math.round(rec.confidence * sim.data.knowledge.rumourTrust) };
+  }
+  if (rec.bandNews) {
+    // Word of a band: their numbers grow in the telling; their mood is what people remember.
+    const wobble = 1 + (rng.float() * 2 - 0.7) * noise * 3;
+    return { ...rec, members: rec.mood === 'gone' ? 0 : Math.max(1, Math.round(rec.members * wobble)), source: 'rumour', confidence: Math.round(rec.confidence * sim.data.knowledge.rumourTrust) };
   }
   if (rec.bound) {
     // Word of a load on the road: how big it was grows or shrinks in the telling.

@@ -25,6 +25,12 @@
 // move to another hideout, or break up and go home. The lord's patrols make a
 // road costly to watch.
 //
+// Bands weigh their targets (G+3): the worst odds they'll take on loosen with hunger,
+// with a prize worth the gamble, and, against guards, under a proud leader who wants
+// a name; a beating makes them warier for a while. A band's mood is news: those who
+// meet it, and its fence's tavern, learn whether it's starving, proud or beaten, and
+// travellers reckon its roads worse or better by what they've heard (knowledge.js).
+//
 // Coin moves only by transfer (bands hold 'band:<id>' accounts); stolen goods
 // leave the wagons for the band's loot and reach a market only when fenced.
 
@@ -34,7 +40,7 @@ import { balance, toBits, transfer } from '../economy/money.js';
 import { residentsAt } from '../economy/people.js';
 import { refreshNeeds } from './economy.js';
 import { getResident, killResident, newName } from './residents.js';
-import { holderOf, learn, reportRoad, swapNews } from './knowledge.js';
+import { holderOf, innOf, learn, reportRoad, swapNews } from './knowledge.js';
 import { getMerchant, loseCargo, writeOffIfEmpty } from './merchants.js';
 import { getWayfarer, losePack } from './wayfarers.js';
 import { getRider } from './post.js';
@@ -77,6 +83,7 @@ export const raiders = {
         band.take[seg] = round2(band.take[seg] * cfg.takeMemory);
         band.fear[seg] = round3(band.fear[seg] * cfg.fearMemory);
       }
+      band.shaken = round3((band.shaken ?? 0) * cfg.nerve.shakenFade);
       patrolled(sim, band);
       // Too few to take the road for too long: the last of them give up.
       band.fewDays = band.members.length < cfg.minToRaid ? (band.fewDays ?? 0) + 1 : 0;
@@ -128,6 +135,8 @@ function foundBand(sim, hideout, rng) {
     leader: null,
     members: [], // resident ids
     cruelty: rng.int(0, 1000), // the leader's temper: permille
+    pride: rng.int(0, 1000), // the leader's wish for a name (step G+3): a proud one takes on guards
+    shaken: 0, // how much a recent beating weighs on them (0–1, fading)
     watching: hideout.watches[0],
     take: Object.fromEntries(hideout.watches.map((s) => [s, 0])), // marks seen passing lately, per road
     fear: Object.fromEntries(hideout.watches.map((s) => [s, 0])), // blood lost there lately
@@ -379,6 +388,43 @@ export function moraleOf(band) {
   return round2(Math.max(0.4, 1 - 0.5 * band.hunger + Math.min(0.3, band.raids * 0.02)));
 }
 
+/**
+ * The worst odds a band will take on (step G+3), and why: its usual caution, loosened by
+ * hunger, by a prize worth the gamble and, against guards, by a proud leader who wants a
+ * name; tightened after a beating. A desperate band takes any chance.
+ */
+export function nerveOf(sim, band, v, value) {
+  const cfg = sim.data.raiders.encounter;
+  const N = sim.data.raiders.nerve;
+  if (band.hunger >= cfg.desperateHunger) return { max: 1, why: ['desperate'] };
+  const why = [];
+  const hunger = band.hunger * N.hunger;
+  if (hunger >= 0.05) why.push('hungry');
+  const prize = (N.prize * value) / (value + N.prizeScale);
+  if (prize >= 0.06) why.push('prize');
+  const pride = v.guards?.length && band.pride >= N.proudAbove ? (N.pride * band.pride) / 1000 : 0;
+  if (pride) why.push('pride');
+  const shaken = (band.shaken ?? 0) * N.shaken;
+  if (shaken >= 0.05) why.push('shaken');
+  const base = v.kind === 'lord' ? cfg.lordOdds : cfg.maxOdds;
+  return { max: round2(Math.min(Math.max(base, N.max), Math.max(N.min, base + hunger + prize + pride - shaken))), why };
+}
+
+/**
+ * What's said of a band (step G+3), keyed by its hideout ("the Fen band"): how many,
+ * whether it's starving or hungry, whether its leader is proud, whether it's lately been
+ * beaten; or that it's gone. Learned by those who meet it, and at its fence's tavern.
+ */
+export function bandNews(sim, band, gone = false) {
+  const N = sim.data.raiders.nerve;
+  const M = sim.data.raiders.mood;
+  const mood = gone ? 'gone' : band.hunger >= sim.data.raiders.food.starving ? 'starving' : band.hunger >= M.hungryAbove ? 'hungry' : 'fed';
+  return {
+    at: `band:${band.hideout}`, t: sim.now, bandNews: true, band: band.id, hideout: band.hideout, members: band.members.length,
+    mood, proud: !gone && band.pride >= N.proudAbove, shaken: !gone && (band.shaken ?? 0) >= 0.3, source: 'seen', confidence: 1000,
+  };
+}
+
 // Settle an encounter: the band's approach, the traveller's answer, and the
 // outcome, with every factor kept for the after-action report.
 function resolve(sim, band, v, seg, night) {
@@ -413,15 +459,20 @@ function resolve(sim, band, v, seg, night) {
     guards: (v.guards ?? []).map((g) => g.id), guardHarm: [], guardsDead: [], guardKills: 0, bandGear: round2(gearPower), factors: [],
   };
 
-  const maxOdds = v.kind === 'lord' ? cfg.lordOdds : cfg.maxOdds;
-  if ((value < cfg.minLoot && !desperate) || (odds > maxOdds && !desperate)) {
-    // Not worth it, or too many to take on: they let them by, and may be seen doing it.
+  const nerve = nerveOf(sim, band, v, value);
+  rec.nerve = nerve;
+  if ((value < cfg.minLoot && !desperate) || odds > nerve.max) {
+    // Not worth it, or too many to take on: they let them by, and may be seen doing it
+    // (the traveller gets a look at them, and will tell what they saw).
     v.trip.sawBand = band.id;
+    learn(sim, v.id, bandNews(sim, band));
     if (v.guards?.length && value >= cfg.minLoot) staredDown(sim, band, v.trip);
     return null;
   }
+  // A proud leader facing guards doesn't ask: they came for a fight (step G+3).
+  const proudFight = v.guards?.length > 0 && nerve.why.includes('pride');
   rec.approach = night && v.kind !== 'rider' && Object.keys(v.cargo).length ? 'steal'
-    : v.kind === 'wayfarer' || (band.cruelty < 500 && !desperate) ? 'demand' : 'attack';
+    : v.kind === 'wayfarer' || (band.cruelty < 500 && !desperate && !proudFight) ? 'demand' : 'attack';
   // An attack from cover: unless a guard sees it coming, the guards fight surprised.
   const ctx = { terrain, night, surprised: false, spotted: null };
   if (guards && rec.approach === 'attack') {
@@ -503,6 +554,7 @@ function resolve(sim, band, v, seg, night) {
     ]);
   }
   if (rec.captured) releaseGuards(sim, v.trip, v.trip.from); // the guards scatter back the way they came, unpaid
+  if (rec.outlaws.length) overthrow(sim, band, rng);
   band.raids += rec.outcome === 'fought off' ? 0 : 1;
   const danger = threatOf(sim, band, seg);
   if (v.trip) v.trip.raided = { band: band.id, seg, danger };
@@ -514,7 +566,10 @@ function resolve(sim, band, v, seg, night) {
     band: band.id, kind: v.kind, who: v.id, seg, night, approach: rec.approach, response: rec.response, outcome: rec.outcome,
     goods: rec.goods, bits: rec.bits, hands: rec.hands.length, outlaws: rec.outlaws.length, captured: rec.captured, bounty: rec.bounty ?? 0,
     leaderFell: rec.leaderFell ?? false, playerDied: rec.playerDied ?? false, player: Boolean(v.who?.player), rider: Boolean(v.who?.player && (v.who.rider || rec.playerDied)), guards: rec.guards, guardHarm: rec.guardHarm, factors: rec.factors, order: rec.order ?? null,
+    nerve: rec.nerve?.why ?? [],
   });
+  // The traveller knows them now, and will tell what they saw (a beating shows).
+  learn(sim, v.id, bandNews(sim, band));
   // Infamy: what the band did, and everyone who met them knows it.
   const I = sim.data.raiders.infamy;
   const infamy = (rec.outcome === 'fought off' || rec.outcome === 'escaped' ? 0 : I.robbery) + (rec.hands.length + rec.guardsDead.length) * I.death +
@@ -642,12 +697,30 @@ function killOutlaws(sim, band, rec, n) {
     r.cause = 'fight';
     band.members = band.members.filter((x) => x !== id);
     band.lost += 1;
+    band.shaken = round3(Math.min(1, (band.shaken ?? 0) + sim.data.raiders.nerve.shakenPerDeath));
     rec.outlaws.push(id);
     if (id === band.leader) {
       band.leader = band.members[0] ?? null;
       rec.leaderFell = true;
+      if (band.leader) newLeader(sim, band, id);
     }
   }
+}
+
+// The leader is dead: the next of them takes over, with their own wish for a name (step G+3).
+function newLeader(sim, band, fallen) {
+  band.pride = sim.rng('raids').int(0, 1000);
+  sim.log('raid:leader', { band: band.id, who: band.leader, fallen, how: 'killed', proud: band.pride >= sim.data.raiders.nerve.proudAbove });
+}
+
+// After a bad beating, one of them may throw the leader down (step G+3): a usurper, prouder than most.
+function overthrow(sim, band, rng) {
+  const N = sim.data.raiders.nerve;
+  if (band.members.length < 3 || (band.shaken ?? 0) < N.overthrowAbove || !rng.chance(N.overthrow)) return;
+  const fallen = band.leader;
+  band.leader = rng.pick(band.members.filter((id) => id !== fallen));
+  band.pride = rng.int(400, 1000);
+  sim.log('raid:leader', { band: band.id, who: band.leader, fallen, how: 'overthrown', proud: band.pride >= N.proudAbove });
 }
 
 // After a fight has been told: a band with nobody left is finished.
@@ -781,6 +854,7 @@ function disband(sim, band, why) {
   }
   band.members = [];
   scatterBandGear(sim, band, hideoutById(sim, band.hideout).fence); // their arms turn up for sale in the fence's town
+  learn(sim, innOf(hideoutById(sim, band.hideout).fence), bandNews(sim, band, true)); // the town hears they're gone
   // Whatever coin is left goes into the ground at the hideout.
   const buried = transfer(sim, bandAccount(band), 'hoard', balance(sim, bandAccount(band)));
   if (buried) addHoard(sim, band, buried);
@@ -857,8 +931,10 @@ function provision(sim, band) {
 function fence(sim, band) {
   const cfg = sim.data.raiders;
   const town = hideoutById(sim, band.hideout).fence;
-  // The fence's tavern: the band hears the talk (who guards whom), and lets slip what it knows.
+  // The fence's tavern: the band hears the talk (who guards whom), and lets slip what it knows,
+  // and the town gets a look at them (step G+3): lean or flush, cocky or licking their wounds.
   swapNews(sim, band.id, town, { look: false });
+  learn(sim, innOf(town), bandNews(sim, band));
   const buyer = traderAccount(sim, town);
   const keepGrain = band.members.length * cfg.food.perHead * 20; // stolen grain they'll eat themselves
   for (const gid of Object.keys(band.loot).sort()) {

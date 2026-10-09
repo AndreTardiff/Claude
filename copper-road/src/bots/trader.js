@@ -84,7 +84,7 @@ function smartDay(sim, policy) {
     if (stale || now >= basis * qty * 1.05 || !onward || onward.gain < now + 10) {
       sim.command('player:orders', { caravan: waiting.id, sell: 'all' });
     } else {
-      sim.command('player:dispatch', { to: onward.to, good: gid, qty, road: policy.road ?? 'balanced', sell: 'none', then: 'wait', ride });
+      sim.command('player:dispatch', { to: onward.to, good: gid, qty, road: policy.road ?? 'balanced', orders: policy.orders ?? null, sell: 'none', then: 'wait', ride });
       return;
     }
   }
@@ -172,7 +172,7 @@ function smartDay(sim, policy) {
       for (const [gid, q] of Object.entries(waiting?.cargo ?? {})) held[gid] = (held[gid] ?? 0) + q;
       const [gid, q] = Object.entries(held).sort((a, b) => quote(sim, here, b[0]).price * b[1] - quote(sim, here, a[0]).price * a[1] || (a[0] < b[0] ? -1 : 1))[0] ?? [];
       const qty = gid ? Math.min(q, wagons * cfg.wagonCapacity) : 0;
-      sim.command('player:dispatch', { to, good: gid ?? null, qty, road: policy.road ?? 'balanced', sell: 'none', then: 'wait', ride: true });
+      sim.command('player:dispatch', { to, good: gid ?? null, qty, road: policy.road ?? 'balanced', orders: policy.orders ?? null, sell: 'none', then: 'wait', ride: true });
     }
     return;
   }
@@ -181,7 +181,7 @@ function smartDay(sim, policy) {
   if (best.kind === 'buy') sim.command('player:buy', { good: best.good, qty: best.qty });
   const have = st.stores[here]?.[best.good]?.qty ?? 0;
   if (have < 1) return;
-  sim.command('player:dispatch', { to: best.to, good: best.good, qty: Math.min(have, best.qty), road: policy.road ?? 'balanced', sell: ride ? 'none' : 'all', then: ride ? 'wait' : 'home', ride });
+  sim.command('player:dispatch', { to: best.to, good: best.good, qty: Math.min(have, best.qty), road: policy.road ?? 'balanced', orders: policy.orders ?? null, sell: ride ? 'none' : 'all', then: ride ? 'wait' : 'home', ride });
 }
 
 // The town (not this one) where the player's stored goods are worth most at its own prices, if worth the trip.

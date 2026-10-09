@@ -246,6 +246,17 @@ export const WORLD = {
       lordValue: 150, // marks a band reckons a lord is worth taking (the ransom he'd fetch)
       lordOdds: 0.62, // …and for that prize a band will take on worse odds than usual
     },
+    // Nerve (step G+3): the worst odds a band will take on start at maxOdds; hunger loosens them
+    // (by `hunger` at full hunger), and so does a prize worth the gamble (`prize` × value / (value
+    // + prizeScale) marks) and, against guards, a proud leader who wants a name (pride above
+    // `proudAbove`). A beating makes them warier for a while: each outlaw killed adds
+    // `shakenPerDeath` to how shaken they are (fading by `shakenFade` a day), worth `shaken` off.
+    // After a bad beating (shaken above `overthrowAbove`), one of them may throw the leader down
+    // (`overthrow` chance): a usurper, prouder than most.
+    nerve: { hunger: 0.35, prize: 0.15, prizeScale: 400, pride: 0.18, proudAbove: 650, shaken: 0.25, shakenPerDeath: 0.25, shakenFade: 0.92, min: 0.2, max: 0.72, overthrowAbove: 0.45, overthrow: 0.35 },
+    // What's said of a band (step G+3): travellers reckon its roads worse or better by its mood,
+    // as long as the word is fresh (it fades over `memoryDays`).
+    mood: { starving: 0.6, hungry: 0.25, hungryAbove: 0.2, proud: 0.25, shaken: -0.3, gone: -0.5, memoryDays: 15 },
     ransom: { share: 0.2, min: 50, days: 6, lordGenerosity: 600, townKeepsPerHead: 15, killAbove: 650 },
     // Infamy: what a band's deeds add to its name (spread as news like a sellsword's fame).
     infamy: { robbery: 1, death: 1, captive: 3, lord: 10 },

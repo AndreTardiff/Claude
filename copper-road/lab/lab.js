@@ -11,6 +11,7 @@ import {
   balance,
   getResident,
   getBand,
+  nerveOf,
   getMerc,
   getMerchant,
   guardPower,
@@ -44,7 +45,7 @@ import { createHousesPanel } from './houses.js';
 import { createLordPanel } from './lord.js';
 import { createMercsPanel, itemButton, mercDoing } from './mercs.js';
 import { createPlayerPanel } from './player.js';
-import { esc, goodOf, money, moneyBits, pct, placeName, qty } from './format.js';
+import { bandTalk, esc, goodOf, money, moneyBits, pct, placeName, qty } from './format.js';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -595,6 +596,15 @@ function bandHtml(id) {
     <td class="num">${money(o.take)}</td><td class="num">${o.fear.toFixed(2)}</td><td class="num">${o.score.toFixed(0)}</td></tr>`).join('') : '';
   const lately = sim.state.log.filter((e) => e.type.startsWith('raid:') && e.band === b.id).slice(-5).reverse()
     .map((e) => `<li><time>${esc(sim.cal.format(e.t).stamp)}</time> ${esc(describe(e, sim))}</li>`).join('');
+  // Nerve (step G+3): the worst odds they'd take against a guarded caravan with a middling load.
+  const N = cfg.nerve;
+  const nerve = b.active ? nerveOf(sim, b, { kind: 'merchant', guards: [{}] }, 300) : null;
+  const temper = b.active ? [b.pride >= N.proudAbove ? 'a proud leader, out to make a name' : 'a careful leader', (b.shaken ?? 0) >= 0.3 ? 'shaken by a beating' : null].filter(Boolean).join('; ') : '';
+  // What the towns say of them.
+  const talk = economyIndex(sim.data).markets.map((sid) => {
+    const rec = sim.state.knowledge?.holders[`inn:${sid}`]?.[`band:${b.hideout}`];
+    return rec ? `<li>${esc(place(sid))}: ${esc(bandTalk(rec))} <span class="dim">(${esc(sourceWord[rec.source] ?? rec.source)}, ${ageWord((sim.now - rec.t) / 1440)})</span></li>` : '';
+  }).join('');
   return `
     <h3>${esc(b.name)} <span class="sub">${b.active ? `at ${esc(hideout.name)}` : 'broken up'}</span></h3>
     <p>${b.active ? `${b.members.length} outlaws${leader ? `, led by ${esc(leader.name)}` : ''}, ${cruelWord(b.cruelty)}, and ${hungerWord(b.hunger)}.` : `Gone since ${esc(sim.cal.format(b.ended).stamp)}.`}</p>
@@ -603,6 +613,7 @@ function bandHtml(id) {
       <dt>Purse</dt><dd>${moneyBits(balance(sim, `band:${b.id}`))}${cache ? ` · <span class="dim">${moneyBits(cache)} buried (only the lab knows)</span>` : ''}</dd>
       <dt>Loot</dt><dd>${loot || 'nothing waiting for the fence'} · fenced in ${esc(place(hideout.fence))}</dd>
       ${captives ? `<dt>Holding</dt><dd>${captives}</dd>` : ''}
+      ${b.active ? `<dt>Nerve</dt><dd>${esc(temper)} · against guards they'd risk a ${pct(nerve.max)} chance of being beaten off${nerve.why.length ? ` <span class="dim">(${esc(nerve.why.join(', '))})</span>` : ''}</dd>` : ''}
       <dt>Record</dt><dd>${b.raids} raids · ${b.lost} of their own dead · ${b.killed} travellers killed</dd>
       <dt>Infamy</dt><dd>${(b.infamy ?? 0).toFixed(0)}${fameWhere(b.id)}</dd>
       ${b.gear?.length ? `<dt>Arms</dt><dd>${b.gear.map((iid) => itemButton(sim, itemById(sim, iid))).join(' ')} <span class="dim">(taken from the road)</span></dd>` : ''}
@@ -612,6 +623,7 @@ function bandHtml(id) {
     ${members ? `<h4>Who they are</h4><ul class="plain">${members}</ul>` : ''}
     ${why ? `<h4>Why this road? <span class="sub">what the lookouts have seen pass lately, and the blood it cost</span></h4>
       <div class="table-wrap"><table><thead><tr><th>Road</th><th class="num">Seen passing</th><th class="num">Fear</th><th class="num">Score</th></tr></thead><tbody>${why}</tbody></table></div>` : ''}
+    ${talk ? `<h4>What the towns say of them</h4><ul class="plain">${talk}</ul>` : ''}
     ${lately ? `<h4>Lately</h4><ul class="plain">${lately}</ul>` : ''}`;
 }
 

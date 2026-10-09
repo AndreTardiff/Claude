@@ -263,6 +263,12 @@ export function describe(entry, sim) {
       const where = sim.data.raiders?.hideouts.find((h) => h.id === entry.place)?.name ?? 'the hills';
       return `${person(entry.who)} of ${place(entry.at)} turns up a buried pot near ${where}: ${formatMoney(sim, entry.bits)} of outlaws' coin.`;
     }
+    case 'raid:leader': {
+      const style = entry.proud ? ': a proud one, out to make a name' : '';
+      return entry.how === 'overthrown'
+        ? `After the beating, ${person(entry.who)} throws down ${person(entry.fallen)} and takes the lead of ${bandName(entry.band)}${style}.`
+        : `With ${person(entry.fallen)} dead, ${person(entry.who)} takes the lead of ${bandName(entry.band)}${style}.`;
+    }
     case 'raid:relocated': {
       const to = sim.data.raiders?.hideouts.find((h) => h.id === entry.to)?.name ?? 'new hills';
       return `With nothing on their roads, ${bandName(entry.band)} move to ${to}.`;
@@ -528,7 +534,17 @@ function guardsText(e, sim) {
 // The after-action report of an encounter on the road (spec §13).
 function encounterText(e, ctx) {
   const whose = e.kind === 'lord' ? "Lord Aldric's" : e.kind === 'merchant' ? `${getMerchant(ctx.sim, e.who)?.name ?? 'the house'}'s` : 'their';
-  return encounterCore(e, ctx) + orderText(e, whose);
+  return encounterCore(e, ctx) + motiveText(e) + orderText(e, whose);
+}
+
+// Why a band took on a guarded party (step G+3).
+function motiveText(e) {
+  if (!e.guards?.length || !e.nerve?.length) return '';
+  if (e.nerve.includes('desperate')) return ' Hunger had made them desperate enough to take on guards.';
+  if (e.nerve.includes('pride')) return ' Their leader wanted a name, guards or no guards.';
+  if (e.nerve.includes('prize')) return ' The load was worth the risk of the guards.';
+  if (e.nerve.includes('hungry')) return ' Hunger made them bold enough to take on guards.';
+  return '';
 }
 
 function encounterCore(e, { place, person, bandName, segRoad, amount, sim }) {
