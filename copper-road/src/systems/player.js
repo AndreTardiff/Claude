@@ -34,7 +34,7 @@ import { balance, toBits, transfer } from '../economy/money.js';
 import { residentsAt } from '../economy/people.js';
 import { finishLeg, newTrip, planJourney, reroute, startLeg } from '../world/journey.js';
 import { pathKm } from '../world/routes.js';
-import { holderOf, learn, snapshot, swapBetween, swapNews } from './knowledge.js';
+import { belief, holderOf, learn, snapshot, swapBetween, swapNews } from './knowledge.js';
 import { accountOf, activeMerchants, buyProvisions, getMerchant, sellCargo, sellable, travel } from './merchants.js';
 import { hireGuards } from './mercs.js';
 import { ordersFor } from './orders.js';
@@ -67,6 +67,7 @@ export const player = {
       couriers: {},
       factors: {}, // by town: { id, resident, at, since, honesty (hidden), sellAbove, unpaid, skimmed, sold, reports }
       mail: {}, // letters waiting at a town for the player to come and read them
+      news: { wages: 0, couriers: 0 }, // bits spent on word from elsewhere: factors' wages, couriers' fees
       porter: porter?.id ?? null,
       ledger: [],
       died: [],
@@ -300,8 +301,10 @@ function onDispatch(sim, { to, good = null, qty = 0, wagons = null, road = 'bala
     ? hireGuards(sim, m, { exposure: plan.exposure, days, wagons: qty > 0 ? need : 0, caution, account: PLAYER, tripNo: m.tripNo + 1, from })
     : hireGuards(sim, m, { want: Math.max(0, Math.min(4, guards | 0)), exposure: plan.exposure, days, wagons, caution, account: PLAYER, tripNo: m.tripNo + 1, from });
   const food = buyProvisions(sim, m, from, days, crew + hired.length);
+  // What you'd heard the far market pays (so the ledger can say if you were beaten to it).
+  const heard = qty > 0 ? belief(sim, PLAYER, to, good) : null;
   m.venture = qty > 0
-    ? { good, qty, from, to, departedAt: sim.now, bought: cost, provisions: food, tolls: 0, wages: 0, sold: 0, soldQty: 0, at: null, carried: false, dumped: false, expected: 0, believedPrice: 0, ageDays: 0, source: 'player' }
+    ? { good, qty, from, to, departedAt: sim.now, bought: cost, provisions: food, tolls: 0, wages: 0, sold: 0, soldQty: 0, at: null, carried: false, dumped: false, expected: 0, believedPrice: heard?.price ?? 0, ageDays: heard ? Math.round(heard.ageDays * 100) / 100 : 0, source: 'player' }
     : null;
   if (ride) mount(sim, m);
   sim.log('player:dispatched', { who: m.id, from, to, good, qty, wagons, guards: hired, ride, via: plan.routes, sell, then });
@@ -502,7 +505,7 @@ function onCourier(sim, { to, caravan = null, orders = null }) {
   if (!plan) return refuse(sim, 'courier', 'no road');
   const fee = toBits(sim, Math.max(cfg.min, cfg.perKm * 2 * pathKm(sim.graph, plan.path)));
   if (balance(sim, PLAYER) < fee) return refuse(sim, 'courier', 'not enough coin');
-  transfer(sim, PLAYER, `purse:${st.at}`, fee);
+  st.news.couriers += transfer(sim, PLAYER, `purse:${st.at}`, fee);
   const c = { id: nextId(st, 'k'), name: 'a courier', from: st.at, to, caravan, orders, phase: 'out', trip: null, tripNo: 1, robbed: false, delivered: false, fee, waitUntil: null };
   st.couriers[c.id] = c;
   copyKnowledge(sim, PLAYER, c.id);
@@ -558,13 +561,29 @@ function deliverOrWait(sim, c) {
     }
   }
   if (!c.delivered && c.orders && !c.robbed) sim.log('player:orders-undelivered', { id: c.id, caravan: c.caravan, at: c.to });
-  // Home, with the board of the town (fresh when they left it).
+  // Back to you, with the board of the town (fresh when they left it): wherever you are now,
+  // or wherever you're bound.
   swapNews(sim, c.id, c.to, { look: Boolean(sim.state.economy.markets[c.to]) });
   c.phase = 'back';
-  const plan = planJourney(sim, c.to, c.from, { speedKmh: sim.data.player.courier.speedKmh, caution: 0.6, holder: c.id });
+  c.home = address(sim);
+  if (c.home === c.to) return courierHome(sim, c);
+  const plan = planJourney(sim, c.to, c.home, { speedKmh: sim.data.player.courier.speedKmh, caution: 0.6, holder: c.id });
   if (!plan) return courierHome(sim, c);
-  c.trip = newTrip(sim, { tripNo: 2, from: c.to, dest: c.from, plan, speedKmh: sim.data.player.courier.speedKmh });
+  c.trip = newTrip(sim, { tripNo: 2, from: c.to, dest: c.home, plan, speedKmh: sim.data.player.courier.speedKmh });
   courierGo(sim, c);
+}
+
+/**
+ * Where your letters should go (step G+2): the town you're in, or the one you're bound for
+ * (riding with a caravan, or alone); home while you're held or bonded. If you've moved on
+ * when they arrive, they wait for you there.
+ */
+export function address(sim) {
+  const st = sim.state.player;
+  if (st.bonded) return st.home;
+  if (st.at) return st.at;
+  const m = st.with ? getMerchant(sim, st.with) : null;
+  return (!m?.captive && m?.trip?.dest) || st.home;
 }
 
 // ── Factors ─────────────────────────────────────────────────────────────────
@@ -611,7 +630,9 @@ function factorDay(sim, f) {
   if (!r) return endFactor(sim, f, 'gone');
   // Wages owed pile up; they're paid as soon as there's coin, and the factor quits only after a long wait.
   f.owed = (f.owed ?? 0) + toBits(sim, cfg.wage);
-  f.owed -= transfer(sim, PLAYER, `purse:${f.at}`, f.owed);
+  const paid = transfer(sim, PLAYER, `purse:${f.at}`, f.owed);
+  f.owed -= paid;
+  st.news.wages += paid;
   f.unpaid = f.owed > 0 ? f.unpaid + 1 : 0;
   if (f.unpaid >= cfg.quitAfter) return endFactor(sim, f, 'unpaid');
   swapNews(sim, f.id, f.at);
@@ -632,31 +653,40 @@ function factorDay(sim, f) {
   if (sim.now - f.lastReport >= cfg.reportEvery * DAY) sendReport(sim, f);
 }
 
-// A letter home: what the factor has seen and heard, carried by a courier who can be robbed.
+// A letter to you, wherever you are or are bound: what the factor has seen and heard,
+// carried by a courier who can be robbed.
 function sendReport(sim, f) {
   const st = sim.state.player;
   const cfg = sim.data.player.courier;
   f.lastReport = sim.now;
-  const plan = planJourney(sim, f.at, st.home, { speedKmh: cfg.speedKmh, caution: 0.6, holder: f.id });
+  const to = address(sim);
+  const c = { id: nextId(st, 'k'), name: 'a courier', from: to, home: to, to: f.at, caravan: null, orders: null, phase: 'back', trip: null, tripNo: 2, robbed: false, delivered: false, fee: 0, waitUntil: null, report: f.at };
+  f.reports += 1;
+  if (to === f.at) {
+    // You're in the factor's own town: the letter is handed to you.
+    st.couriers[c.id] = c;
+    copyKnowledge(sim, f.id, c.id);
+    return courierHome(sim, c);
+  }
+  const plan = planJourney(sim, f.at, to, { speedKmh: cfg.speedKmh, caution: 0.6, holder: f.id });
   if (!plan) return;
-  const c = { id: nextId(st, 'k'), name: 'a courier', from: st.home, to: f.at, caravan: null, orders: null, phase: 'back', trip: null, tripNo: 2, robbed: false, delivered: false, fee: 0, waitUntil: null, report: f.at };
   st.couriers[c.id] = c;
   copyKnowledge(sim, f.id, c.id);
-  c.trip = newTrip(sim, { tripNo: 2, from: f.at, dest: st.home, plan, speedKmh: cfg.speedKmh });
-  f.reports += 1;
+  c.trip = newTrip(sim, { tripNo: 2, from: f.at, dest: to, plan, speedKmh: cfg.speedKmh });
   courierGo(sim, c);
 }
 
 function courierHome(sim, c) {
   const st = sim.state.player;
-  // The letters wait for you at the courier's town.
+  // The letters wait for you where the courier was sent to find you.
+  const at = c.home ?? c.from;
   const pouch = holderOf(sim, c.id);
   const letters = Object.keys(pouch).sort().filter((k) => !pouch[k].road).map((k) => ({ ...pouch[k], source: pouch[k].source === 'seen' ? 'post' : pouch[k].source }));
-  (st.mail[c.from] ??= []).push(...letters);
+  (st.mail[at] ??= []).push(...letters);
   delete st.couriers[c.id];
   delete sim.state.knowledge.holders[c.id];
-  sim.log('player:courier-home', { id: c.id, at: c.from, robbed: c.robbed, delivered: c.delivered, letters: letters.length, report: c.report ?? null });
-  if (st.at === c.from) readMail(sim, c.from);
+  sim.log('player:courier-home', { id: c.id, at, robbed: c.robbed, delivered: c.delivered, letters: letters.length, report: c.report ?? null, found: st.at === at });
+  if (st.at === at) readMail(sim, at);
 }
 
 function readMail(sim, sid) {
@@ -862,7 +892,11 @@ export function playerDies(sim, cause, m = null) {
   st.name = `${given} ${st.family}`;
   st.at = st.home;
   st.with = null;
-  if (m) m.rider = false;
+  if (m) {
+    // The crew finish the trip as they were told, then bring the wagons home to the heir.
+    m.rider = false;
+    if (m.instructions && m.instructions.then !== 'dissolve') m.instructions.then = 'home';
+  }
   sim.log('player:died', { who: was, heir: st.name, cause, generation: st.generation });
   entry(sim, 'died', { who: was, heir: st.name, cause });
 }

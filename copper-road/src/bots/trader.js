@@ -17,8 +17,9 @@ import { balance, toBits, toMarks } from '../economy/money.js';
 import { estimateSale, quote, saleValue } from '../economy/pricing.js';
 import { believedCash, bestPlaceToBuy, buyingMargin, stockOnArrival, tradeCandidates } from '../systems/merchants.js';
 import { caravans, PLAYER } from '../systems/player.js';
-import { belief } from '../systems/knowledge.js';
+import { belief, heardBound, inboundBefore } from '../systems/knowledge.js';
 import { planJourney } from '../world/journey.js';
+import { pathKm } from '../world/routes.js';
 
 const idleWagons = (sim) => sim.state.player.wagons - caravans(sim).reduce((a, m) => a + m.wagons, 0);
 
@@ -69,6 +70,10 @@ function smartDay(sim, policy) {
   if (!ride && st.at !== st.home) return;
   if (!sim.state.economy.markets[here]) return;
   const waiting = caravans(sim).find((c) => !c.trip && !c.captive && c.at === here && c.wagons > 0);
+  if (policy.couriers) newsRun(sim, policy);
+  // A network of factors (step G+2): one in each market it stands in, but home, once the purse can carry the wages.
+  const wanted = policy.factors === 'all' || (Array.isArray(policy.factors) && policy.factors.includes(here));
+  if (wanted && here !== st.home && !st.factors[here] && balance(sim, PLAYER) > toBits(sim, policy.factorPurse ?? 200)) sim.command('player:hire-factor');
   // 1. A load that has just come in: sell it here, or carry it on.
   if (waiting && Object.keys(waiting.cargo).length) {
     const [gid, qty] = Object.entries(waiting.cargo)[0];
@@ -90,8 +95,10 @@ function smartDay(sim, policy) {
   }
   const wagons = wagonsHere(sim);
   if (wagons < 1) {
-    // Stranded without a wagon (having ridden out alone): home, where the wagons are.
-    if (here !== st.home && !caravans(sim).some((c) => c.trip)) sim.command('player:travel', { to: st.home, road: 'safe' });
+    // No wagon at hand: ride to one of ours waiting elsewhere, else home, where the wagons are.
+    const parked = caravans(sim).find((c) => !c.trip && !c.captive && c.at && c.at !== here && c.wagons > 0);
+    if (parked) sim.command('player:travel', { to: parked.at, road: 'safe' });
+    else if (here !== st.home && !caravans(sim).some((c) => c.trip)) sim.command('player:travel', { to: st.home, road: 'safe' });
     return;
   }
   // Hard up with a spare wagon: sell it to keep the changer paid and trade again.
@@ -144,15 +151,18 @@ function smartDay(sim, policy) {
     // looks better (the houses' own reckoning, but not to a town that had nothing for it lately),
     // else home; taking along anything in store here.
     mem.idle += 1;
+    if (here === st.home) mem.roamed = false; // home: plan afresh
     if (ride && mem.idle >= 2) {
       const day = Math.floor(sim.now / 1440);
       const wanting = mem.wanting;
       wanting[here] = day;
       const skip = Object.keys(wanting).filter((sid) => day - wanting[sid] < (policy.forget ?? 12));
       // Only on a strong promise, with coin to buy a load when it gets there, and only once
-      // between loads (a tour of empty markets eats the purse); else home, and wait there.
+      // between loads (a tour of empty markets eats the purse); else to goods of ours stored
+      // elsewhere, worth the trip; else home, and wait there.
       const target = !mem.roamed && spend >= toBits(sim, 100) ? bestPlaceToBuy(sim, { ...me, threshold: me.threshold * 3 }, { skip }) : null;
-      const to = target?.to ?? (here !== st.home ? st.home : null);
+      const stored = target ? null : storedElsewhere(sim, here);
+      const to = target?.to ?? stored ?? (here !== st.home ? st.home : null);
       if (!to) return;
       mem.idle = 0;
       mem.roamed = Boolean(target);
@@ -174,9 +184,47 @@ function smartDay(sim, policy) {
   sim.command('player:dispatch', { to: best.to, good: best.good, qty: Math.min(have, best.qty), road: policy.road ?? 'balanced', sell: ride ? 'none' : 'all', then: ride ? 'wait' : 'home', ride });
 }
 
+// The town (not this one) where the player's stored goods are worth most at its own prices, if worth the trip.
+function storedElsewhere(sim, here) {
+  const st = sim.state.player;
+  let best = null;
+  for (const [sid, goods] of Object.entries(st.stores)) {
+    if (sid === here || !sim.state.economy.markets[sid]) continue;
+    let marks = 0;
+    for (const [gid, g] of Object.entries(goods)) marks += quote(sim, sid, gid).price * g.qty;
+    if (marks >= 60 && (!best || marks > best.marks)) best = { sid, marks };
+  }
+  return best?.sid ?? null;
+}
+
+/**
+ * Fresh word for the price of a courier (step G+2): with none of its own on the road, send one
+ * to the market whose news is oldest, once that news is `courierAge` days old, if the fee is a
+ * small share of the purse. The letters come back to wherever the player is by then.
+ */
+function newsRun(sim, policy) {
+  const st = sim.state.player;
+  if (Object.values(st.couriers).some((c) => !c.report)) return;
+  let stalest = null;
+  for (const sid of Object.keys(sim.state.economy.markets)) {
+    if (sid === st.at) continue;
+    const rec = sim.state.knowledge.holders[PLAYER]?.[sid];
+    const age = rec ? (sim.now - rec.t) / 1440 : 99;
+    if (!stalest || age > stalest.age) stalest = { sid, age };
+  }
+  if (!stalest || stalest.age < (policy.courierAge ?? 4)) return;
+  const cfg = sim.data.player.courier;
+  const plan = planJourney(sim, st.at, stalest.sid, { speedKmh: cfg.speedKmh, caution: 0.6, holder: PLAYER });
+  if (!plan) return;
+  const fee = Math.max(cfg.min, cfg.perKm * 2 * pathKm(sim.graph, plan.path));
+  if (toBits(sim, fee) > balance(sim, PLAYER) * (policy.courierShare ?? 0.03)) return;
+  sim.command('player:courier', { to: stalest.sid });
+}
+
 // Where a load would fetch most (by the player's price lists), net of the road: { to, gain, perDay }.
 function bestMarket(sim, from, gid, qty, wagons) {
   const cfg = sim.data.merchants;
+  const bound = heardBound(sim, PLAYER);
   let best = null;
   for (const to of Object.keys(sim.state.economy.markets)) {
     if (to === from) continue;
@@ -184,7 +232,8 @@ function bestMarket(sim, from, gid, qty, wagons) {
     const plan = b && planJourney(sim, from, to, { speedKmh: cfg.speedKmh, caution: 0.5, holder: PLAYER });
     if (!plan) continue;
     const days = plan.hours / 24;
-    const fetch = Math.min(estimateSale(sim, to, gid, qty, stockOnArrival(sim, to, b, b.ageDays + days), b.desired), believedCash(sim, b));
+    const inbound = inboundBefore(bound, to, gid, { since: b.t, by: sim.now + (days + 0.5) * 1440 });
+    const fetch = Math.min(estimateSale(sim, to, gid, qty, stockOnArrival(sim, to, b, b.ageDays + days) + inbound, b.desired), believedCash(sim, b));
     const costs = Math.ceil(days) * wagons * cfg.crewPerWagon * (cfg.crewWage + 0.1 * quote(sim, from, 'grain').price);
     const gain = fetch * (1 - Math.min(0.5, 0.02 * (b.ageDays + days))) - costs;
     const perDay = gain / Math.max(0.5, days);
@@ -203,6 +252,9 @@ function fixedDay(sim, { good, to }) {
   const have = st.stores[st.home]?.[good]?.qty ?? 0;
   if (have >= 1) sim.command('player:dispatch', { to, good, qty: Math.min(have, cfg.wagonCapacity), sell: 'all', then: 'home' });
 }
+
+/** What the player has spent on word from elsewhere (bits): factors' wages and couriers' fees. */
+export const playerNewsCost = (sim) => (sim.state.player?.news?.wages ?? 0) + (sim.state.player?.news?.couriers ?? 0);
 
 /**
  * Trading profit (bits), counted as a house's is (profit less the overheads of empty

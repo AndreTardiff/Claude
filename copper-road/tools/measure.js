@@ -1,17 +1,20 @@
 #!/usr/bin/env node
 // Measure the world against the player (step G+, spec §20.1): many worlds, a year each.
 //
-//   node copper-road/tools/measure.js [--seeds 1-10] [--days 360] [--bot smart|none] [--set '<json>']
+//   node copper-road/tools/measure.js [--seeds 1-10] [--days 360] [--bot smart|none]
+//                                     [--policy '<json>'] [--set '<json>']
 //
-// --set deep-merges into WORLD, e.g. --set '{"merchants":{"reversion":0.04}}'.
+// --set deep-merges into WORLD, e.g. --set '{"merchants":{"reversion":0.04}}'; --policy is the
+// bot's (default {"kind":"smart"}; e.g. {"kind":"smart","factors":"all"} keeps a factor in every market).
 // Reports how well the houses guess (hoped against made, per sale), how crowded the roads
-// are, famine deaths, each character's founding houses (median profit, trades, ruins) and,
-// with the bot, AT-16's rows: the bot's trading profit and worth against the median house,
-// its wagons, what the lord "borrowed" from it and the interest it paid.
+// are, how often caravans are beaten to a market, famine deaths, each character's founding
+// houses (median profit, trades, ruins) and, with the bot, AT-16's rows: the bot's earnings
+// (trading profit less what its news cost) and worth against the median house, its wagons,
+// what the lord "borrowed" from it and the interest it paid.
 
 import { Simulation, WORLD } from '../src/index.js';
 import { booksBalance, moneySupply } from '../src/economy/money.js';
-import { botDay, playerTradeProfit } from '../src/bots/trader.js';
+import { botDay, playerNewsCost, playerTradeProfit } from '../src/bots/trader.js';
 import { netWorth } from '../src/systems/player.js';
 
 const args = process.argv.slice(2);
@@ -34,6 +37,7 @@ const merge = (a, b) => {
 const seeds = range(opt('seeds', '1-10'));
 const days = Number(opt('days', '360'));
 const bot = opt('bot', 'smart') !== 'none';
+const policy = JSON.parse(opt('policy', '{"kind":"smart"}'));
 const data = merge(structuredClone(WORLD), JSON.parse(opt('set', '{}')));
 const MARK = data.coin.bitsPerMark;
 const median = (xs) => {
@@ -47,6 +51,7 @@ let sales = 0;
 let departures = 0;
 let crowded = 0;
 let famine = 0;
+let beaten = 0;
 const kinds = {};
 const rows = [];
 for (const seed of seeds) {
@@ -55,7 +60,7 @@ for (const seed of seeds) {
   const founders = new Set(Object.keys(sim.state.merchants.byId));
   for (let d = 0; d < days; d++) {
     sim.runDays(1);
-    if (bot) botDay(sim, { kind: 'smart' });
+    if (bot) botDay(sim, policy);
   }
   if (booksBalance(sim) !== moneySupply(sim)) console.log(`seed ${seed}: THE BOOKS DO NOT BALANCE`);
   const log = sim.state.log;
@@ -69,6 +74,7 @@ for (const seed of seeds) {
       sales += 1;
     }
     if (e.type === 'resident:died' && sim.state.residents.byId[e.who]?.cause === 'famine') famine += 1;
+    if (e.type === 'merchant:beaten') beaten += 1;
   }
   const houses = Object.values(sim.state.merchants.byId).filter((m) => !m.player && founders.has(m.id));
   for (const m of houses) {
@@ -81,7 +87,8 @@ for (const seed of seeds) {
     const st = sim.state.player;
     rows.push({
       seed,
-      trade: Math.round(playerTradeProfit(sim) / MARK),
+      trade: Math.round((playerTradeProfit(sim) - playerNewsCost(sim)) / MARK),
+      news: Math.round(playerNewsCost(sim) / MARK),
       worth: Math.round((netWorth(sim) - start) / MARK),
       median: Math.round(median(houses.map((m) => (m.profit - m.overheads) / MARK))),
       wagons: st.wagons,
@@ -94,14 +101,14 @@ for (const seed of seeds) {
 
 const n = Math.max(1, sales);
 console.log(`${seeds.length} worlds × ${days} days${args.includes('--set') ? `, with ${opt('set', '')}` : ''}`);
-console.log(`Houses hoped for ${(hoped / n / MARK).toFixed(0)} marks a sale and made ${(made / n / MARK).toFixed(0)} (${sales} sales); ${departures} departures, ${((100 * crowded) / Math.max(1, departures)).toFixed(0)}% crowded (same good, same town, within 4 days); ${famine} famine deaths.`);
+console.log(`Houses hoped for ${(hoped / n / MARK).toFixed(0)} marks a sale and made ${(made / n / MARK).toFixed(0)} (${sales} sales); ${departures} departures, ${((100 * crowded) / Math.max(1, departures)).toFixed(0)}% crowded (same good, same town, within 4 days), ${beaten} beaten to a market; ${famine} famine deaths.`);
 console.log('Founding houses by character:');
 for (const [k, v] of Object.entries(kinds).sort()) {
   console.log(`  ${k.padEnd(10)} ${String(v.profit.length).padStart(3)} houses, median profit ${median(v.profit).toFixed(0).padStart(6)}, ${(v.trades.reduce((a, b) => a + b, 0) / v.trades.length).toFixed(1).padStart(5)} ventures a house, ${v.ruined} ruined`);
 }
 if (bot) {
-  console.log('The smart bot (marks): trading profit / worth gained / median house; wagons, the lord\'s "loans", interest paid, still owed');
-  for (const r of rows) console.log(`  seed ${String(r.seed).padStart(3)}: ${String(r.trade).padStart(6)} / ${String(r.worth).padStart(6)} / ${String(r.median).padStart(6)}; ${r.wagons} wagons, ${r.loans} lent, ${r.interest} interest, ${r.owed} owed`);
+  console.log(`The bot, ${JSON.stringify(policy)} (marks): earnings (trading profit less news) / worth gained / median house; news bought, wagons, the lord's "loans", interest paid, still owed`);
+  for (const r of rows) console.log(`  seed ${String(r.seed).padStart(3)}: ${String(r.trade).padStart(6)} / ${String(r.worth).padStart(6)} / ${String(r.median).padStart(6)}; ${r.news} news, ${r.wagons} wagons, ${r.loans} lent, ${r.interest} interest, ${r.owed} owed`);
   const ahead = rows.filter((r) => r.trade > r.median * 1.2).length;
   const ratio = median(rows.map((r) => r.trade / Math.max(1, r.median)));
   console.log(`AT-16: 20% ahead of the median house in ${ahead} of ${rows.length} worlds (the test asks 7 of 10); median world ${ratio.toFixed(2)}× the median house.`);

@@ -209,6 +209,10 @@ test('ride through a merciless band and you may die: your heir takes up the ledg
     assert.ok(st.debt.principal > 0, 'the debt is inherited');
     assert.equal(st.at, st.home);
     assert.ok(describe(died, sim).includes(st.name));
+    // The crew finish the trip and bring the wagons home to the heir.
+    for (let d = 13; d <= 40 && caravans(sim).length; d++) sim.advanceTo(at(d));
+    assert.equal(caravans(sim).length, 0, 'the wagons come home');
+    assert.equal(st.wagons, WORLD.player.wagons, 'still the family\'s');
     assert.equal(booksBalance(sim), moneySupply(sim));
     return;
   }

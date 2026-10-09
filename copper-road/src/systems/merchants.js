@@ -21,6 +21,11 @@
 // money; a hoarder stakes little and spends less. The bias is kept with each
 // candidate, so the inspector can say why a house chose what it did.
 //
+// A load setting out is news (step G+2): the inn it leaves from hears who is bound
+// where with what, and the word spreads. Merchants reckon with the loads they've heard
+// will reach a market before them; one that arrives to find the price fallen after
+// rivals sold there first has been beaten to it, and the chronicle says so.
+//
 // Houses rise and fall. A house spends what it holds beyond its working capital
 // on its household at home (and on new wagons); the lord "borrows" from the very
 // rich; a house that can no longer fill a wagon is ruined, and a town with
@@ -38,7 +43,7 @@ import { balance, toBits, toMarks, transfer } from '../economy/money.js';
 import { residentsAt } from '../economy/people.js';
 import { finishLeg, newTrip, planJourney, reroute, startLeg } from '../world/journey.js';
 import { pathNodes } from '../world/routes.js';
-import { belief, innOf, learn, observe, swapNews } from './knowledge.js';
+import { belief, heardBound, inboundBefore, innOf, learn, observe, swapNews } from './knowledge.js';
 import { fillOrder, knownOrder } from './lord.js';
 import { afterLeg, onLegStart } from './raiders.js';
 import { visitWaystation } from './roads.js';
@@ -58,7 +63,7 @@ export const merchants = {
     const names = rng.shuffle(GIVEN_NAMES.slice());
     // One of each character among the founding houses, in a seeded order.
     const kinds = rng.shuffle(Object.keys(cfg.characters ?? {}));
-    sim.state.merchants = { byId: {}, order: [], lastFounded: -99 };
+    sim.state.merchants = { byId: {}, order: [], lastFounded: -99, recent: [] }; // recent: sales of the last weeks, for 'beaten to it'
     for (let i = 0; i < cfg.count; i++) {
       const m = newMerchant(sim, rng, {
         given: names[i % names.length],
@@ -253,6 +258,8 @@ export function tradeCandidates(sim, m) {
   // Sellswords waiting for work here make a bolder road thinkable (step F): the risk they
   // reckon with, and the road they'd take, are judged as if guarded.
   const nerve = caution(m) * guardedCaution(sim, here);
+  // Loads they've heard are on the road, by market and good (step G+2).
+  const bound = heardBound(sim, m.id);
   const plans = new Map();
   for (const dest of ix.markets) {
     if (dest === here) continue;
@@ -281,7 +288,10 @@ export function tradeCandidates(sim, m) {
       // What the load should fetch: by the price list, aged to the day they'd
       // arrive, and no more than the town's buyers were said to have in coin.
       const age = b.ageDays + days;
-      const expectedStock = stockOnArrival(sim, dest, b, age);
+      // …and with what others are bringing that will be there first, not yet in their price
+      // list (an optimist reckons on getting there ahead of some of it).
+      const inbound = inboundBefore(bound, dest, gid, { since: b.t, by: sim.now + (days + 0.5) * DAY, not: m.id }) * (ch?.rivals ?? 1);
+      const expectedStock = stockOnArrival(sim, dest, b, age) + inbound;
       // An order from the lord they've heard of: part of the load sold at his price, paid by the treasury
       // (if rivals don't fill it first). The rest goes to the market as usual.
       const order = knownOrder(sim, here, dest, gid);
@@ -301,7 +311,7 @@ export function tradeCandidates(sim, m) {
       const profit = revenue - cost * (1 + fee) - provisions - wages - tolls - risk;
       out.push({
         good: gid, to: dest, qty, wagons, days, cost, fee: cost * fee, believedPrice: b.price, ageDays: b.ageDays, source: b.source,
-        expectedStock, believed, stale, revenue, provisions, wages, tolls, risk, profit, perDay: profit / Math.max(days, 0.5), plan, bias: bias.why,
+        expectedStock, inbound, believed, stale, revenue, provisions, wages, tolls, risk, profit, perDay: profit / Math.max(days, 0.5), plan, bias: bias.why,
       });
     }
   }
@@ -336,7 +346,7 @@ export const worthIt = (m, c) => c.perDay >= m.threshold * c.wagons;
 
 const summarise = (c) => ({
   good: c.good, to: c.to, qty: c.qty, wagons: c.wagons, days: round2(c.days), believedPrice: round2(c.believedPrice),
-  ageDays: round2(c.ageDays), source: c.source, believed: round2(c.believed), stale: round2(c.stale), revenue: round2(c.revenue), cost: round2(c.cost + c.fee),
+  ageDays: round2(c.ageDays), source: c.source, believed: round2(c.believed), inbound: round2(c.inbound ?? 0), stale: round2(c.stale), revenue: round2(c.revenue), cost: round2(c.cost + c.fee),
   costs: round2(c.provisions + c.wages + c.tolls), risk: round2(c.risk), profit: round2(c.profit), perDay: round2(c.perDay), routes: c.plan.routes,
   bias: c.bias ?? null,
 });
@@ -419,6 +429,7 @@ export function buyingMargin(sim, m, t, days, budget) {
   const cfg = sim.data.merchants;
   const ix = economyIndex(sim.data);
   const fee = sim.data.coin.marketFee;
+  const bound = heardBound(sim, m.id);
   let margin = 0;
   for (const gid of ix.goodIds) {
     const buy = belief(sim, m.id, t, gid);
@@ -432,7 +443,8 @@ export function buyingMargin(sim, m, t, days, budget) {
       if (!sell) continue;
       const age = sell.ageDays + days + 3;
       const stale = Math.min(cfg.maxStale, cfg.stalePerDay * age);
-      const fetch = Math.min(estimateSale(sim, u, gid, qty, stockOnArrival(sim, u, sell, age), sell.desired), believedCash(sim, sell));
+      const inbound = inboundBefore(bound, u, gid, { since: sell.t, by: sim.now + (days + 3) * DAY, not: m.id });
+      const fetch = Math.min(estimateSale(sim, u, gid, qty, stockOnArrival(sim, u, sell, age) + inbound, sell.desired), believedCash(sim, sell));
       margin = Math.max(margin, fetch * (1 - stale) - cost);
     }
   }
@@ -465,6 +477,18 @@ function setOut(sim, m, c) {
   travel(sim, m, c.to, c.plan, crew, guards);
 }
 
+/**
+ * A load setting out is news at the inn it leaves from (step G+2): who, what, how much,
+ * where to, and when it should be there. It spreads like any word of mouth.
+ */
+function tellBound(sim, m, dest, plan) {
+  if (!sim.state.knowledge || !m.at || !hasCargo(m)) return;
+  const [good, qty] = Object.entries(m.cargo)[0];
+  const rec = { at: `bound:${m.id}`, t: sim.now, bound: true, who: m.id, good, qty: round3(qty), from: m.at, to: dest, eta: Math.round(sim.now + plan.hours * 60), source: 'seen', confidence: 1000 };
+  learn(sim, innOf(m.at), rec);
+  learn(sim, m.id, rec);
+}
+
 // The crew eat on the road: grain bought where they set out.
 export function buyProvisions(sim, m, sid, days, crew) {
   const wanted = crew * Math.ceil(days) * 0.1;
@@ -474,6 +498,7 @@ export function buyProvisions(sim, m, sid, days, crew) {
 }
 
 export function travel(sim, m, dest, plan, crew, guards = []) {
+  tellBound(sim, m, dest, plan);
   m.idle = 0;
   m.tripNo += 1;
   m.trip = newTrip(sim, { tripNo: m.tripNo, from: m.at, dest, plan, speedKmh: m.speedKmh ?? sim.data.merchants.speedKmh });
@@ -540,6 +565,7 @@ function arrive(sim, m) {
   if (m.venture) m.venture.wages += wages;
   else m.overheads += wages;
   if (m.player) playerCaravanArrived(sim, m);
+  if (hasCargo(m) && m.venture?.to === m.at) beatenTo(sim, m);
   if (hasCargo(m) && m.instructions?.sell !== 'none') {
     if (m.player) sellForPlayer(sim, m);
     else sellCargo(sim, m);
@@ -547,6 +573,30 @@ function arrive(sim, m) {
     if (left) sim.log('merchant:unsold', { who: m.id, at: m.at, good: left[0], qty: round3(left[1]) });
   }
   sim.schedule(sim.cal.nextTravelMoment(sim.now + cfg.restHours * 60), 'merchant:decide', { id: m.id, tripNo: m.tripNo });
+}
+
+/**
+ * Arriving to find the price well below what they'd heard, after others sold the same
+ * good here since they set out: beaten to it (step G+2).
+ */
+function beatenTo(sim, m) {
+  const v = m.venture;
+  const found = quote(sim, m.at, v.good).price;
+  if (!(v.believedPrice > 0) || found >= v.believedPrice * (1 - sim.data.merchants.beatenBelow)) return;
+  const by = [];
+  for (const s of sim.state.merchants.recent ?? []) if (s.at === m.at && s.good === v.good && s.t >= v.departedAt && s.who !== m.id && !by.includes(s.who)) by.push(s.who);
+  if (!by.length) return;
+  v.beaten = by.length;
+  sim.log('merchant:beaten', { who: m.id, at: m.at, good: v.good, by, heard: round2(v.believedPrice), found: round2(found) });
+}
+
+// A sale, remembered for a few weeks (who sold what where), so a late arrival can tell who beat them to it.
+function noteSale(sim, m, sid, gid, qty) {
+  const st = sim.state.merchants;
+  if (!st.recent) st.recent = [];
+  st.recent.push({ who: m.id, at: sid, good: gid, qty: round3(qty), t: sim.now });
+  const since = sim.now - sim.data.merchants.rememberSalesDays * DAY;
+  if (st.recent[0].t < since) st.recent = st.recent.filter((x) => x.t >= since);
 }
 
 // ── Selling ─────────────────────────────────────────────────────────────────
@@ -600,6 +650,7 @@ export function sellCargo(sim, m, { dump = false } = {}) {
     if (bits > till) transfer(sim, `purse:${sid}`, buyer, bits - till);
     const paid = transfer(sim, buyer, account(m), bits);
     unload(sim, sid, gid, sell);
+    noteSale(sim, m, sid, gid, sell);
     const left = round3(qty - sell);
     if (left > 0) m.cargo[gid] = left;
     else delete m.cargo[gid];
@@ -642,7 +693,7 @@ function settle(sim, m) {
   if (profit < 0) m.losses += 1;
   const entry = {
     good: v.good, qty: v.soldQty, from: v.from, to: v.at ?? v.to, days: round2((sim.now - v.departedAt) / DAY),
-    sold: v.sold, costs, profit, expected: v.expected, ageDays: v.ageDays, source: v.source, dumped: v.dumped, lost: v.lost ?? 0, t: sim.now,
+    sold: v.sold, costs, profit, expected: v.expected, ageDays: v.ageDays, source: v.source, dumped: v.dumped, lost: v.lost ?? 0, beaten: v.beaten ?? 0, t: sim.now,
   };
   m.ledger.push(entry);
   if (m.ledger.length > 12) m.ledger.shift();

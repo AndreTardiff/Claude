@@ -17,7 +17,7 @@ Read this first when resuming in a fresh session. It's updated at every checkpoi
 | E: raiders, road news, weather, camps | done |
 | F: mercenaries, experience, encounters, standing orders, the lord's travels | done |
 | G: the player (located, trades, dispatches, letters, travels, debt) | done |
-| **G+: refine the world against the player (spec §20.1)** | **in progress: G+1 done, G+2 next** |
+| **G+: refine the world against the player (spec §20.1)** | **in progress: G+1 and G+2 done, G+3 next** |
 | H: canvas client (small slice first) | after G+ |
 
 ## Step G plan (checkpoints)
@@ -124,8 +124,37 @@ Checkpoints, each ending tests green, reference regenerated, this file updated, 
 
         A habit rarely breaks, because habits form around trades that work. The bot's worst years (seeds 8, 17, 19)
         are where G+2 should start: which trades did it lose, and to whom?
-- [ ] **G+2 News that ages.** Make fresh word clearly valuable: houses read news later and act on stale lists; arriving to
-      find the gap closed is logged ("beaten to it"). Measure: AT-18 margin, value of a courier in bot runs.
+- [x] **G+2 News that ages.** *(done: `bound:<caravan>` records and `beatenTo()` in `src/systems/merchants.js`,
+      `heardBound`/`inboundBefore` in `knowledge.js`, `address()` in `player.js`; `test/rivals-news.test.js`; spec v0.2.12 §5.5)*
+      - **Measured first:** with no rival selling the same good at the destination first, a trip made 162 and lost
+        15% of the time; with one rival, 53 and 46%; with two or more, a loss on average.
+      - **Departures are news:** the inn a load leaves from hears who, what, how much, where to and when due. It
+        spreads and is retold. Merchants count loads they've heard will arrive first, and that aren't yet in their
+        price list, as stock (optimists count half).
+      - **Beaten to it:** `merchant:beaten` names the rivals when a caravan finds the price ≥25% under what it
+        heard, after they sold there since it set out.
+      - **Letters follow you:** couriers coming back and factors' letters go to where the player is or is bound.
+      - **Factors:** 0.5 a day, a letter every other day. The player's news costs are tallied (`st.news`).
+      - **Lab:** heard-of loads on each trade's line in "Why this trade?"; "Loads on the road" and the news cost in
+        the ledger panel.
+      - **Value of information** (scratch bots, spec §5.5 table):
+        - the ceiling (fresh truth daily): +75% trading profit;
+        - all markets 2 days old: +1,360 a year; 4 days old: nothing (the inns are that stale already);
+        - one factor, or a courier habit: break-even;
+        - a factor in every market: trading profit +1,090 ± 260 and worth +390 ± 160 net (28 of 40 worlds).
+      - **Results:** crowded departures 30% → 15%, losing trips ~21% → ~16%, houses make ~165 a sale (hoping ~80),
+        ~10 beaten-to-it entries a world-year.
+      - **AT-18:** now a network of factors against none (30 worlds × 360 days); passes. AT-17 passes.
+      - **AT-16** (now the network player, earnings net of news): about level with the median house, 20% ahead in
+        about a third of the worlds. Still `todo`.
+      - **Bot and player fixes found by measuring:**
+        - a dead rider's caravan waited at the far town forever (now the crew bring it home);
+        - the bot never roamed again after an empty move ended at home;
+        - the bot forgot goods it had stored elsewhere.
+      - **Bot options:** `factors: 'all'` and `couriers: true`; `npm run measure -- --policy '<json>'`.
+      - **Where G+3 and G+4 should look:** the houses got better too (they now read departures). The player's edge
+        is information plus back-hauls; what's left is risk (G+3: bands that sometimes attack guarded caravans) and
+        rivals reacting (G+4).
 - [ ] **G+3 Bands weigh targets with more variety.** Desperation, a leader's pride, a prize worth the gamble: guarded
       caravans are sometimes attacked; signs of a band's mood travel as news. Measure: share of encounters with guards;
       orders change outcomes.

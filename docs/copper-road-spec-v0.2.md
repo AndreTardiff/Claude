@@ -1,7 +1,7 @@
 # Caravans of the Copper Road
-## Simulation Prototype Design Specification — v0.2.11
+## Simulation Prototype Design Specification — v0.2.12
 
-*v0.2.11 adds: the trading houses' characters and the first G+ measurements (§10.3, §20.1), bankruptcy as built (§4.3), and a sounder player bot (§21). v0.2.10 added: step G+ (§20.1), refining the world against the player before the client is built. v0.2.9 added: the player as built in step G (§4.3), with the first T2 findings (§21). v0.2.8 added: standing orders, fame and infamy as news, and Lord Aldric's travels, as built in step F (§12.3, §13.1, §15.2.2). v0.2.7 added: sellswords, gear that remembers, and deed-earned ranks, as built in step F (§12.1–§12.3). v0.2.6 added: raiders as built in step E (§11.1), the camps experiment (§17.2), and nights (§17.3). v0.2.5 added: Lord Aldric as an engaged character (§15.2.1), and the Crown's due as a share of his income (§8.6). v0.2.4 added: knowledge and the lord's post as built in step D1 (§5.4), merchants, caravans, the ships' coin and peddlers as built in steps D2–D3 (§10.1, §10.2). v0.2.3 added: coin and famine as built in step C (§8.6, §8.7) and map tooltips. v0.2.2 added step B's economy as built (§8.5), traveller livelihoods (§10.1), the living map from camps to towns (§17.2) and winter's rewards (§16). v0.2.1 added the player's starting situation, Lord Aldric and drifting names (§15.1, §15.2, §17.1). Supersedes v0.1 ([original document](copper-road-spec-v0.1.docx)). Status: prototype design authority. Target: a headless simulation core with a browser prototype (HTML5 canvas). Godot is a later option if we decide to go big.*
+*v0.2.12 adds: news that ages, as built in step G+2 (§5.5): departures are news, caravans are beaten to markets, letters follow you, and the value of information measured; factors on new terms, and AT-18 as a test of a network of factors (§4.3, §21). v0.2.11 added: the trading houses' characters and the first G+ measurements (§10.3, §20.1), bankruptcy as built (§4.3), and a sounder player bot (§21). v0.2.10 added: step G+ (§20.1), refining the world against the player before the client is built. v0.2.9 added: the player as built in step G (§4.3), with the first T2 findings (§21). v0.2.8 added: standing orders, fame and infamy as news, and Lord Aldric's travels, as built in step F (§12.3, §13.1, §15.2.2). v0.2.7 added: sellswords, gear that remembers, and deed-earned ranks, as built in step F (§12.1–§12.3). v0.2.6 added: raiders as built in step E (§11.1), the camps experiment (§17.2), and nights (§17.3). v0.2.5 added: Lord Aldric as an engaged character (§15.2.1), and the Crown's due as a share of his income (§8.6). v0.2.4 added: knowledge and the lord's post as built in step D1 (§5.4), merchants, caravans, the ships' coin and peddlers as built in steps D2–D3 (§10.1, §10.2). v0.2.3 added: coin and famine as built in step C (§8.6, §8.7) and map tooltips. v0.2.2 added step B's economy as built (§8.5), traveller livelihoods (§10.1), the living map from camps to towns (§17.2) and winter's rewards (§16). v0.2.1 added the player's starting situation, Lord Aldric and drifting names (§15.1, §15.2, §17.1). Supersedes v0.1 ([original document](copper-road-spec-v0.1.docx)). Status: prototype design authority. Target: a headless simulation core with a browser prototype (HTML5 canvas). Godot is a later option if we decide to go big.*
 
 > **What changed in v0.2, in one breath.** The player is now a *person in one place* who learns about the world through letters that travel at road speed. There are two theses to prove, not one: the world must be worth watching, *and* the player's choices must be hard and meaningful. The closed three-town economy is opened with seasons, an Outside port, a copper mint, and money sinks that grow with a merchant's wealth. Every citizen does economic work, and the player's home town gets full Ultima VII-style daily schedules. Raiders fence, starve, recruit and bury treasure. Caravans leave with standing orders. Style modules (place names earned by history, ledger UI, songs, the Wending Fair) are scheduled in, each tied to a prototype question.
 
@@ -68,19 +68,20 @@ The move from "I know my town" to "I manage people who know their towns" *is* th
   - send a caravan from your stores: a good, a road (fastest, balanced, safest), guards (as the danger warrants, or 0–4), standing orders (§13.1), and what to do on arrival (sell or not; then wait, come home, or store it there). You can ride with it;
   - give orders to a caravan standing where you are;
   - ride somewhere alone;
-  - send a courier with orders for a far caravan (it waits a few days for one on its way) who brings that town's board back. Couriers can be robbed and the orders lost;
+  - send a courier with orders for a far caravan (it waits a few days for one on its way) who brings that town's board back, to wherever you are by then or are bound. Couriers can be robbed and the orders lost;
   - borrow and repay (only in Kingscross, only against what you're worth);
   - buy or sell a wagon; hire or dismiss a factor.
 - **Same rules:** your caravans are merchant records run by your commands instead of the AI. They travel, sell, pay crews and tolls, hire sellswords and meet bands by the very same code. The lord's "borrowing" from the rich applies to you too.
 - **Stakes:**
   - The changer's due each season is interest (2%) plus 4% of the principal. Two missed payments and his man seizes your coin, sells off the stall, and sells any spare wagons in the yard back to the wheelwrights (a named collector). He never takes the family's last wagon: a carter's wagon is his living.
   - Nothing left and still owing: you are bonded as a factor to the richest house for 30 days. It pays 2 marks a day; the changer takes half against the debt, and you keep the rest to start again. When the bond is served, half of what's still owed is written off.
-  - Ride with a caravan that loses a fight and you may be killed (15%). Your heir, the next of the family, takes up the ledger, the stores and the debt. Or you are taken for ransom.
-- **Factors** (§4.2 stage 3): hired in person in another town for a mark a day (unpaid wages pile up; they quit after 12 days).
-  - They write home every three days by courier, and the letter can be robbed.
+  - Ride with a caravan that loses a fight and you may be killed (15%). Your heir, the next of the family, takes up the ledger, the stores and the debt, and the crew bring the wagons home after the trip. Or you are taken for ransom.
+- **Factors** (§4.2 stage 3): hired in person in another town, for half a mark a day on the side of their own trade (unpaid wages pile up; they quit after 12 days).
+  - They write every other day with the town's board and its talk, including who has left for where with what (§5.5). The letter goes by courier to wherever you are or are bound, and it can be robbed.
   - They sell your goods stored there when the price is 10% over its worth.
   - Each has a hidden honesty, and some skim.
-- **Player bots** (`src/bots/trader.js`) play by commands only. *smart* rides with its caravan and trades from wherever it stands, using the houses' own scoring on its own price lists. It also weighs what it could buy at the far end to carry on (a back-haul), which the houses don't. It sells only above cost (or carries on), sells at a loss rather than miss the changer's due, and never stakes more than two thirds of its purse. With nothing worth carrying, it moves on once to where the buying looks better, else home to wait. It grows to three wagons as a house would, then pays off the note. *fixed* carries one good down one road.
+  - What your news costs (factors' wages, couriers' fees) is kept in your ledger.
+- **Player bots** (`src/bots/trader.js`) play by commands only. *smart* rides with its caravan and trades from wherever it stands, using the houses' own scoring on its own price lists. It also weighs what it could buy at the far end to carry on (a back-haul), which the houses don't. It sells only above cost (or carries on), sells at a loss rather than miss the changer's due, and never stakes more than two thirds of its purse. With nothing worth carrying, it moves on once to where the buying looks better, or to goods of its own stored elsewhere, else home to wait. It grows to three wagons as a house would, then pays off the note. Options: keep a factor in every market it trades in (`factors`), or send couriers for news once its lists are four days old (`couriers`). *fixed* carries one good down one road.
 - **Same rules, kept honest** (step G+1): your caravans hire crew for their loaded wagons only (the empty ones are roped behind), and sellswords only for a load, as the houses do. A load that comes home keeps its cost in the stall. A command you can't give from where you are (bonded, held, on the road) is refused and does nothing.
 
 ## 5. Information system (new core system)
@@ -123,6 +124,29 @@ The UI always shows age and source: *"Grain @ Copperford: 14 — 3 days old — 
 - **Swapping news:** a traveller arriving in a town sees its market, then swaps with the inn; each side takes whatever the other knows that's fresher.
 - **The lord's post:** two riders on a fixed circuit through Kingscross (Copperford, Greenhollow and Saltmouth in turn) at 7 km/h, resting 8 hours at each stop.
 - **Result:** news of a disaster in Copperford reaches Kingscross in about 4½ days, Greenhollow in about 6, Saltmouth in 8 or more. Every town's picture of the others is always somewhat out of date, and that is what merchants trade on.
+
+### 5.5 News that ages, as built in step G+2
+Measuring the houses showed what the news was missing. When nobody else had sold the same good at the destination first, a trip made 162 marks on average and lost money one time in seven. With one rival there first, it made 53 and lost nearly half the time; with two or more, it lost money on average. Nobody could hear who else was on the road.
+- **A load setting out is news.** The inn it leaves from hears who is bound where, with how much of what, and when they should be there (a `bound:<caravan>` record). The word spreads like any other and is retold (the size of the load grows or shrinks in the telling). It usually reaches the next town after the load does, but it still tells a merchant that their price list is out of date.
+- **Merchants reckon with it.** When weighing a trade, they count as stock already in the market any load they've heard will get there before them that isn't in their price list yet. An optimist counts only half: they'll be there first. The inspector shows the loads heard of on each trade's road; the player's ledger lists the loads you've heard are on the road.
+- **Beaten to it.** A caravan that arrives to find the price a quarter or more below what it had heard, after rivals sold the same good there since it set out, has been beaten to it. The chronicle names them: *"Edric Quennell reaches Saltmouth with grain to find Lorcan Ashdown got there first: it fetches 8 marks 7 bits a sack now, not the 11 marks 7 bits they had heard."*
+- **Letters follow you.** A courier coming back, and a factor's letter, ride to the town you're in, or the one you're bound for if you're riding with a caravan. If you've moved on by the time they get there, the letters wait at that inn.
+
+**Result.** Departures that crowd onto the same good and town fell from about 30% to 15%. Losing trips fell from about one in five to one in six, and the houses now make about 165 marks a sale where they hoped for 80. About ten caravans a year are beaten to a market.
+
+**The value of information, measured** (the smart bot over a year, in 20 to 40 worlds):
+
+| What the bot is given | Trading profit a year |
+|---|---|
+| Every market as it truly is, every day (a cheat, for the ceiling) | +1,900 (+75%), ahead in 18 of 20 worlds |
+| Every market as it was 2 days ago, every day | +1,360, ahead in 16 of 20 |
+| Every market as it was 4 days ago (about as old as the inns' news already is) | +300, within the noise |
+| One market, 2 days old, every 3 days | +300 to +380, within the noise |
+| A factor in one market | about their wage: break-even |
+| Couriers whenever its news is 4 days old (about 45 a year) | about their fees: break-even |
+| A factor in every market, writing every other day | trading profit +1,090 ± 260; worth +390 ± 160 net of wages, ahead in 28 of 40 |
+
+News is worth paying for when it's fresh and covers every choice. One town's word, however fresh, rarely changes a decision; a network does. That is the progression the arc promised (§4.2): from knowing your town to managing people who know theirs. The houses rely on the inns and don't keep factors, so a network is an edge only the player can build.
 
 ## 6. Prototype scope
 
@@ -637,7 +661,7 @@ Simulation state is separate from rendering. The simulation is data-driven: good
 
 The browser page on the site grows with the project: A–G show headless charts and logs; H onward is playable.
 
-**Status (September 2026):** A to G are complete. D added knowledge records and the lord's post (§5.4), merchant houses and caravans, the ships' coin and peddlers (§10). Between D and E, Lord Aldric became an engaged character who spends his treasury (§15.2.1). E added raider bands, road news, encounters and ransom, the raiders' economy, the lord's patrols, surprise weather, camps and waystations, and news round the night's fires (§11.1, §17.2). F added sellswords, gear that remembers, and deed-earned ranks and traits (§12.1–§12.2), fame and infamy as news (§12.3), standing orders (§13.1), and Lord Aldric judging by what he hears and riding out into his lands (§15.2.2). G added the player: a stall, a debt, caravans, couriers, factors, death and heirs (§4.3); the lab has a panel to play it. G+ (§20.1) refines the world against the player before H (the canvas client). G+1, the houses' characters, is done (§10.3); G+2 (news that ages) is next.
+**Status (September 2026):** A to G are complete. D added knowledge records and the lord's post (§5.4), merchant houses and caravans, the ships' coin and peddlers (§10). Between D and E, Lord Aldric became an engaged character who spends his treasury (§15.2.1). E added raider bands, road news, encounters and ransom, the raiders' economy, the lord's patrols, surprise weather, camps and waystations, and news round the night's fires (§11.1, §17.2). F added sellswords, gear that remembers, and deed-earned ranks and traits (§12.1–§12.2), fame and infamy as news (§12.3), standing orders (§13.1), and Lord Aldric judging by what he hears and riding out into his lands (§15.2.2). G added the player: a stall, a debt, caravans, couriers, factors, death and heirs (§4.3); the lab has a panel to play it. G+ (§20.1) refines the world against the player before H (the canvas client). G+1, the houses' characters (§10.3), and G+2, news that ages (§5.5), are done; G+3 (bands that weigh their targets) is next.
 
 ### 20.1 Step G+: refine the world against the player (decided October 2026)
 **Decision (Andre and Claude):** refine the simulation before building the game screen, but refine the parts the player feels, and measure every change with the player (the bots and the lab's ledger panel), not in isolation. The first player bot showed why: steps D–F made a deep, stable world, and none of it gave a skilled player an edge (AT-16). Most of what's wrong with the game lives in the world's rules, and only the player's seat shows which rules.
@@ -667,6 +691,10 @@ The browser page on the site grows with the project: A–G show headless charts 
 
 Now the smart bot ends every one of 20 test years ahead (+850 to +2,750 marks of worth), with three wagons and the note paid. On trading profit it is a little ahead of the median house: about 1.14× in the median world, and 20% ahead in 9 of 20 worlds. AT-16 stays a measurement. Measured by net worth instead, the lord's "loans" from the rich dominate: they took 0 to 3,200 marks a year from a flush bot, which is the rubber band (§8.3) working on the player too. `npm run measure` repeats these numbers for any setting.
 
+**G+2 results (October 2026).** News that ages is built (§5.5). The measurements behind it changed the plan's premise. Information is a strong lever: perfect fresh news is worth +75% to the same player, and news two days old of every market still +50%. But it has to be fresh and cover every choice: one factor, or a habit of couriers, is worth about what it costs. So factors now work for half a mark a day, write every other day, and their letters follow you; a network of them pays (AT-18 now tests that, and passes over 30 worlds).
+- Fixed while measuring: an heir was left with no wagon when the parent died on the road (the caravan waited at the far town forever; now the crew bring it home). The bot never roamed again once a single empty move had ended at home. It also forgot goods it had stored in other towns.
+- AT-16 stays a measurement. The houses got better too: hearing who is on the road, they crowd half as much and lose less. The player with a network is about level with the median house (20% ahead in about a third of the worlds). G+3 and G+4 remain.
+
 ## 21. Acceptance tests
 **AT-01 to AT-15 are kept from v0.1** (autonomy, price response, merchant response, physical trade, disruption, competition, risk sensitivity, day cycle, persistent death, contextual experience, combat explanation, player parity, debug legibility, performance, interest test).
 
@@ -675,7 +703,7 @@ New tests:
 |---|---|---|
 | AT-16 | Skill gap | A scripted "good" player bot out-earns the median AI merchant by a meaningful margin over 1 year across 20 seeds (earnings: trading profit on both sides, since step G+1) |
 | AT-17 | No dominant strategy | No single fixed route/good policy is the best one in more than ~40% of seeds |
-| AT-18 | Information value | A player with a factor in Copperford out-earns an identical player without one, net of the factor's wage |
+| AT-18 | Information value | A player with factors in the other markets out-earns an identical player without them, net of their wages (step G+2: one factor alone is about break-even) |
 | AT-19 | Money stability | Over 5 simulated years without a player, total coin stays within bounds and no town goes permanently broke |
 | AT-20 | Rubber band | A deliberately dominant merchant's share of wealth plateaus through the levy and forced loans, with no hard cap |
 | AT-21 | Letter interception | Stolen letters measurably change a victim's decisions |

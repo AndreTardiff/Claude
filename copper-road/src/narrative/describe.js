@@ -177,6 +177,12 @@ export function describe(entry, sim) {
       return entry.good
         ? `${trader(entry.who)} takes the unsold ${lower(entry.good)} on to ${place(entry.to)}.`
         : `Finding no trade worth the road in ${place(entry.from)}, ${trader(entry.who)} moves on to ${place(entry.to)} with empty wagons.`;
+    case 'merchant:beaten': {
+      const names = entry.by.map((id) => trader(id));
+      const rivals = names.length <= 2 ? names.join(' and ') : `${names.slice(0, 2).join(', ')} and ${names.length - 2 === 1 ? 'one other' : `${names.length - 2} others`}`;
+      const unit = good(entry.good).unit;
+      return `${trader(entry.who)} reaches ${place(entry.at)} with ${lower(entry.good)} to find ${rivals} got there first: it fetches ${formatMoney(sim, toBits(sim, entry.found))} a ${unit} now, not the ${formatMoney(sim, toBits(sim, entry.heard))} they had heard.`;
+    }
     case 'merchant:habit':
       return entry.now
         ? `Stung once too often, ${trader(entry.who)} gives up carrying ${lower(entry.was.good)} to ${place(entry.was.to)}: from now on it's ${lower(entry.now.good)} for ${place(entry.now.to)}, the way it's always been done.`
@@ -399,8 +405,14 @@ export function describe(entry, sim) {
     case 'player:orders-undelivered':
       return `The courier waits in ${place(entry.at)}, but the family caravan never comes; the orders go home undelivered.`;
     case 'player:courier-home':
-      if (entry.report) return entry.robbed ? `The factor's letter from ${place(entry.report)} never arrives: the courier was robbed.` : `A letter from the family's factor in ${place(entry.report)} reaches ${place(entry.at)}.`;
-      return entry.robbed ? `The courier limps home to ${place(entry.at)}: robbed on the road, the letters gone.` : `The courier is back in ${place(entry.at)} with ${entry.letters} letter${entry.letters === 1 ? '' : 's'} of news.`;
+      if (entry.report) {
+        if (entry.robbed) return `The factor's letter from ${place(entry.report)} never arrives: the courier was robbed.`;
+        return entry.found === false ? `A letter from the family's factor in ${place(entry.report)} waits at the inn in ${place(entry.at)}.` : `A letter from the family's factor in ${place(entry.report)} reaches ${you()} in ${place(entry.at)}.`;
+      }
+      if (entry.robbed) return `The courier limps into ${place(entry.at)}: robbed on the road, the letters gone.`;
+      return entry.found === false
+        ? `The courier reaches ${place(entry.at)} with ${entry.letters} letter${entry.letters === 1 ? '' : 's'} of news, and leaves them at the inn for ${you()}.`
+        : `The courier finds ${you()} in ${place(entry.at)} with ${entry.letters} letter${entry.letters === 1 ? '' : 's'} of news.`;
     case 'player:paid':
       return `${you()} pays the money-changer ${formatMoney(sim, entry.bits)}; ${formatMoney(sim, entry.owed)} still owed.`;
     case 'player:missed':

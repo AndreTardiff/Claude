@@ -364,7 +364,7 @@ function merchantHtml(id) {
     const rows = r.candidates.map((c, i) => `
       <tr class="${i === r.choice ? 'chosen' : ''}">
         <td>${qty(c.qty)} ${esc(goodUnits(c.good))} of ${esc(goodOf(sim, c.good).name.toLowerCase())} to ${esc(place(c.to))}${i === r.choice ? ' <span class="tag">chosen</span>' : ''}${c.bias ? ` <span class="tag bias">${esc(BIAS_WORD[c.bias] ?? c.bias)}</span>` : ''}
-          <br><span class="dim">${esc(sourceWord[c.source] ?? c.source)}, ${ageWord(c.ageDays)} · ${c.days.toFixed(1)} days on the road</span></td>
+          <br><span class="dim">${esc(sourceWord[c.source] ?? c.source)}, ${ageWord(c.ageDays)} · ${c.days.toFixed(1)} days on the road${c.inbound > 0 ? ` · heard of ${qty(c.inbound)} more on the way there` : ''}</span></td>
         <td class="num">${money(c.revenue)}</td>
         <td class="num">${money(c.cost)}</td>
         <td class="num">${money(c.costs)}</td>
@@ -377,7 +377,7 @@ function merchantHtml(id) {
         <thead><tr><th>Trade</th><th class="num">Takings</th><th class="num">Buying</th><th class="num">Carrying</th><th class="num">Risk</th><th class="num">A day</th></tr></thead>
         <tbody>${rows}</tbody>
       </table></div>` : ''}
-      <p class="formula">Takings: what the load should fetch by their price list, with the market expected to recover by arrival, no more than the town was said to have in coin, less a share for old news and hearsay${m.character ? ', bent by the house\'s character (tagged)' : ''}. Worth the road at ${m.threshold} marks a day for each loaded wagon.</p>
+      <p class="formula">Takings: what the load should fetch by their price list, with the market expected to recover by arrival and to hold whatever loads they've heard will get there first, no more than the town was said to have in coin, less a share for old news and hearsay${m.character ? ', bent by the house\'s character (tagged)' : ''}. Worth the road at ${m.threshold} marks a day for each loaded wagon.</p>
       ${r.note ? `<p>${esc(r.note)}.</p>` : ''}`;
   }
 
@@ -400,7 +400,7 @@ function merchantHtml(id) {
     </table></div>`;
 
   const ledger = m.ledger.slice(-6).reverse().map((v) => `
-    <tr><td>${qty(v.qty)} ${esc(goodUnits(v.good))}, ${esc(place(v.from))} → ${esc(place(v.to))}${v.dumped ? ' <span class="dim">(let go)</span>' : ''}</td>
+    <tr><td>${qty(v.qty)} ${esc(goodUnits(v.good))}, ${esc(place(v.from))} → ${esc(place(v.to))}${v.dumped ? ' <span class="dim">(let go)</span>' : ''}${v.beaten ? ' <span class="dim">(beaten to it)</span>' : ''}</td>
       <td class="num">${moneyBits(v.sold)}</td>
       <td class="num${v.profit < 0 ? ' bad' : ''}">${moneyBits(v.profit)}</td>
       <td class="num dim">${moneyBits(v.expected)}</td></tr>`).join('');

@@ -156,6 +156,11 @@ function retell(sim, rec) {
     const wobble = 1 + (rng.float() * 2 - 0.7) * noise * 3;
     return { ...rec, profit: round2(rec.profit * wobble), source: 'rumour', confidence: Math.round(rec.confidence * sim.data.knowledge.rumourTrust) };
   }
+  if (rec.bound) {
+    // Word of a load on the road: how big it was grows or shrinks in the telling.
+    const wobble = 1 + (rng.float() * 2 - 1) * noise * 2;
+    return { ...rec, qty: Math.max(1, Math.round(rec.qty * wobble)), source: 'rumour', confidence: Math.round(rec.confidence * sim.data.knowledge.rumourTrust) };
+  }
   if (rec.road) {
     // A road story grows or shrinks in the telling.
     const wobble = 1 + (rng.float() * 2 - 1) * noise * 3;
@@ -204,6 +209,34 @@ export function swapNews(sim, traveller, sid, { letters = false, look = true } =
     if (learn(sim, traveller, rec.source === 'board' || rec.source === 'post' ? rec : retell(sim, rec))) heard++;
   }
   return { told, heard };
+}
+
+/**
+ * Loads a holder has heard are on the road (`bound:<caravan>` records, step G+2), grouped
+ * by `${town}:${good}`: who, how much, and when they should be there (`eta`).
+ */
+export function heardBound(sim, holder) {
+  const out = new Map();
+  const recs = sim.state.knowledge?.holders[holder];
+  if (!recs) return out;
+  for (const key of Object.keys(recs)) {
+    if (!key.startsWith('bound:')) continue;
+    const r = recs[key];
+    const k = `${r.to}:${r.good}`;
+    if (!out.has(k)) out.set(k, []);
+    out.get(k).push(r);
+  }
+  return out;
+}
+
+/**
+ * How much of a good a holder expects to reach a market before they do and after their price
+ * list of it was taken (so not yet in it): the loads they've heard are bound there, but their own.
+ */
+export function inboundBefore(bound, sid, gid, { since, by, not = null }) {
+  let qty = 0;
+  for (const r of bound.get(`${sid}:${gid}`) ?? []) if (r.who !== not && r.eta > since && r.eta <= by) qty += r.qty;
+  return qty;
 }
 
 /**

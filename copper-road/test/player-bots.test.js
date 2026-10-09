@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Simulation } from '../src/sim/simulation.js';
-import { botDay, playerTradeProfit } from '../src/bots/trader.js';
+import { botDay, playerNewsCost, playerTradeProfit } from '../src/bots/trader.js';
 import { netWorth } from '../src/systems/player.js';
 import { booksBalance, moneySupply } from '../src/economy/money.js';
 
@@ -18,19 +18,20 @@ function play(seed, days, policy, setup = null) {
     sim.runDays(1);
     botDay(sim, policy);
   }
-  return { sim, gain: (netWorth(sim) - start) / MARK, trade: playerTradeProfit(sim) / MARK, starters };
+  return { sim, gain: (netWorth(sim) - start) / MARK, trade: (playerTradeProfit(sim) - playerNewsCost(sim)) / MARK, starters };
 }
 
 // AT-16 (skill gap): a good player bot should out-earn the median AI merchant by a meaningful margin.
 // Earnings are trading profit on both sides (ventures and sales over cost, less empty-wagon
-// overheads), not net worth, which the debt, the ransoms and the lord's "loans" from the rich
-// swing far more than skill does. After step G+1 the bot is sound (it ends every year ahead,
-// with three wagons and the note paid) and a little ahead of the median house, 20% ahead in
-// roughly half the worlds (docs/HANDOFF.md). Kept as a measurement until G+2..G+4.
-test('AT-16: a smart player bot against the median trading house, over a year', { todo: 'a little ahead of the median house, not yet by a meaningful margin' }, () => {
+// overheads), the player's net of what its news cost (factors' wages, couriers), and not net worth,
+// which the debt, ransoms and the lord's "loans" from the rich swing far more than skill does.
+// The good player keeps a factor in every market it trades in (step G+2: a network is the news worth
+// paying for). After G+2 it is about level with the median house, which now reads departures as news
+// and crowds less; 20% ahead in about a third of the worlds (docs/HANDOFF.md). Kept as a measurement.
+test('AT-16: a smart player bot against the median trading house, over a year', { todo: 'about level with the median house, not yet a meaningful margin ahead' }, () => {
   const rows = [];
   for (const seed of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) {
-    const { sim, gain, trade, starters } = play(seed, 360, { kind: 'smart' });
+    const { sim, gain, trade, starters } = play(seed, 360, { kind: 'smart', factors: 'all' });
     const ai = Object.values(sim.state.merchants.byId).filter((m) => !m.player && starters.has(m.id)).map((m) => (m.profit - m.overheads) / MARK).sort((a, b) => a - b);
     rows.push({ seed, bot: Math.round(trade), worth: Math.round(gain), median: Math.round(ai[Math.floor(ai.length / 2)]) });
     assert.equal(booksBalance(sim), moneySupply(sim));
@@ -57,24 +58,26 @@ test('AT-17: no single fixed route and good is the best policy in more than ~40%
   assert.ok(Math.max(...wins) <= Math.ceil(seeds.length * 0.4), `wins per policy: ${wins.join(' ')}`);
 });
 
-test('AT-18: a factor in Copperford pays for himself (net of his wage), across worlds', () => {
-  // Both players ride to Copperford on the first day; one hires a factor there. Then the same bot plays both.
-  const setup = (hire) => (sim) => {
-    sim.runDays(1);
-    sim.command('player:travel', { to: 'copperford', road: 'safe' });
-    for (let d = 0; d < 6 && sim.state.player.at !== 'copperford'; d++) sim.runDays(1);
-    if (hire) sim.command('player:hire-factor');
-  };
-  let withFactor = 0;
+test('AT-18: a network of factors pays for itself (net of their wages), across worlds', () => {
+  // The same smart bot in the same worlds: one keeps a factor in every market it trades in (but
+  // home), writing every other day to wherever it is; the other has only the inns. A single
+  // factor's letters are worth about their wage (lost in the noise of a year); a network's are
+  // worth far more, because only then can every choice be weighed on fresh word (step G+2).
+  const seeds = Array.from({ length: 30 }, (_, i) => i + 1);
+  let withNet = 0;
   let without = 0;
-  let reports = 0;
-  for (const seed of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) {
-    const a = play(seed, 200, { kind: 'smart' }, setup(true));
-    const b = play(seed, 200, { kind: 'smart' }, setup(false));
-    withFactor += a.gain;
+  let ahead = 0;
+  let letters = 0;
+  for (const seed of seeds) {
+    const a = play(seed, 360, { kind: 'smart', factors: 'all' });
+    const b = play(seed, 360, { kind: 'smart' });
+    withNet += a.gain;
     without += b.gain;
-    reports += a.sim.state.log.filter((e) => e.type === 'player:courier-home' && e.report).length;
+    if (a.gain > b.gain) ahead += 1;
+    letters += a.sim.state.log.filter((e) => e.type === 'player:courier-home' && e.report && !e.robbed).length;
+    assert.equal(booksBalance(a.sim), moneySupply(a.sim));
   }
-  assert.ok(reports >= 100, `the factor wrote home (${reports} letters arrived)`);
-  assert.ok(withFactor > without, `with a factor ${withFactor.toFixed(0)} marks, without ${without.toFixed(0)}`);
+  assert.ok(letters >= seeds.length * 100, `the factors wrote (${letters} letters arrived)`);
+  assert.ok(withNet > without, `with factors ${withNet.toFixed(0)} marks, without ${without.toFixed(0)}`);
+  assert.ok(ahead > seeds.length / 2, `the network paid in ${ahead} of ${seeds.length} worlds`);
 });

@@ -176,6 +176,11 @@ export function createPlayerPanel(root, { getSim, onChange, onSelectMerc }) {
       const age = (sim.now - rec.t) / 1440;
       return `<tr><td>${esc(place(sid))}</td><td>${esc(sourceWord[rec.source] ?? rec.source)}, ${ageWord(age)}</td><td class="num">${money(rec.goods[g]?.price ?? NaN)}</td><td class="num dim">${money(quote(sim, sid, g).price)}</td></tr>`;
     }).join('');
+    // Loads you've heard of, on the road or lately arrived (step G+2): word of rivals. News of a
+    // departure often arrives after the load does, and still tells you your price list is out of date.
+    const mine = new Set(st.caravans);
+    const onRoad = Object.values(sim.state.knowledge?.holders.player ?? {}).filter((r) => r.bound && r.eta > sim.now - 5 * 1440).sort((a, b) => b.eta - a.eta || (a.who < b.who ? -1 : 1));
+    const bound = onRoad.map((r) => `<li>${mine.has(r.who) ? '<span class="tag">yours</span> ' : ''}${esc(sim.state.merchants.byId[r.who]?.name ?? r.who)}: ${qty(r.qty)} ${esc(goodOf(sim, r.good).units)}${goodOf(sim, r.good).units.toLowerCase() === goodOf(sim, r.good).name.toLowerCase() ? '' : ` of ${esc(goodOf(sim, r.good).name.toLowerCase())}`}, ${esc(place(r.from))} → <strong>${esc(place(r.to))}</strong>, ${r.eta > sim.now ? `due ${esc(sim.cal.format(r.eta).stamp)}` : `should be there by now (${esc(sim.cal.format(r.eta).stamp)})`} <span class="dim">(${esc(sourceWord[r.source] ?? r.source)}, word ${ageWord((sim.now - r.t) / 1440)})</span></li>`).join('');
     const factors = Object.values(st.factors).map((fc) => `<li>${esc(sim.state.residents.byId[fc.resident]?.name ?? fc.resident)} in ${esc(place(fc.at))}: ${fc.reports} letters sent, ${moneyBits(fc.sold)} of your goods sold${fc.skimmed ? ` <span class="dim">(and ${moneyBits(fc.skimmed)} skimmed: only the lab knows)</span>` : ''} <button type="button" data-act="dismiss" data-at="${esc(fc.at)}">Dismiss</button></li>`).join('');
     const ledger = sim.state.log.filter((e) => e.type.startsWith('player:') && e.type !== 'player:refused' || (e.type === 'raid:encounter' && e.player)).slice(-8).reverse()
       .map((e) => `<li><time>${esc(sim.cal.format(e.t).stamp)}</time> ${esc(describe(e, sim))}</li>`).join('');
@@ -186,11 +191,13 @@ export function createPlayerPanel(root, { getSim, onChange, onSelectMerc }) {
         <dt>Owed</dt><dd>${moneyBits(d.principal)} to ${esc(sim.data.player.changer.name)} · about ${moneyBits(due)} due at the season's turn${d.missed ? ` · <span class="bad">${d.missed} payment${d.missed === 1 ? '' : 's'} missed</span>` : ''}${d.collector ? ` · his man ${esc(d.collector)} knows your face` : ''}</dd>
         <dt>Worth</dt><dd>${moneyBits(netWorth(sim))} <span class="dim">(coin, goods at 80% of local price, wagons at half, less the debt)</span></dd>
         <dt>Wagons</dt><dd>${st.wagons}</dd>
+        ${st.news && (st.news.wages || st.news.couriers) ? `<dt>News</dt><dd>${moneyBits(st.news.wages + st.news.couriers)} spent on word from elsewhere <span class="dim">(${moneyBits(st.news.wages)} factors' wages, ${moneyBits(st.news.couriers)} couriers)</span></dd>` : ''}
       </dl>
       ${cars ? `<h4>Your caravans</h4><ul class="plain">${cars}</ul>` : ''}
       ${stores ? `<h4>Your stores</h4><div class="table-wrap"><table><thead><tr><th>Where</th><th>Good</th><th class="num">Qty</th><th class="num">Cost each</th></tr></thead><tbody>${stores}</tbody></table></div>` : ''}
       <h4>What you know <span class="sub">${esc(goodOf(sim, g).name.toLowerCase())}, by your price lists (the truth in grey, for the lab)</span></h4>
       <div class="table-wrap"><table><thead><tr><th>Market</th><th>Word</th><th class="num">You think</th><th class="num">Truly</th></tr></thead><tbody>${known}</tbody></table></div>
+      ${bound ? `<h4>Loads on the road, by what you've heard</h4><ul class="plain">${bound}</ul>` : ''}
       ${factors ? `<h4>Your factors</h4><ul class="plain">${factors}</ul>` : ''}
       ${ledger ? `<h4>Your ledger, lately</h4><ul class="plain">${ledger}</ul>` : ''}`;
     if (html === last) return;

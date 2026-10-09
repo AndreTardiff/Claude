@@ -150,6 +150,8 @@ export const WORLD = {
     foundPurseAbove: 20, // marks per head a town must hold beyond that capital to back a new house
     forcedLoanAbove: 1000, // marks: the lord starts "borrowing" from a house this rich…
     forcedLoanShare: 0.2, // …this share of the excess, each season
+    beatenBelow: 0.25, // arriving to find the price this far under what they'd heard, after rivals sold there: beaten to it
+    rememberSalesDays: 30, // how long the region remembers who sold what where
     // Characters (step G+1, spec §20.1): each house has one, and it bends how they weigh a
     // trade and how they read the news. Public knowledge: everyone on the road knows the
     // Vells are creatures of habit. `revenue` scales what they expect a load to fetch;
@@ -164,7 +166,7 @@ export const WORLD = {
         changeAfter: 2, // trips on the usual trade that sting, running, before they give it up for whatever paid best…
         stungBelow: 0.5, // …a sting being a loss, or a profit under this share of what they hoped
       },
-      optimist: { name: 'optimist', revenue: 1.15, risk: 0.6, trust: 0.85, threshold: 0.8, expandAt: 1.5 },
+      optimist: { name: 'optimist', revenue: 1.15, risk: 0.6, trust: 0.85, threshold: 0.8, expandAt: 1.5, rivals: 0.5 }, // rivals: counts half the loads it hears are ahead of it
       pessimist: { name: 'pessimist', revenue: 0.9, risk: 1.3, stale: 1.4, skeptic: true, threshold: 0.85 }, // small, sure profits
       follower: {
         name: 'follower',
